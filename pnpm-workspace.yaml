@@ -1,5 +1,10 @@
 allowBuilds:
   lefthook: true
 
+# Platform packages are published by this repository's release workflow and
+# must be installable immediately after they appear on the registry.
+minimumReleaseAgeExclude:
+  - '@pingora/binding-*'
+
 # Dependencies are installed explicitly; `pnpm run` should not re-verify them.
 verifyDepsBeforeRun: false

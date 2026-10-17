@@ -172,6 +172,19 @@ importers:
       lefthook:
         specifier: ^2.2.2
         version: 2.2.2
+    optionalDependencies:
+      '@pingora/binding-darwin-arm64':
+        specifier: 0.0.1
+        version: 0.0.1
+      '@pingora/binding-darwin-x64':
+        specifier: 0.0.1
+        version: 0.0.1
+      '@pingora/binding-linux-arm64-gnu':
+        specifier: 0.0.1
+        version: 0.0.1
+      '@pingora/binding-linux-x64-gnu':
+        specifier: 0.0.1
+        version: 0.0.1
 
 packages:
 
@@ -744,6 +757,32 @@ packages:
 
   '@octokit/types@18.0.0':
     resolution: {integrity: sha512-l6bAF43PNxkJp6g+W4PjoUSSkxHomXw2nOum5CTftJz1NlV3vu93NImgOYtLf6CbBUb5j+fiuzW0PPQ5JTSvZA==}
+
+  '@pingora/binding-darwin-arm64@0.0.1':
+    resolution: {integrity: sha512-DMZpJsALi1dMNqLNChMEt5tUNycv4dB7zZLCzNq19itYcmNbdL57UoluwAvfVRV7l+Bk2YTOPa8oD8LMhlbp1A==}
+    engines: {node: '>=10.16.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pingora/binding-darwin-x64@0.0.1':
+    resolution: {integrity: sha512-T3EPzxxutMhDlHRAhj0/kH47+yFixTDRV+DR8y2KYHxqV145AYlz/XQcRoYpArqi02Jl0tlrzN20QHctM0IWrg==}
+    engines: {node: '>=10.16.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pingora/binding-linux-arm64-gnu@0.0.1':
+    resolution: {integrity: sha512-8aPLZBvXqODZ/mmOq+tCi6fL97xPDTCvYfLwcz+8UKPKCdWt+183yrlMXFZ7mYzJboDDhvMEbTa4CeObAEVizg==}
+    engines: {node: '>=10.16.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pingora/binding-linux-x64-gnu@0.0.1':
+    resolution: {integrity: sha512-emj80pn7eoAcAitRgHqtFSZEElTMMNPYUxNAQqw2eshQ0lvHUJOw9Y+iyZW98TTuF9ysZJk1uRcOJVX/Mm8qGg==}
+    engines: {node: '>=10.16.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
 
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
@@ -1352,6 +1391,18 @@ snapshots:
   '@octokit/types@18.0.0':
     dependencies:
       '@octokit/openapi-types': 29.0.1
+
+  '@pingora/binding-darwin-arm64@0.0.1':
+    optional: true
+
+  '@pingora/binding-darwin-x64@0.0.1':
+    optional: true
+
+  '@pingora/binding-linux-arm64-gnu@0.0.1':
+    optional: true
+
+  '@pingora/binding-linux-x64-gnu@0.0.1':
+    optional: true
 
   '@tybys/wasm-util@0.10.4':
     dependencies:
