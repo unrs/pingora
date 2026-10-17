@@ -28,7 +28,7 @@ server-side framework can share the same Pingora integration later.
 
 ## Requirements
 
-- **Runtime:** Node.js 18.17+ (N-API 9)
+- **Runtime:** Node.js 12.22+ (N-API 4; ESM loader)
 - **Building from source:** Node.js 20.17+ for the napi-rs CLI, pnpm 12+, and
   [just](https://github.com/casey/just)
 - Rust stable and a C toolchain (source builds only; prebuilt binaries are

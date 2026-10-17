@@ -502,10 +502,10 @@ localhost.
 
 ## 9. Distribution and compatibility
 
-- **Runtime compatibility floor:** Node.js 18.17+ (N-API 9). This floor is
-  separate from the supported Node.js release lines. Building from source needs
-  Node.js 20.17+ for the napi-rs CLI. The supported release lines and M5 CI
-  matrix must follow the support policy.
+- **Runtime compatibility floor:** Node.js 12.22+ (N-API 4; ESM loader). This
+  floor is separate from the supported Node.js release lines. Building from
+  source needs Node.js 20.17+ for the napi-rs CLI. The supported release lines
+  and M5 CI matrix must follow the support policy.
 - **Package names:** `pingora` for the main entry point and
   `@pingora/binding-<platform>` for the native binaries. The scope and all
   package names are reserved before the first real release.

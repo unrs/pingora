@@ -31,7 +31,7 @@
     "rust"
   ],
   "engines": {
-    "node": ">=18.17.0"
+    "node": ">=12.22.0"
   },
   "napi": {
     "binaryName": "pingora",
