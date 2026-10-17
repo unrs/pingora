@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
-import { test } from 'node:test'
+import { onTestFinished, test } from 'vitest'
 
 import { Server } from '../index.js'
 
@@ -80,12 +80,12 @@ async function createProxy(options = {}) {
   return { server, port, stop: () => server.stop() }
 }
 
-test('proxies requests, applies headers, and reports metrics', async (t) => {
+test('proxies requests, applies headers, and reports metrics', async () => {
   const upstream = await startUpstream((req, res) => {
     res.setHeader('x-upstream', 'yes')
     res.end(`upstream:${req.headers['x-route'] ?? ''}:${req.url}`)
   })
-  t.after(() => upstream.close())
+  onTestFinished(() => upstream.close())
 
   const proxy = await createProxy({
     routes: [
@@ -100,7 +100,7 @@ test('proxies requests, applies headers, and reports metrics', async (t) => {
       },
     ],
   })
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/api/hello?q=1`)
   assert.equal(response.status, 200)
@@ -116,11 +116,11 @@ test('proxies requests, applies headers, and reports metrics', async (t) => {
   assert.equal(metrics.upstreamErrors, 0)
 })
 
-test('returns 404 for unmatched routes', async (t) => {
+test('returns 404 for unmatched routes', async () => {
   const proxy = await createProxy({
     routes: [{ path: '/known', upstreams: ['127.0.0.1:1'] }],
   })
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/missing`)
   assert.equal(response.status, 404)
@@ -131,11 +131,11 @@ test('returns 404 for unmatched routes', async (t) => {
   )
 })
 
-test('round-robins across upstreams', async (t) => {
+test('round-robins across upstreams', async () => {
   const first = await startUpstream((_req, res) => res.end('first'))
   const second = await startUpstream((_req, res) => res.end('second'))
-  t.after(() => first.close())
-  t.after(() => second.close())
+  onTestFinished(() => first.close())
+  onTestFinished(() => second.close())
 
   const proxy = await createProxy({
     routes: [
@@ -146,7 +146,7 @@ test('round-robins across upstreams', async (t) => {
       },
     ],
   })
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
   const bodies = []
@@ -158,9 +158,9 @@ test('round-robins across upstreams', async (t) => {
   assert.equal(bodies.filter((body) => body === 'second').length, 2)
 })
 
-test('matches host, path, method, and headers', async (t) => {
+test('matches host, path, method, and headers', async () => {
   const upstream = await startUpstream((_req, res) => res.end('matched'))
-  t.after(() => upstream.close())
+  onTestFinished(() => upstream.close())
 
   const proxy = await createProxy({
     routes: [
@@ -173,7 +173,7 @@ test('matches host, path, method, and headers', async (t) => {
       },
     ],
   })
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/exact`, {
     method: 'POST',
@@ -206,12 +206,12 @@ test('matches host, path, method, and headers', async (t) => {
   assert.equal(missingHeader.status, 404)
 })
 
-test('supports hot route updates', async (t) => {
+test('supports hot route updates', async () => {
   const upstream = await startUpstream((_req, res) => res.end('hot'))
-  t.after(() => upstream.close())
+  onTestFinished(() => upstream.close())
 
   const proxy = await createProxy()
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
 
@@ -239,12 +239,12 @@ test('supports hot route updates', async (t) => {
   assert.equal(proxy.server.removeRoute('hot'), false)
 })
 
-test('returns 502 when the upstream is unavailable', async (t) => {
+test('returns 502 when the upstream is unavailable', async () => {
   const unavailablePort = await freePort()
   const proxy = await createProxy({
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${unavailablePort}`] }],
   })
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/down`)
   assert.equal(response.status, 502)
@@ -257,17 +257,17 @@ test('returns 502 when the upstream is unavailable', async (t) => {
   assert.equal(metrics.active, 0)
 })
 
-test('rejects invalid routes and double start', async (t) => {
+test('rejects invalid routes and double start', async () => {
   const proxy = await createProxy()
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   assert.throws(() => proxy.server.addRoute({ upstreams: [] }), /at least one upstream/)
   assert.throws(() => proxy.server.start(), /already been started/)
 })
 
-test('stops idempotently and releases the port', async (t) => {
+test('stops idempotently and releases the port', async () => {
   const upstream = await startUpstream((_req, res) => res.end('bye'))
-  t.after(() => upstream.close())
+  onTestFinished(() => upstream.close())
 
   const proxy = await createProxy({
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
@@ -288,9 +288,9 @@ test('reports invalid listeners on start', async () => {
   assert.throws(() => server.start(), /invalid listener address/)
 })
 
-test('enforces a single server per process', async (t) => {
+test('enforces a single server per process', async () => {
   const proxy = await createProxy()
-  t.after(() => proxy.stop())
+  onTestFinished(() => proxy.stop())
 
   const other = new Server({ listeners: [`127.0.0.1:${await freePort()}`] })
   assert.throws(() => other.start(), /another pingora server/)

@@ -19,10 +19,14 @@ build-debug:
 test-rust:
     cargo test
 
-# Run the Node.js integration tests (builds the debug binding first) and Rust tests.
+# Run the Vitest integration tests (builds the debug binding first) and Rust tests.
 test:
     pnpm test
     cargo test
+
+# Build the release binding and run the Vitest HTTP benchmarks.
+bench:
+    pnpm bench
 
 # Format Rust sources.
 fmt:

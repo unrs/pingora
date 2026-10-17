@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
-import { test } from 'node:test'
+import { test } from 'vitest'
 
 import { __napiBindingTarget, version } from '../index.js'
 

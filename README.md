@@ -107,6 +107,32 @@ upstream connection failure receives `502`.
 Upstream TLS is verified by default. Unix sockets and listener TLS are not
 implemented yet.
 
+## Benchmarks
+
+`just bench` builds the release binding and runs Vitest HTTP benchmarks through
+a local Node.js upstream. The same upstream is used for direct requests,
+[`pingora`](https://www.npmjs.com/package/pingora),
+[`http-proxy`](https://github.com/http-party/node-http-proxy), and
+[`http-proxy-middleware`](https://github.com/chimurai/http-proxy-middleware).
+
+```sh
+just bench
+```
+
+The suite measures single-request throughput and batches of 20 concurrent
+requests with keep-alive connections. Sample results from a local Linux x64
+machine (Node 24, Pingora with 2 worker threads, no CPU isolation):
+
+| Implementation           | 1 request (req/s) | 20 concurrent (req/s) |
+| ------------------------ | ----------------: | --------------------: |
+| direct upstream          |             7,232 |                10,547 |
+| `pingora`                |             3,897 |                 6,118 |
+| `http-proxy`             |             3,050 |                 3,276 |
+| `http-proxy-middleware`  |             2,448 |                 3,201 |
+
+These numbers are indicative only; run the suite on the target machine before
+drawing conclusions.
+
 ## Requirements
 
 - **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)

@@ -434,8 +434,9 @@ macOS.
 - [ ] Per-route metrics and a Prometheus-compatible endpoint.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
 - [ ] Config file loader (JSON/TOML) with validation and a JSON Schema.
-- [ ] Benchmark harness (autocannon/wrk) against a direct upstream and nginx;
-      publish baseline numbers and a regression threshold.
+- [x] Initial Vitest HTTP benchmark suite against a direct upstream,
+      `http-proxy`, and `http-proxy-middleware`; nginx comparison, published
+      regression thresholds, and a CI perf gate remain.
 - [ ] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
 - [ ] Soak test: sustained traffic, route churn, handler churn, repeated
