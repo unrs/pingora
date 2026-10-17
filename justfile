@@ -51,4 +51,5 @@ version v:
 
 # Publish the platform packages (skips versions that already exist).
 publish-platforms:
+    pnpm exec napi create-npm-dirs
     node scripts/publish-platforms.mjs

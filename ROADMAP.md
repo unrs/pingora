@@ -561,6 +561,9 @@ the maintainer can override any of them.
 
 - **Package manager:** pnpm. `pnpm-lock.yaml` is committed and CI installs with
   `--frozen-lockfile`.
+- **Generated platform packages:** `npm/` is produced by `napi create-npm-dirs`
+  at release time and is git-ignored; only the root `optionalDependencies` are
+  tracked.
 - **Tasks:** [just](https://github.com/casey/just). `just check` is the local
   gate; CI runs the underlying pnpm/cargo commands directly.
 - **Git hooks:** lefthook. Pre-commit runs `cargo fmt` and clippy for Rust

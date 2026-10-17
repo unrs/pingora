@@ -31,12 +31,14 @@ placeholder for each platform package so the names exist:
 
 ```sh
 pnpm login
+pnpm exec napi create-npm-dirs
 
 for dir in npm/*; do
   pnpm --dir "$dir" publish --access public --no-git-checks
 done
 ```
 
+`npm/` is generated (and git-ignored); it is recreated by the release workflow.
 The root `pingora` package is already reserved. Placeholder packages do not
 contain a compiled addon; they only reserve the name. Do not install them as a
 working binding.
