@@ -3,28 +3,109 @@
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 
-> **Status: 0.0.0 scaffold.** The native loader, platform packages, and the
-> OIDC-based release pipeline are in place. The proxy API is the next milestone;
-> see [ROADMAP.md](./ROADMAP.md).
+> **Status: core reverse proxy (M1).** Static routes, host/path/method/header
+> matching, load balancing, header mutation, metrics, and graceful lifecycle are
+> implemented. TLS and the programmable JS request handler are next; see
+> [ROADMAP.md](./ROADMAP.md).
 
-## Package family
+## Install
 
-| Package                | Purpose                                                   | Status      |
-| ---------------------- | --------------------------------------------------------- | ----------- |
-| `pingora`              | Main entry point and reverse-proxy API                    | Scaffolding |
-| `@pingora/binding-*`   | Prebuilt platform binaries for the native addon           | Scaffolding |
-| `@pingora/http-server` | Programmable HTTP server framework built on the same core | Planned     |
+```sh
+npm install pingora
+# or: pnpm add pingora
+```
 
-The first release focuses on a reverse proxy. The binding is designed so that a
-server-side framework can share the same Pingora integration later.
+## Quick start
 
-## Planned capabilities
+```js
+import { Server } from 'pingora'
 
-- Route matching, load balancing, and proxying run in Rust on Pingora.
-- Routes can be added, replaced, and removed at runtime.
-- An optional async JavaScript handler can gate requests, rewrite headers,
-  choose an upstream, or return a synthetic response.
-- `start()` is non-blocking and `await server.stop()` shuts down gracefully.
+const server = new Server({
+  listeners: ['127.0.0.1:8080'],
+  routes: [
+    {
+      id: 'app',
+      pathPrefix: '/',
+      upstreams: ['127.0.0.1:3000'],
+      requestHeaders: { 'x-proxied-by': 'pingora' },
+    },
+  ],
+})
+
+server.start()
+console.log(server.status()) // { state: 'running', listeners: [...], routes: 1 }
+
+process.on('SIGTERM', async () => {
+  await server.stop()
+})
+```
+
+A runnable version is in [examples/basic-proxy.mjs](./examples/basic-proxy.mjs).
+
+## API
+
+### `new Server(options?)`
+
+| Option                       | Type       | Description                                              |
+| ---------------------------- | ---------- | -------------------------------------------------------- |
+| `listeners`                  | `string[]` | `host:port` listeners. Defaults to `127.0.0.1:8080`.      |
+| `routes`                     | `Route[]`  | Initial routes. More can be added at runtime.            |
+| `threads`                    | `number`   | Worker threads for the proxy service. Defaults to `1`.   |
+| `gracePeriodMs`              | `number`   | Grace period before runtime shutdown. Defaults to `0`.   |
+| `shutdownTimeoutMs`          | `number`   | Runtime shutdown timeout. Defaults to `5000`.            |
+| `upstreamKeepalivePoolSize`  | `number`   | Upstream connection pool size. Defaults to `128`.        |
+| `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
+
+Invalid options are reported by `start()` and in `status().error`.
+
+### Server methods
+
+- `start(): void` — starts the proxy on a dedicated thread. Throws if the server
+  was already started or another Pingora server is running in the process.
+- `stop(): Promise<void>` — signals a graceful shutdown and resolves after the
+  server thread exits. Safe to call more than once.
+- `status(): ServerStatus` — `{ state, error?, listeners, routes }`.
+- `metrics(): ServerMetrics` — request/active/error/status-class counters and
+  uptime.
+- `addRoute(route): string` — adds or replaces a route by id and returns the id.
+- `removeRoute(id): boolean` — removes a route, returning whether it existed.
+
+`state` is one of `idle`, `starting`, `running`, `stopping`, `stopped`, or
+`failed`.
+
+### Route
+
+```ts
+interface Route {
+  id?: string
+  host?: string | string[] // exact, "*.example.com", or "*"
+  path?: string // exact path
+  pathPrefix?: string
+  methods?: string[]
+  matchHeaders?: Record<string, string>
+  upstreams: Array<string | Upstream>
+  strategy?: 'round_robin' | 'random' | 'first'
+  requestHeaders?: Record<string, string>
+  removeRequestHeaders?: string[]
+  responseHeaders?: Record<string, string>
+  removeResponseHeaders?: string[]
+  timeoutMs?: number
+}
+
+interface Upstream {
+  address: string // host:port, http://..., or https://...
+  tls?: boolean
+  sni?: string
+  verify?: boolean // defaults to true
+}
+```
+
+Routes are evaluated in registration order; the first match wins. All specified
+matchers must match. A request with no matching route receives `404`; an
+upstream connection failure receives `502`.
+
+Upstream TLS is verified by default. Unix sockets and listener TLS are not
+implemented yet.
 
 ## Requirements
 
@@ -40,14 +121,14 @@ server-side framework can share the same Pingora integration later.
 ```sh
 pnpm install    # installs dependencies and the lefthook git hooks
 just build      # release build; use `just build-debug` for a faster build
-just test       # build and run the Node.js tests
-just check      # format check, clippy, build, and test
+just test       # build and run the Rust and Node.js tests
+just check      # format check, clippy, Rust tests, build, and Node tests
 just --list     # show all available recipes
 ```
 
 The build produces `pingora.<platform>.node`, `index.js` (CommonJS loader), and
 `index.d.ts`; all three are generated and git-ignored. Node's ESM interop makes
-`import { version } from 'pingora'` work without a separate wrapper.
+`import { Server } from 'pingora'` work without a separate wrapper.
 
 Git hooks are managed by [lefthook](https://github.com/evilmartians/lefthook):
 pre-commit runs `cargo fmt` and clippy for Rust changes, and pre-push runs

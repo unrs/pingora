@@ -1,7 +1,7 @@
 # Pingora for Node.js — Roadmap
 
-> Status: **0.0.0 scaffold**. The native loader, platform package layout, and
-> OIDC release pipeline are in place; the proxy API is the current milestone.
+> Status: **M1 core reverse proxy implemented** (unreleased). TLS and the
+> programmable JS request handler are the next milestones.
 
 ## 1. Vision
 
@@ -306,14 +306,14 @@ singleton guard is held. `stop()` is idempotent.
 
 | Capability                    | Phase | Status      |
 | ----------------------------- | ----- | ----------- |
-| TCP listeners                 | 0.1   | Planned     |
-| Host/path/method/header match | 0.1   | Planned     |
-| Route CRUD while running      | 0.1   | Planned     |
-| RR / random / first upstream  | 0.1   | Planned     |
-| Request/response header rules | 0.1   | Planned     |
-| Per-route connect/read timeout| 0.1   | Planned     |
-| Graceful start/stop/status    | 0.1   | Planned     |
-| Metrics counters              | 0.1   | Planned     |
+| TCP listeners                 | 0.1   | Implemented     |
+| Host/path/method/header match | 0.1   | Implemented     |
+| Route CRUD while running      | 0.1   | Implemented     |
+| RR / random / first upstream  | 0.1   | Implemented     |
+| Request/response header rules | 0.1   | Implemented     |
+| Per-route connect/read timeout| 0.1   | Implemented     |
+| Graceful start/stop/status    | 0.1   | Implemented     |
+| Metrics counters              | 0.1   | Implemented     |
 | Async request handler         | 0.2   | Planned     |
 | Synthetic responses           | 0.2   | Planned     |
 | Upstream override per request | 0.2   | Planned     |
@@ -335,7 +335,7 @@ singleton guard is held. `stop()` is idempotent.
 
 ## 7. Milestones
 
-### M0 — Design and technical spike (current)
+### M0 — Design and technical spike (proxy spike complete)
 
 **Goal:** prove the risky parts before writing the public API around them.
 
@@ -345,41 +345,40 @@ singleton guard is held. `stop()` is idempotent.
       declarations.
 - [x] Add the OIDC release workflow with SHA-pinned GitHub Actions.
 - [x] Set up pnpm, just, lefthook, and Renovate for the repository workflow.
-- [ ] Build a throwaway spike: napi-rs 3 + Pingora 0.9 (`proxy`, `rustls`)
-      cdylib that starts and stops a server.
+- [x] Build a spike: napi-rs 3 + Pingora 0.9 (`proxy`, `rustls`) cdylib that
+      starts and stops a server.
 - [ ] Prove an async `ThreadsafeFunction` round trip from a Pingora worker
-      thread: JS handler → `Promise<Decision>` → Rust.
-- [ ] Prove programmatic graceful shutdown with a custom
+      thread: JS handler → `Promise<Decision>` → Rust. (Moved to M2.)
+- [x] Prove programmatic graceful shutdown with a custom
       `ShutdownSignalWatch`, including a hard timeout.
-- [ ] Decide the readiness mechanism (preflight bind vs. startup handshake).
-- [ ] Record findings in `docs/architecture.md` and lock the package layout.
+- [x] Decide the readiness mechanism (preflight bind plus `status()`).
+- [x] Record findings in `docs/architecture.md` and lock the package layout.
 
-**Exit criteria:** one request is proxied end-to-end through the spike, an async
-JS hook changes its upstream, and `stop()` resolves after the server thread
-exits. No public API is frozen yet.
+**Exit criteria:** one request is proxied end-to-end through the spike and
+`stop()` resolves after the server thread exits. The async JS hook moved to M2.
 
 ### M1 — `0.1.0`: Core reverse proxy
 
 **Goal:** a fast, static reverse proxy that is useful without any JavaScript
 handler.
 
-- [ ] Cargo crate, `package.json`, napi build, generated ESM loader and `.d.ts`.
-- [ ] `Server` lifecycle: `start`, `stop`, `status`, singleton guard, error
+- [x] Cargo crate, `package.json`, napi build, generated CommonJS loader and `.d.ts`.
+- [x] `Server` lifecycle: `start`, `stop`, `status`, singleton guard, error
       propagation, idempotent stop.
-- [ ] Listener parsing and preflight validation for TCP.
-- [ ] Route table with host, path, path prefix, method, and header matching.
-- [ ] Upstream parsing (`host:port`, `http://`, `https://`), SNI defaults,
+- [x] Listener parsing and preflight validation for TCP.
+- [x] Route table with host, path, path prefix, method, and header matching.
+- [x] Upstream parsing (`host:port`, `http://`, `https://`), SNI defaults,
       TLS verification defaults.
-- [ ] Load balancing: round robin, random, first.
-- [ ] Request- and response-header mutations with validation.
-- [ ] Per-route timeouts applied to the upstream peer.
-- [ ] `404` for unmatched routes, `502` for upstream failures, `500` for
+- [x] Load balancing: round robin, random, first.
+- [x] Request- and response-header mutations with validation.
+- [x] Per-route timeouts applied to the upstream peer.
+- [x] `404` for unmatched routes, `502` for upstream failures, `500` for
       internal errors.
-- [ ] Atomic metrics: requests, active, upstream errors, status classes, uptime.
-- [ ] TypeScript declarations and a runnable `examples/basic-proxy`.
-- [ ] Rust unit tests for routing/parsing; Node integration tests with a real
+- [x] Atomic metrics: requests, active, upstream errors, status classes, uptime.
+- [x] TypeScript declarations and a runnable `examples/basic-proxy`.
+- [x] Rust unit tests for routing/parsing; Node integration tests with a real
       upstream; CI for build, lint, and tests.
-- [ ] Initial README with install, build, API, and limitations.
+- [x] Initial README with install, build, API, and limitations.
 
 **Exit criteria:** an app can start a proxy, route by path and host, round-robin
 across two upstreams, hot-add a route, read metrics, and stop gracefully. Tests

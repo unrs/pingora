@@ -49,13 +49,14 @@
     "build:debug": "napi build --platform",
     "artifacts": "napi artifacts",
     "create-npm-dirs": "napi create-npm-dirs",
-    "test": "pnpm run build:debug && node --test __test__/index.test.mjs",
+    "test": "pnpm run build:debug && node --test __test__/index.test.mjs __test__/proxy.test.mjs",
     "version": "node scripts/sync-versions.mjs && pnpm install --lockfile-only --ignore-scripts",
     "prepare": "lefthook install",
     "fmt": "cargo fmt --all",
     "fmt:check": "cargo fmt --all -- --check",
     "lint": "cargo clippy --all-targets -- -D warnings",
-    "publish:platforms": "node scripts/publish-platforms.mjs"
+    "publish:platforms": "node scripts/publish-platforms.mjs",
+    "test:rust": "cargo test"
   },
   "publishConfig": {
     "access": "public",

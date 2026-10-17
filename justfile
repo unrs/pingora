@@ -15,9 +15,14 @@ build:
 build-debug:
     pnpm exec napi build --platform
 
-# Run the Node.js integration tests (builds the debug binding first).
+# Run Rust unit tests.
+test-rust:
+    cargo test
+
+# Run the Node.js integration tests (builds the debug binding first) and Rust tests.
 test:
     pnpm test
+    cargo test
 
 # Format Rust sources.
 fmt:
