@@ -127,7 +127,8 @@ just bench
 
 The suite measures single-request throughput and batches of 20 concurrent
 requests with keep-alive connections. Sample results from a local Linux x64
-machine (2026-10-18, Node 24, Pingora with 2 worker threads, no CPU isolation):
+machine (2026-10-18 Asia/Shanghai, Node 24, Pingora with 2 worker threads, no CPU
+isolation):
 
 | Implementation           | 1 request (req/s) | 20 concurrent (req/s) |
 | ------------------------ | ----------------: | --------------------: |
@@ -154,6 +155,8 @@ roadmap benchmark matrix.
 - **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)
 - **Building from source:** Node.js 20.17+ for the napi-rs CLI, pnpm 12+, and
   [just](https://github.com/casey/just)
+- **Tests and benchmarks:** Node.js 22.12+ (Vitest 5); this is higher than the
+  runtime and build floors
 - Rust stable and a C toolchain (source builds only; prebuilt binaries are
   planned for 1.0)
 - Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)

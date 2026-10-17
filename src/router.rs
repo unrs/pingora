@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
@@ -28,7 +27,8 @@ pub enum HostPattern {
 
 #[derive(Debug, Clone)]
 pub struct Upstream {
-    pub addr: SocketAddr,
+    pub host: String,
+    pub port: u16,
     pub tls: bool,
     pub sni: String,
     pub verify: bool,
@@ -116,11 +116,30 @@ impl HostPattern {
 }
 
 impl Upstream {
-    pub fn to_peer(&self) -> HttpPeer {
-        let mut peer = HttpPeer::new(self.addr, self.tls, self.sni.clone());
+    pub async fn to_peer(&self) -> Result<HttpPeer, String> {
+        let addr = match self.host.parse::<std::net::IpAddr>() {
+            Ok(ip) => std::net::SocketAddr::new(ip, self.port),
+            Err(_) => tokio::net::lookup_host((self.host.as_str(), self.port))
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to resolve upstream `{}:{}`: {error}",
+                        self.host, self.port
+                    )
+                })?
+                .next()
+                .ok_or_else(|| {
+                    format!(
+                        "upstream `{}:{}` did not resolve to an address",
+                        self.host, self.port
+                    )
+                })?,
+        };
+
+        let mut peer = HttpPeer::new(addr, self.tls, self.sni.clone());
         peer.options.verify_cert = self.verify;
         peer.options.verify_hostname = self.verify;
-        peer
+        Ok(peer)
     }
 }
 
@@ -313,7 +332,10 @@ fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, St
 
     let authority =
         Authority::from_str(rest).map_err(|_| format!("invalid upstream address `{address}`"))?;
-    let host = authority.host();
+    let host = authority
+        .host()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
     if host.is_empty() {
         return Err(format!("upstream `{address}` has no host"));
     }
@@ -321,14 +343,10 @@ fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, St
     let tls = tls_override.unwrap_or(scheme_tls);
     let port = authority.port_u16().unwrap_or(if tls { 443 } else { 80 });
     let sni = sni_override.unwrap_or_else(|| host.to_string());
-    let addr = (host, port)
-        .to_socket_addrs()
-        .map_err(|error| format!("failed to resolve upstream `{address}`: {error}"))?
-        .next()
-        .ok_or_else(|| format!("upstream `{address}` did not resolve to an address"))?;
 
     Ok(Upstream {
-        addr,
+        host: host.to_string(),
+        port,
         tls,
         sni,
         verify,
@@ -393,7 +411,8 @@ mod tests {
     fn relative_upstream_parses_tls_and_port_defaults() {
         let upstream = parse_upstream(Either::A("https://127.0.0.1".to_string())).unwrap();
         assert!(upstream.tls);
-        assert_eq!(upstream.addr.port(), 443);
+        assert_eq!(upstream.port, 443);
+        assert_eq!(upstream.host, "127.0.0.1");
         assert_eq!(upstream.sni, "127.0.0.1");
     }
 
@@ -410,14 +429,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_ipv6_literal_without_brackets() {
+        let upstream = parse_upstream(Either::A("[::1]:9000".to_string())).unwrap();
+        assert_eq!(upstream.host, "::1");
+        assert_eq!(upstream.port, 9000);
+        assert_eq!(upstream.sni, "::1");
+    }
+
+    #[test]
     fn strategy_round_robins() {
         let route = route_with_upstreams(vec![
             "127.0.0.1:9000".to_string(),
             "127.0.0.1:9001".to_string(),
         ]);
-        let first = route.pick().unwrap().addr;
-        let second = route.pick().unwrap().addr;
-        let third = route.pick().unwrap().addr;
+        let first = route.pick().unwrap().port;
+        let second = route.pick().unwrap().port;
+        let third = route.pick().unwrap().port;
         assert_ne!(first, second);
         assert_eq!(first, third);
     }

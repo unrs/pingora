@@ -60,7 +60,13 @@ function request(port) {
       },
       (response) => {
         response.resume()
-        response.on('end', resolve)
+        response.on('end', () => {
+          if (response.statusCode !== 200) {
+            reject(new Error(`unexpected HTTP status: ${response.statusCode}`))
+          } else {
+            resolve()
+          }
+        })
       },
     )
     req.setTimeout(10_000, () => req.destroy(new Error('request timed out')))

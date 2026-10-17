@@ -333,8 +333,8 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
         threads: state.threads,
         work_stealing: true,
         upstream_keepalive_pool_size: state.upstream_keepalive_pool_size,
-        grace_period_seconds: Some(state.grace_period.as_secs()),
-        graceful_shutdown_timeout_seconds: Some(state.shutdown_timeout.as_secs()),
+        grace_period_seconds: Some(ceil_secs(state.grace_period)),
+        graceful_shutdown_timeout_seconds: Some(ceil_secs(state.shutdown_timeout)),
         ..Default::default()
     };
     conf.work_stealing = true;
@@ -358,6 +358,10 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
     });
 
     Ok(())
+}
+
+fn ceil_secs(duration: Duration) -> u64 {
+    duration.as_millis().div_ceil(1000) as u64
 }
 
 fn init_logger(level: &str) {
@@ -389,4 +393,17 @@ fn preflight_listeners(listeners: &[String]) -> Result<(), String> {
 
 fn invalid_arg(message: impl Into<String>) -> NapiError {
     NapiError::new(Status::InvalidArg, message.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ceil_secs;
+    use std::time::Duration;
+
+    #[test]
+    fn rounds_durations_up_to_pingora_seconds() {
+        assert_eq!(ceil_secs(Duration::ZERO), 0);
+        assert_eq!(ceil_secs(Duration::from_millis(1)), 1);
+        assert_eq!(ceil_secs(Duration::from_millis(1_500)), 2);
+    }
 }

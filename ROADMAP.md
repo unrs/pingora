@@ -524,7 +524,9 @@ measured with wrk/oha and a non-Node origin.
 Planned native benchmark work:
 
 - [ ] Commit pinned configs and Docker images under `bench/native/` for nginx,
-      Caddy, and OpenResty, all proxying to the same Node upstream.
+      Caddy, and OpenResty, all proxying to the same non-Node origin
+      (for example a static-file server), not the Node origin used by the Vitest
+      suite.
 - [ ] Use the same worker/CPU allocation, keep-alive settings, disabled access
       logs, and disabled TLS for every implementation.
 - [ ] Run single-request and 20-concurrent cases; publish req/s plus p50/p99

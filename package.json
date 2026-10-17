@@ -58,7 +58,7 @@
     "publish:platforms": "node scripts/publish-platforms.mjs",
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
-    "test:watch": "vitest"
+    "test:watch": "pnpm run build:debug && vitest"
   },
   "publishConfig": {
     "access": "public",

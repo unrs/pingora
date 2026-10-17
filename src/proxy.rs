@@ -5,7 +5,7 @@ use bytes::Bytes;
 use pingora::http::RequestHeader;
 use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
-use pingora::{Error, ErrorType};
+use pingora::{Error, ErrorSource, ErrorType};
 
 use crate::router::{normalize_host, Route};
 use crate::state::{request_host, SharedState};
@@ -72,7 +72,10 @@ impl ProxyHttp for JsProxy {
             .pick()
             .ok_or_else(|| Error::explain(ErrorType::InternalError, "route has no upstream"))?;
 
-        let mut peer = upstream.to_peer();
+        let mut peer = upstream.to_peer().await.map_err(|error| {
+            log::error!("{error}");
+            Error::new_up(ErrorType::ConnectError)
+        })?;
         if let Some(timeout) = route.timeout {
             peer.options.connection_timeout = Some(timeout);
             peer.options.total_connection_timeout = Some(timeout);
@@ -141,6 +144,8 @@ impl ProxyHttp for JsProxy {
         let status = session
             .response_written()
             .map(|response| response.status.as_u16());
-        self.state.request_finished(status, error.is_some());
+        let upstream_error =
+            error.is_some_and(|error| matches!(error.esource(), ErrorSource::Upstream));
+        self.state.request_finished(status, upstream_error);
     }
 }

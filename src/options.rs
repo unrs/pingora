@@ -12,8 +12,10 @@ pub struct ServerOptions {
     /// Worker threads for the proxy service.
     pub threads: Option<u32>,
     /// Grace period between shutdown broadcast and runtime shutdown, in ms.
+    /// Pingora applies this in whole seconds, rounded up.
     pub grace_period_ms: Option<u32>,
     /// Maximum time to wait for the service runtimes to exit, in ms.
+    /// Pingora applies this in whole seconds, rounded up.
     pub shutdown_timeout_ms: Option<u32>,
     /// Upstream connection pool size.
     pub upstream_keepalive_pool_size: Option<u32>,
