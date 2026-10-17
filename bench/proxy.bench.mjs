@@ -146,7 +146,7 @@ afterAll(async () => {
 
 test('single-request proxy comparison', async ({ bench }) => {
   await bench.compare(
-    bench('direct upstream', () => request(upstreamPort)),
+    bench('direct origin (no proxy)', () => request(upstreamPort)),
     bench('pingora', () => request(pingoraPort)),
     bench('http-proxy', () => request(httpProxyPort)),
     bench('http-proxy-middleware', () => request(middlewarePort)),
@@ -156,7 +156,7 @@ test('single-request proxy comparison', async ({ bench }) => {
 
 test(`${BATCH}-concurrent proxy comparison`, async ({ bench }) => {
   await bench.compare(
-    bench('direct upstream', () => concurrent(upstreamPort)),
+    bench('direct origin (no proxy)', () => concurrent(upstreamPort)),
     bench('pingora', () => concurrent(pingoraPort)),
     bench('http-proxy', () => concurrent(httpProxyPort)),
     bench('http-proxy-middleware', () => concurrent(middlewarePort)),

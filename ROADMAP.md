@@ -509,11 +509,14 @@ localhost.
 
 Benchmarks must answer one question: how much does the binding cost relative to
 the same proxy work done by other implementations? Every entry uses the same
-upstream, workload, connection reuse, and warmup.
+origin, workload, connection reuse, and warmup. The current Vitest suite is
+Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
+raw Rust throughput. The native matrix below is where raw Pingora capacity is
+measured with wrk/oha and a non-Node origin.
 
 | Class            | Implementations                                      | Status      |
 | ---------------- | ---------------------------------------------------- | ----------- |
-| Baseline         | direct Node.js upstream                              | Implemented |
+| Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
 | JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
 | Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Planned     |
 | Load generators  | Vitest bench for JS; wrk/oha for native proxies      | Planned     |
