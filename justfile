@@ -45,9 +45,13 @@ clean:
     rm -rf artifacts
     rm -f *.node npm/*/*.node
 
-# Bump the version across package.json, Cargo.toml, and platform packages.
+# Bump the version and create the release commit/tag.
+# Run this on main after the release PR is merged.
 version v:
-    pnpm version {{v}}
+    pnpm version {{v}} --no-git-tag-version
+    git add package.json Cargo.toml pnpm-lock.yaml
+    git commit -m "chore: release v{{v}}"
+    git tag "v{{v}}"
 
 # Publish the platform packages (skips versions that already exist).
 publish-platforms:

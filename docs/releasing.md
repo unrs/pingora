@@ -80,6 +80,9 @@ from `packageManager` in `package.json`) and publishes with `pnpm publish`.
 
 ## Release procedure
 
+Run these steps on `main`, after the release PR is merged, so the tag points at
+reviewed code.
+
 1. Bump the version. This updates `package.json`, the platform package versions,
    and `Cargo.toml`:
 
