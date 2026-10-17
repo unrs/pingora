@@ -51,7 +51,7 @@ version v:
     pnpm version {{v}} --no-git-tag-version
     git add package.json Cargo.toml pnpm-lock.yaml
     git commit -m "chore: release v{{v}}"
-    git tag "v{{v}}"
+    git tag "v{{v}}" -m "chore: release v{{v}}"
 
 # Publish the platform packages (skips versions that already exist).
 publish-platforms:

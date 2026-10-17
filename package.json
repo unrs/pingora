@@ -1,6 +1,6 @@
 {
   "name": "pingora",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Node.js binding for Cloudflare Pingora, built with napi-rs",
   "main": "index.js",
   "types": "index.d.ts",
@@ -66,10 +66,10 @@
     "lefthook": "^2.2.2"
   },
   "optionalDependencies": {
-    "@pingora/binding-linux-x64-gnu": "0.0.0",
-    "@pingora/binding-linux-arm64-gnu": "0.0.0",
-    "@pingora/binding-darwin-x64": "0.0.0",
-    "@pingora/binding-darwin-arm64": "0.0.0"
+    "@pingora/binding-darwin-arm64": "0.0.1",
+    "@pingora/binding-darwin-x64": "0.0.1",
+    "@pingora/binding-linux-arm64-gnu": "0.0.1",
+    "@pingora/binding-linux-x64-gnu": "0.0.1"
   },
   "packageManager": "pnpm@12.14.0"
 }
