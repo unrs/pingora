@@ -9,15 +9,15 @@ install:
 
 # Build the native binding in release mode.
 build:
-    pnpm exec napi build --platform --release --esm
+    pnpm exec napi build --platform --release
 
 # Build the native binding in debug mode.
 build-debug:
-    pnpm exec napi build --platform --esm
+    pnpm exec napi build --platform
 
 # Run the Node.js integration tests (builds the debug binding first).
 test: build-debug
-    pnpm exec node --test __test__/index.test.js
+    pnpm exec node --test __test__/index.test.mjs
 
 # Format Rust sources.
 fmt:

@@ -2,13 +2,13 @@
   "name": "pingora",
   "version": "0.0.0",
   "description": "Node.js binding for Cloudflare Pingora, built with napi-rs",
-  "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
     ".": {
       "types": "./index.d.ts",
-      "import": "./index.js"
+      "import": "./index.js",
+      "require": "./index.js"
     }
   },
   "files": [
@@ -31,7 +31,7 @@
     "rust"
   ],
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=10.16.0"
   },
   "napi": {
     "binaryName": "pingora",
@@ -45,11 +45,11 @@
     "rootPublisher": "pnpm"
   },
   "scripts": {
-    "build": "napi build --platform --release --esm",
-    "build:debug": "napi build --platform --esm",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
     "artifacts": "napi artifacts",
     "create-npm-dirs": "napi create-npm-dirs",
-    "test": "node --test __test__/index.test.js",
+    "test": "node --test __test__/index.test.mjs",
     "version": "node scripts/sync-versions.mjs && pnpm install --lockfile-only --ignore-scripts",
     "prepare": "lefthook install",
     "fmt": "cargo fmt --all",

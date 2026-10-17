@@ -73,7 +73,7 @@ These are deliberately out of scope for the first stable release:
 | D4  | The JS handler is async, receives request metadata, and returns a decision (`continue` or `respond`).                           | Header-level programmability covers auth gates, canary routing, redirects, and synthetic responses without body streaming.      | Proposed |
 | D5  | TLS uses **rustls** for both listeners and upstream connections.                                                               | Pure-Rust build, no BoringSSL/OpenSSL toolchain, predictable cross-compilation.                                                  | Proposed |
 | D6  | Programmatic graceful shutdown via a custom Pingora `ShutdownSignalWatch`; `stop()` joins the thread off the JS thread.        | Pingora's built-in watcher only listens for OS signals; a watch channel lets Node request shutdown without killing the process.  | Proposed |
-| D7  | Ship ESM first, with a CommonJS compatibility entry if the napi-rs loader supports it cleanly.                                  | Modern Node packages default to ESM; CJS consumers should not be broken if the cost is low.                                     | Proposed |
+| D7  | Ship the napi-rs-generated CommonJS loader; rely on Node's ESM interop for `import` consumers.                                 | One generated entry keeps the runtime floor at Node 10.16 (N-API 4) and still supports named ESM imports on modern Node.       | Proposed |
 | D8  | Tier 1 platforms: Linux x64/arm64 (glibc), macOS x64/arm64. Tier 2: Linux musl. Windows later.                                  | Matches Pingora's practical deployment target and keeps the prebuild matrix manageable.                                           | Proposed |
 | D9  | Grow into a package family: `pingora` for the proxy and `@pingora/http-server` for the later server framework.                | Both packages share one native integration; keeping the proxy API stable first lets the framework build on a proven core.        | Proposed |
 
@@ -502,15 +502,18 @@ localhost.
 
 ## 9. Distribution and compatibility
 
-- **Runtime compatibility floor:** Node.js 12.22+ (N-API 4; ESM loader). This
-  floor is separate from the supported Node.js release lines. Building from
-  source needs Node.js 20.17+ for the napi-rs CLI. The supported release lines
-  and M5 CI matrix must follow the support policy.
+- **Runtime compatibility floor:** Node.js 10.16+ via the CommonJS loader
+  (N-API 4). ESM `import` interop requires Node.js 12.22+ (named exports are
+  detected by Node's CJS lexer). This floor is separate from the supported
+  Node.js release lines. Building from source needs Node.js 20.17+ for the
+  napi-rs CLI. The supported release lines and M5 CI matrix must follow the
+  support policy.
 - **Package names:** `pingora` for the main entry point and
   `@pingora/binding-<platform>` for the native binaries. The scope and all
   package names are reserved before the first real release.
-- **Module format:** ESM entry point; CommonJS compatibility is evaluated and
-  documented in M1.
+- **Module format:** the napi-rs-generated CommonJS loader is the only entry
+  point; Node's ESM interop supports named imports on Node 12.22+. There is no
+  separate wrapper to maintain.
 - **Rust:** stable toolchain; MSRV recorded after the Phase 0 spike.
 - **Platforms:**
   - Tier 1: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,

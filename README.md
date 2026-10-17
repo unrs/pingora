@@ -28,7 +28,7 @@ server-side framework can share the same Pingora integration later.
 
 ## Requirements
 
-- **Runtime:** Node.js 12.22+ (N-API 4; ESM loader)
+- **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)
 - **Building from source:** Node.js 20.17+ for the napi-rs CLI, pnpm 12+, and
   [just](https://github.com/casey/just)
 - Rust stable and a C toolchain (source builds only; prebuilt binaries are
@@ -45,8 +45,9 @@ just check      # format check, clippy, build, and test
 just --list     # show all available recipes
 ```
 
-The build produces `pingora.<platform>.node`, `index.js` (ESM loader), and
-`index.d.ts`; all three are generated and git-ignored.
+The build produces `pingora.<platform>.node`, `index.js` (CommonJS loader), and
+`index.d.ts`; all three are generated and git-ignored. Node's ESM interop makes
+`import { version } from 'pingora'` work without a separate wrapper.
 
 Git hooks are managed by [lefthook](https://github.com/evilmartians/lefthook):
 pre-commit runs `cargo fmt` and clippy for Rust changes, and pre-push runs
