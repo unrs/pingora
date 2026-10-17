@@ -20,6 +20,17 @@ for (const dir of dirs) {
     fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
   )
 
+  const readmePath = path.join(packageDir, 'README.md')
+  if (fs.existsSync(readmePath)) {
+    const readme = fs
+      .readFileSync(readmePath, 'utf8')
+      .replace(
+        '`@pingora/binding`',
+        '[`pingora`](https://www.npmjs.com/package/pingora). Install `pingora` instead of this package.',
+      )
+    fs.writeFileSync(readmePath, readme)
+  }
+
   console.log(`\nPublishing ${name}@${version} from ${path.relative(process.cwd(), packageDir)}`)
 
   const result = spawnSync(

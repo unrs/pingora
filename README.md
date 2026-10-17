@@ -28,10 +28,11 @@ server-side framework can share the same Pingora integration later.
 
 ## Requirements
 
-- Node.js 20.17+
-- pnpm 12+
-- [just](https://github.com/casey/just) for the task recipes
-- Rust stable and a C toolchain (source builds only; prebuilt binaries are planned for 1.0)
+- **Runtime:** Node.js 18.17+ (N-API 9)
+- **Building from source:** Node.js 20.17+ for the napi-rs CLI, pnpm 12+, and
+  [just](https://github.com/casey/just)
+- Rust stable and a C toolchain (source builds only; prebuilt binaries are
+  planned for 1.0)
 - Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)
 
 ## Development

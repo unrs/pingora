@@ -454,7 +454,8 @@ numbers are documented, and a security checklist has been signed off.
       macOS x64/arm64.
 - [ ] npm platform packages, optional dependencies, provenance, and release
       workflow driven by tags.
-- [ ] CI matrix for Node 20/22/24 on Linux and macOS.
+- [ ] CI matrix for the Node.js release lines selected by the support policy on
+      Linux and macOS, plus the runtime compatibility floor.
 - [ ] API reference, guides, migration notes, and troubleshooting.
 - [ ] Performance regression job and published benchmark report.
 - [ ] Security policy and vulnerability reporting process.
@@ -501,8 +502,10 @@ localhost.
 
 ## 9. Distribution and compatibility
 
-- **Runtime:** Node.js 20.17+ (napi-rs CLI baseline). Node 20, 22, and 24 are
-  the supported LTS/current lines; the exact `engines` field is confirmed in M1.
+- **Runtime compatibility floor:** Node.js 18.17+ (N-API 9). This floor is
+  separate from the supported Node.js release lines. Building from source needs
+  Node.js 20.17+ for the napi-rs CLI. The supported release lines and M5 CI
+  matrix must follow the support policy.
 - **Package names:** `pingora` for the main entry point and
   `@pingora/binding-<platform>` for the native binaries. The scope and all
   package names are reserved before the first real release.
