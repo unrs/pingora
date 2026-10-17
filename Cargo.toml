@@ -1,0 +1,25 @@
+[package]
+name = "pingora-node"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/unrs/pingora"
+description = "Node.js binding for Cloudflare Pingora, built with napi-rs"
+keywords = ["pingora", "proxy", "napi", "napi-rs", "reverse-proxy"]
+categories = ["network-programming", "api-bindings"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3.14", default-features = false, features = ["napi9", "async"] }
+napi-derive = "3.6"
+pingora = { version = "0.9", features = ["proxy", "rustls"] }
+
+[build-dependencies]
+napi-build = "2.6"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"

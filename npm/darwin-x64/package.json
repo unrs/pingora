@@ -1,0 +1,35 @@
+{
+  "name": "@pingora/binding-darwin-x64",
+  "version": "0.0.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "pingora.darwin-x64.node",
+  "files": [
+    "pingora.darwin-x64.node"
+  ],
+  "description": "Node.js binding for Cloudflare Pingora, built with napi-rs",
+  "keywords": [
+    "pingora",
+    "proxy",
+    "reverse-proxy",
+    "napi",
+    "napi-rs",
+    "rust"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unrs/pingora.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "os": [
+    "darwin"
+  ]
+}
