@@ -44,8 +44,8 @@ just check      # format check, clippy, build, and test
 just --list     # show all available recipes
 ```
 
-The build produces `pingora.<platform>.node` plus the generated ESM loader and
-type declarations.
+The build produces `pingora.<platform>.node`, `index.js` (ESM loader), and
+`index.d.ts`; all three are generated and git-ignored.
 
 Git hooks are managed by [lefthook](https://github.com/evilmartians/lefthook):
 pre-commit runs `cargo fmt` and clippy for Rust changes, and pre-push runs

@@ -99,6 +99,7 @@ from `packageManager` in `package.json`) and publishes with `pnpm publish`.
 
 3. The `v0.1.0` tag triggers `release.yml`:
    - four native builds run in parallel;
+   - the x86_64 build uploads the generated `index.js` and `index.d.ts`;
    - `napi artifacts` copies each `.node` into its platform package;
    - `scripts/publish-platforms.mjs` publishes each `@pingora/binding-*`
      package, skipping versions that already exist;

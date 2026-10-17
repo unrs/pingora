@@ -18,6 +18,8 @@ rustc-ice-*.txt
 
 # Node.js
 node_modules/
+/index.js
+/index.d.ts
 /npm
 pnpm-debug.log*
 *.node
