@@ -131,7 +131,8 @@ machine (Node 24, Pingora with 2 worker threads, no CPU isolation):
 | `http-proxy-middleware`  |             2,448 |                 3,201 |
 
 These numbers are indicative only; run the suite on the target machine before
-drawing conclusions.
+drawing conclusions. Native comparisons against nginx, Caddy, and OpenResty
+are tracked in the roadmap benchmark matrix.
 
 ## Requirements
 

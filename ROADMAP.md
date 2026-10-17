@@ -328,6 +328,7 @@ singleton guard is held. `stop()` is idempotent.
 | Config file + schema          | 0.4   | Planned     |
 | Structured log bridge to JS   | 0.4   | Exploring   |
 | Prebuilt platform binaries     | 1.0      | Planned     |
+| Native proxy benchmarks       | 0.4      | Planned     |
 | Server framework package       | post-1.0 | Exploring   |
 | Request/response body hooks    | later    | Exploring   |
 | Cache / L4 proxy / gRPC-Web   | later | Exploring   |
@@ -435,8 +436,12 @@ macOS.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
 - [ ] Config file loader (JSON/TOML) with validation and a JSON Schema.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
-      `http-proxy`, and `http-proxy-middleware`; nginx comparison, published
-      regression thresholds, and a CI perf gate remain.
+      `http-proxy`, and `http-proxy-middleware`.
+- [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
+      HAProxy, with pinned configs/images and the same upstream/workload.
+- [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
+      tested native proxy versions.
+- [ ] Add a CI performance regression gate.
 - [ ] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
 - [ ] Soak test: sustained traffic, route churn, handler churn, repeated
@@ -490,7 +495,7 @@ the proxy facade.
 | Layer                | Tooling                              | What it covers                                                        |
 | -------------------- | ------------------------------------ | --------------------------------------------------------------------- |
 | Rust unit            | `cargo test`                         | Route matching, upstream parsing, decision validation, metrics.       |
-| Node integration     | `node:test`, ephemeral ports         | Real HTTP upstream, route CRUD, handler behavior, headers, errors.     |
+| Node integration     | Vitest, ephemeral ports              | Real HTTP upstream, route CRUD, handler behavior, headers, errors.     |
 | TLS                  | generated self-signed fixtures       | Certificate loading, h2 ALPN, upstream verification, failure modes.   |
 | Lifecycle / GC       | `--expose-gc`, repeated start/stop   | Handler replacement, no use-after-free, singleton release.            |
 | Soak / load          | autocannon or wrk                    | Throughput, latency, memory growth, connection reuse.                 |
@@ -499,6 +504,35 @@ the proxy facade.
 Every public behavior in the API sketch should have at least one integration
 test. Tests must not depend on a fixed port or on network access beyond
 localhost.
+
+### Benchmark matrix
+
+Benchmarks must answer one question: how much does the binding cost relative to
+the same proxy work done by other implementations? Every entry uses the same
+upstream, workload, connection reuse, and warmup.
+
+| Class            | Implementations                                      | Status      |
+| ---------------- | ---------------------------------------------------- | ----------- |
+| Baseline         | direct Node.js upstream                              | Implemented |
+| JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
+| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Planned     |
+| Load generators  | Vitest bench for JS; wrk/oha for native proxies      | Planned     |
+
+Planned native benchmark work:
+
+- [ ] Commit pinned configs and Docker images under `bench/native/` for nginx,
+      Caddy, and OpenResty, all proxying to the same Node upstream.
+- [ ] Use the same worker/CPU allocation, keep-alive settings, disabled access
+      logs, and disabled TLS for every implementation.
+- [ ] Run single-request and 20-concurrent cases; publish req/s plus p50/p99
+      latency, CPU, and RSS.
+- [ ] Record the native proxy versions and image digests with the results.
+- [ ] Add a `just bench:native` entry point that builds and runs the whole matrix.
+- [ ] Keep results machine-specific and publish the hardware/OS/runtime details
+      next to them.
+
+The matrix compares proxy overhead, not absolute production capacity. TLS,
+large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 
 ## 9. Distribution and compatibility
 
