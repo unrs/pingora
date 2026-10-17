@@ -49,7 +49,8 @@ clean:
 # Run this on main after the release PR is merged.
 version v:
     pnpm version {{v}} --no-git-tag-version
-    git add package.json Cargo.toml pnpm-lock.yaml
+    pnpm test
+    git add package.json Cargo.toml Cargo.lock pnpm-lock.yaml
     git commit -m "chore: release v{{v}}"
     git tag "v{{v}}" -m "chore: release v{{v}}"
 

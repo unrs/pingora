@@ -83,16 +83,17 @@ from `packageManager` in `package.json`) and publishes with `pnpm publish`.
 Run these steps on `main`, after the release PR is merged, so the tag points at
 reviewed code.
 
-1. Bump the version. This updates `package.json`, the platform package versions,
-   and `Cargo.toml`:
+1. Bump the version and validate. This updates `package.json`, `Cargo.toml`,
+   the platform package versions, and `optionalDependencies`, then runs the test
+   build so Cargo updates `Cargo.lock`:
 
    ```sh
    just version 0.1.0
    ```
 
    `just` calls `pnpm version`, which triggers the `version` lifecycle script
-   (`scripts/sync-versions.mjs`) to update the platform packages,
-   `optionalDependencies`, and `Cargo.toml`.
+   (`scripts/sync-versions.mjs`), runs `pnpm test`, and commits all version
+   files together with the tag.
 
 2. Push the commit and tag:
 
