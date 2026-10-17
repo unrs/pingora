@@ -1,0 +1,5 @@
+allowBuilds:
+  lefthook: true
+
+# Dependencies are installed explicitly; `pnpm run` should not re-verify them.
+verifyDepsBeforeRun: false
