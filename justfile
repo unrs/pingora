@@ -16,8 +16,8 @@ build-debug:
     pnpm exec napi build --platform
 
 # Run the Node.js integration tests (builds the debug binding first).
-test: build-debug
-    pnpm exec node --test __test__/index.test.mjs
+test:
+    pnpm test
 
 # Format Rust sources.
 fmt:

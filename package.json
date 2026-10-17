@@ -49,7 +49,7 @@
     "build:debug": "napi build --platform",
     "artifacts": "napi artifacts",
     "create-npm-dirs": "napi create-npm-dirs",
-    "test": "node --test __test__/index.test.mjs",
+    "test": "pnpm run build:debug && node --test __test__/index.test.mjs",
     "version": "node scripts/sync-versions.mjs && pnpm install --lockfile-only --ignore-scripts",
     "prepare": "lefthook install",
     "fmt": "cargo fmt --all",
