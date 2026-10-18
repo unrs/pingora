@@ -13,9 +13,15 @@ categories = ["network-programming", "api-bindings"]
 crate-type = ["cdylib"]
 
 [dependencies]
+async-trait = "0.1"
+bytes = "1"
+env_logger = "0.11"
+http = "1"
+log = "0.4"
 napi = { version = "3.14", default-features = false, features = ["napi4", "async", "dyn-symbols"] }
 napi-derive = "3.6"
 pingora = { version = "0.9", features = ["proxy", "rustls"] }
+tokio = { version = "1", features = ["sync"] }
 
 [build-dependencies]
 napi-build = "2.6"

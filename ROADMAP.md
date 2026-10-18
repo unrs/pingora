@@ -1,7 +1,7 @@
 # Pingora for Node.js — Roadmap
 
-> Status: **0.0.0 scaffold**. The native loader, platform package layout, and
-> OIDC release pipeline are in place; the proxy API is the current milestone.
+> Status: **M1 core reverse proxy implemented** (unreleased). TLS and the
+> programmable JS request handler are the next milestones.
 
 ## 1. Vision
 
@@ -62,6 +62,9 @@ These are deliberately out of scope for the first stable release:
   the Unix releases are stable.
 - **A caching proxy before 1.0.** Pingora has a cache framework, but exposing it
   well needs a separate design cycle.
+- **A custom DNS resolver or service-discovery layer.** Pingora 0.9 has no DNS
+  discovery; the binding stays thin and requires resolved IP addresses instead
+  of implementing its own resolver.
 
 ## 3. Design decisions
 
@@ -207,7 +210,7 @@ interface ServerOptions {
 }
 
 interface ListenerOptions {
-  address: string // "host:port", or "unix:/path" in Phase 3
+  address: string // "IP:port", or "unix:/path" in Phase 3
   tls?: { cert: string; key: string }
   http2?: boolean
 }
@@ -306,14 +309,14 @@ singleton guard is held. `stop()` is idempotent.
 
 | Capability                    | Phase | Status      |
 | ----------------------------- | ----- | ----------- |
-| TCP listeners                 | 0.1   | Planned     |
-| Host/path/method/header match | 0.1   | Planned     |
-| Route CRUD while running      | 0.1   | Planned     |
-| RR / random / first upstream  | 0.1   | Planned     |
-| Request/response header rules | 0.1   | Planned     |
-| Per-route connect/read timeout| 0.1   | Planned     |
-| Graceful start/stop/status    | 0.1   | Planned     |
-| Metrics counters              | 0.1   | Planned     |
+| TCP listeners                 | 0.1   | Implemented     |
+| Host/path/method/header match | 0.1   | Implemented     |
+| Route CRUD while running      | 0.1   | Implemented     |
+| RR / random / first upstream  | 0.1   | Implemented     |
+| Request/response header rules | 0.1   | Implemented     |
+| Per-route connect/read timeout| 0.1   | Implemented     |
+| Graceful start/stop/status    | 0.1   | Implemented     |
+| Metrics counters              | 0.1   | Implemented     |
 | Async request handler         | 0.2   | Planned     |
 | Synthetic responses           | 0.2   | Planned     |
 | Upstream override per request | 0.2   | Planned     |
@@ -328,6 +331,7 @@ singleton guard is held. `stop()` is idempotent.
 | Config file + schema          | 0.4   | Planned     |
 | Structured log bridge to JS   | 0.4   | Exploring   |
 | Prebuilt platform binaries     | 1.0      | Planned     |
+| Native proxy benchmarks       | 0.4      | Planned     |
 | Server framework package       | post-1.0 | Exploring   |
 | Request/response body hooks    | later    | Exploring   |
 | Cache / L4 proxy / gRPC-Web   | later | Exploring   |
@@ -335,7 +339,7 @@ singleton guard is held. `stop()` is idempotent.
 
 ## 7. Milestones
 
-### M0 — Design and technical spike (current)
+### M0 — Design and technical spike (proxy spike complete)
 
 **Goal:** prove the risky parts before writing the public API around them.
 
@@ -345,41 +349,40 @@ singleton guard is held. `stop()` is idempotent.
       declarations.
 - [x] Add the OIDC release workflow with SHA-pinned GitHub Actions.
 - [x] Set up pnpm, just, lefthook, and Renovate for the repository workflow.
-- [ ] Build a throwaway spike: napi-rs 3 + Pingora 0.9 (`proxy`, `rustls`)
-      cdylib that starts and stops a server.
+- [x] Build a spike: napi-rs 3 + Pingora 0.9 (`proxy`, `rustls`) cdylib that
+      starts and stops a server.
 - [ ] Prove an async `ThreadsafeFunction` round trip from a Pingora worker
-      thread: JS handler → `Promise<Decision>` → Rust.
-- [ ] Prove programmatic graceful shutdown with a custom
+      thread: JS handler → `Promise<Decision>` → Rust. (Moved to M2.)
+- [x] Prove programmatic graceful shutdown with a custom
       `ShutdownSignalWatch`, including a hard timeout.
-- [ ] Decide the readiness mechanism (preflight bind vs. startup handshake).
-- [ ] Record findings in `docs/architecture.md` and lock the package layout.
+- [x] Decide the readiness mechanism (preflight bind plus `status()`).
+- [x] Record findings in `docs/architecture.md` and lock the package layout.
 
-**Exit criteria:** one request is proxied end-to-end through the spike, an async
-JS hook changes its upstream, and `stop()` resolves after the server thread
-exits. No public API is frozen yet.
+**Exit criteria:** one request is proxied end-to-end through the spike and
+`stop()` resolves after the server thread exits. The async JS hook moved to M2.
 
 ### M1 — `0.1.0`: Core reverse proxy
 
 **Goal:** a fast, static reverse proxy that is useful without any JavaScript
 handler.
 
-- [ ] Cargo crate, `package.json`, napi build, generated ESM loader and `.d.ts`.
-- [ ] `Server` lifecycle: `start`, `stop`, `status`, singleton guard, error
+- [x] Cargo crate, `package.json`, napi build, generated CommonJS loader and `.d.ts`.
+- [x] `Server` lifecycle: `start`, `stop`, `status`, singleton guard, error
       propagation, idempotent stop.
-- [ ] Listener parsing and preflight validation for TCP.
-- [ ] Route table with host, path, path prefix, method, and header matching.
-- [ ] Upstream parsing (`host:port`, `http://`, `https://`), SNI defaults,
-      TLS verification defaults.
-- [ ] Load balancing: round robin, random, first.
-- [ ] Request- and response-header mutations with validation.
-- [ ] Per-route timeouts applied to the upstream peer.
-- [ ] `404` for unmatched routes, `502` for upstream failures, `500` for
+- [x] Listener parsing and preflight validation for TCP.
+- [x] Route table with host, path, path prefix, method, and header matching.
+- [x] Upstream parsing (`IP:port`, `http://`, `https://`), SNI defaults,
+      TLS verification defaults. Hostname resolution is left to the caller.
+- [x] Load balancing: round robin, random, first.
+- [x] Request- and response-header mutations, validated by Pingora at insert.
+- [x] Per-route timeouts applied to the upstream peer.
+- [x] `404` for unmatched routes, `502` for upstream failures, `500` for
       internal errors.
-- [ ] Atomic metrics: requests, active, upstream errors, status classes, uptime.
-- [ ] TypeScript declarations and a runnable `examples/basic-proxy`.
-- [ ] Rust unit tests for routing/parsing; Node integration tests with a real
+- [x] Atomic metrics: requests, active, upstream errors, status classes, uptime.
+- [x] TypeScript declarations and a runnable `examples/basic-proxy`.
+- [x] Rust unit tests for routing/parsing; Node integration tests with a real
       upstream; CI for build, lint, and tests.
-- [ ] Initial README with install, build, API, and limitations.
+- [x] Initial README with install, build, API, and limitations.
 
 **Exit criteria:** an app can start a proxy, route by path and host, round-robin
 across two upstreams, hot-add a route, read metrics, and stop gracefully. Tests
@@ -435,8 +438,13 @@ macOS.
 - [ ] Per-route metrics and a Prometheus-compatible endpoint.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
 - [ ] Config file loader (JSON/TOML) with validation and a JSON Schema.
-- [ ] Benchmark harness (autocannon/wrk) against a direct upstream and nginx;
-      publish baseline numbers and a regression threshold.
+- [x] Initial Vitest HTTP benchmark suite against a direct upstream,
+      `http-proxy`, and `http-proxy-middleware`.
+- [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
+      HAProxy, with pinned configs/images and the same upstream/workload.
+- [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
+      tested native proxy versions.
+- [ ] Add a CI performance regression gate.
 - [ ] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
 - [ ] Soak test: sustained traffic, route churn, handler churn, repeated
@@ -490,7 +498,7 @@ the proxy facade.
 | Layer                | Tooling                              | What it covers                                                        |
 | -------------------- | ------------------------------------ | --------------------------------------------------------------------- |
 | Rust unit            | `cargo test`                         | Route matching, upstream parsing, decision validation, metrics.       |
-| Node integration     | `node:test`, ephemeral ports         | Real HTTP upstream, route CRUD, handler behavior, headers, errors.     |
+| Node integration     | Vitest, ephemeral ports              | Real HTTP upstream, route CRUD, handler behavior, headers, errors.     |
 | TLS                  | generated self-signed fixtures       | Certificate loading, h2 ALPN, upstream verification, failure modes.   |
 | Lifecycle / GC       | `--expose-gc`, repeated start/stop   | Handler replacement, no use-after-free, singleton release.            |
 | Soak / load          | autocannon or wrk                    | Throughput, latency, memory growth, connection reuse.                 |
@@ -499,6 +507,40 @@ the proxy facade.
 Every public behavior in the API sketch should have at least one integration
 test. Tests must not depend on a fixed port or on network access beyond
 localhost.
+
+### Benchmark matrix
+
+Benchmarks must answer one question: how much does the binding cost relative to
+the same proxy work done by other implementations? Every entry uses the same
+origin, workload, connection reuse, and warmup. The current Vitest suite is
+Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
+raw Rust throughput. The native matrix below is where raw Pingora capacity is
+measured with wrk/oha and a non-Node origin.
+
+| Class            | Implementations                                      | Status      |
+| ---------------- | ---------------------------------------------------- | ----------- |
+| Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
+| JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
+| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Planned     |
+| Load generators  | Vitest bench for JS; wrk/oha for native proxies      | Planned     |
+
+Planned native benchmark work:
+
+- [ ] Commit pinned configs and Docker images under `bench/native/` for nginx,
+      Caddy, and OpenResty, all proxying to the same non-Node origin
+      (for example a static-file server), not the Node origin used by the Vitest
+      suite.
+- [ ] Use the same worker/CPU allocation, keep-alive settings, disabled access
+      logs, and disabled TLS for every implementation.
+- [ ] Run single-request and 20-concurrent cases; publish req/s plus p50/p99
+      latency, CPU, and RSS.
+- [ ] Record the native proxy versions and image digests with the results.
+- [ ] Add a `just bench:native` entry point that builds and runs the whole matrix.
+- [ ] Keep results machine-specific and publish the hardware/OS/runtime details
+      next to them.
+
+The matrix compares proxy overhead, not absolute production capacity. TLS,
+large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 
 ## 9. Distribution and compatibility
 
