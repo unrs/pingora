@@ -253,7 +253,7 @@ fn parse_match_headers(
         .collect()
 }
 
-pub(crate) fn parse_headers(
+fn parse_headers(
     headers: Option<HashMap<String, String>>,
     field: &str,
 ) -> Result<Vec<(String, String)>, String> {
@@ -273,10 +273,7 @@ pub(crate) fn parse_headers(
         .collect()
 }
 
-pub(crate) fn parse_header_names(
-    names: Option<Vec<String>>,
-    field: &str,
-) -> Result<Vec<String>, String> {
+fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<String>, String> {
     let Some(names) = names else {
         return Ok(Vec::new());
     };

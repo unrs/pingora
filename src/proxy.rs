@@ -8,9 +8,7 @@ use pingora::upstreams::peer::HttpPeer;
 use pingora::{Error, ErrorSource, ErrorType};
 
 use crate::handler::{HandlerError, RequestDecision, RequestView};
-use crate::router::{
-    normalize_host, parse_header_names, parse_headers, parse_upstream, Route, Upstream,
-};
+use crate::router::{normalize_host, parse_upstream, Route, Upstream};
 use crate::state::{request_host, SharedState};
 
 pub struct JsProxy {
@@ -37,12 +35,18 @@ impl JsProxy {
             .unwrap_or("continue")
             .to_ascii_lowercase();
         if action != "respond" {
-            ctx.request_headers = parse_headers(decision.request_headers, "requestHeaders")?;
-            ctx.remove_request_headers =
-                parse_header_names(decision.remove_request_headers, "removeRequestHeaders")?;
-            ctx.response_headers = parse_headers(decision.response_headers, "responseHeaders")?;
-            ctx.remove_response_headers =
-                parse_header_names(decision.remove_response_headers, "removeResponseHeaders")?;
+            ctx.request_headers = decision
+                .request_headers
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            ctx.remove_request_headers = decision.remove_request_headers.unwrap_or_default();
+            ctx.response_headers = decision
+                .response_headers
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            ctx.remove_response_headers = decision.remove_response_headers.unwrap_or_default();
         }
 
         match action.as_str() {
@@ -56,9 +60,6 @@ impl JsProxy {
             }
             "respond" => {
                 let status = decision.status.unwrap_or(200);
-                if !(200..=599).contains(&status) {
-                    return Err(format!("invalid response status `{status}`"));
-                }
                 let is_head = session.req_header().method == http::Method::HEAD;
                 let body = decision.body.unwrap_or_default();
                 let mut response = ResponseHeader::build(status, None)
@@ -67,9 +68,6 @@ impl JsProxy {
                     response
                         .insert_header(name, value)
                         .map_err(|error| format!("invalid response header: {error}"))?;
-                }
-                if status == 204 {
-                    response.remove_header(&http::header::CONTENT_LENGTH);
                 }
                 if status != 204 && status != 304 {
                     response

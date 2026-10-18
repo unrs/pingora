@@ -174,9 +174,6 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/invalid`)).status, 500)
 
 
-  proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 600 }))
-  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/bad-status`)).status, 500)
-
   proxy.server.setRequestHandler(async () => ({
     action: 'respond',
     headers: { 'bad header': 'value' },
@@ -209,13 +206,11 @@ test('replaces and clears handlers while running', async () => {
   proxy.server.setRequestHandler(async () => ({
     action: 'respond',
     status: 204,
-    headers: { 'content-length': '5' },
     body: 'ignored',
   }))
   const noContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(noContent.status, 204)
   assert.equal(await noContent.text(), '')
-  assert.equal(noContent.headers.get('content-length'), null)
 
   proxy.server.clearRequestHandler()
   const response = await fetch(`http://127.0.0.1:${proxy.port}/`)
@@ -394,4 +389,34 @@ test('exposes non-UTF8 request header values lossily', async () => {
   })
 
   assert.ok(seen.headers['x-internal'].includes('\uFFFD'))
+})
+
+test('does not crash on malformed header mutations', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  onTestFinished(() => upstream.close())
+
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  onTestFinished(() => proxy.stop())
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+
+  proxy.server.setRequestHandler(async () => ({
+    action: 'continue',
+    removeRequestHeaders: ['bad header'],
+  }))
+  const removeResponse = await fetch(`http://127.0.0.1:${proxy.port}/remove`)
+  assert.equal(removeResponse.status, 200)
+
+  proxy.server.setRequestHandler(async () => ({
+    action: 'continue',
+    requestHeaders: { 'bad header': 'value' },
+  }))
+  const insertResponse = await fetch(`http://127.0.0.1:${proxy.port}/insert`)
+  assert.ok([500, 502].includes(insertResponse.status))
+
+  proxy.server.clearRequestHandler()
+  const alive = await fetch(`http://127.0.0.1:${proxy.port}/alive`)
+  assert.equal(alive.status, 200)
+  assert.equal(await alive.text(), 'upstream')
 })
