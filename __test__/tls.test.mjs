@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import http2 from 'node:http2'
 import https from 'node:https'
 import { fileURLToPath } from 'node:url'
@@ -10,11 +11,12 @@ import { freePort, startUpstream, waitForProxy } from './helpers.mjs'
 
 const cert = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const key = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
+const ca = readFileSync(cert)
 
 function httpsRequest(port, path = '/') {
   return new Promise((resolve, reject) => {
     const request = https.request(
-      { host: '127.0.0.1', port, path, rejectUnauthorized: false },
+      { host: '127.0.0.1', port, path, ca },
       (response) => {
         const chunks = []
         response.on('data', (chunk) => chunks.push(chunk))
@@ -45,9 +47,7 @@ async function waitForHttps(port, path = '/') {
 }
 
 function http2Request(port, path = '/') {
-  const client = http2.connect(`https://127.0.0.1:${port}`, {
-    rejectUnauthorized: false,
-  })
+  const client = http2.connect(`https://127.0.0.1:${port}`, { ca })
   return new Promise((resolve, reject) => {
     const request = client.request({ ':path': path })
     let headers
