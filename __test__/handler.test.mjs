@@ -66,6 +66,7 @@ test('passes a request view and returns a synthetic response', async () => {
 
   const seen = []
   proxy.server.setRequestHandler(async (request) => {
+    await delay(10)
     seen.push(request)
     if (request.path === '/health') {
       return {
@@ -93,6 +94,11 @@ test('passes a request view and returns a synthetic response', async () => {
   assert.equal(seen[0].httpVersion, 'HTTP/1.1')
   assert.equal(seen[0].host, `127.0.0.1:${proxy.port}`)
   assert.equal(seen[0].headers.host, `127.0.0.1:${proxy.port}`)
+
+  const head = await fetch(`http://127.0.0.1:${proxy.port}/health`, { method: 'HEAD' })
+  assert.equal(head.status, 200)
+  assert.equal(await head.text(), '')
+  assert.equal(head.headers.get('content-length'), '7')
 
   const proxied = await waitForProxy(`http://127.0.0.1:${proxy.port}/other`)
   assert.equal(await proxied.text(), 'upstream')
@@ -174,6 +180,13 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/no-body`)).status, 500)
 
+  proxy.server.setRequestHandler(async () => ({
+    action: 'respond',
+    status: 205,
+    body: 'not allowed',
+  }))
+  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/reset-content`)).status, 500)
+
   proxy.server.setRequestHandler(async () => {
     await delay(500)
     return { action: 'continue' }
@@ -196,6 +209,11 @@ test('replaces and clears handlers while running', async () => {
 
   proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 202, body: 'b' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/`)).status, 202)
+
+  proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 204 }))
+  const noContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(noContent.status, 204)
+  assert.equal(await noContent.text(), '')
 
   proxy.server.clearRequestHandler()
   const response = await fetch(`http://127.0.0.1:${proxy.port}/`)

@@ -75,7 +75,7 @@ impl RequestHandler {
 impl RequestView {
     pub fn from_session(session: &Session, route_id: Option<&str>) -> Self {
         let req = session.req_header();
-        let mut headers: HashMap<String, String> = HashMap::new();
+        let mut headers: HashMap<String, String> = HashMap::with_capacity(req.headers.len());
         for (name, value) in req.headers.iter() {
             let value = String::from_utf8_lossy(value.as_bytes());
             headers

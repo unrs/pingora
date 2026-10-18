@@ -56,9 +56,10 @@ impl JsProxy {
                 if !(200..=599).contains(&status) {
                     return Err(format!("invalid response status `{status}`"));
                 }
+                let is_head = session.req_header().method == http::Method::HEAD;
                 let headers = parse_headers(decision.headers, "headers")?;
                 let body = decision.body.unwrap_or_default();
-                if matches!(status, 204 | 304) && !body.is_empty() {
+                if matches!(status, 204 | 205 | 304) && !body.is_empty() {
                     return Err(format!("response status `{status}` does not allow a body"));
                 }
                 let mut response = ResponseHeader::build(status, None)
@@ -77,8 +78,13 @@ impl JsProxy {
                     .write_response_header(Box::new(response), false)
                     .await
                     .map_err(|error| format!("failed to write response: {error}"))?;
+                let body = if is_head || matches!(status, 204 | 205 | 304) {
+                    None
+                } else {
+                    Some(Bytes::from(body))
+                };
                 session
-                    .write_response_body(Some(Bytes::from(body)), true)
+                    .write_response_body(body, true)
                     .await
                     .map_err(|error| format!("failed to write response body: {error}"))?;
                 Ok(true)
