@@ -89,6 +89,7 @@ test('passes a request view and returns a synthetic response', async () => {
   assert.equal(seen[0].clientIp, '127.0.0.1')
   assert.equal(seen[0].scheme, 'http')
   assert.equal(seen[0].httpVersion, 'HTTP/1.1')
+  assert.equal(seen[0].host, `127.0.0.1:${proxy.port}`)
   assert.equal(seen[0].headers.host, `127.0.0.1:${proxy.port}`)
 
   const proxied = await waitForProxy(`http://127.0.0.1:${proxy.port}/other`)
