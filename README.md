@@ -161,7 +161,9 @@ interface RequestDecision {
 
 `continue` is the default. `respond` writes a synthetic response. `upstream`
 overrides the selected peer for this request. Header mutations are applied on
-top of route mutations. Handler errors, invalid decisions, and timeouts return
+top of route mutations. Repeated header values are joined with `, ` and
+non-UTF-8 bytes are replaced with U+FFFD, so every forwarded value is visible
+to the handler. Handler errors, invalid decisions, and timeouts return
 `500`; a timeout is controlled by `handlerTimeoutMs`. Handlers are optional:
 requests take the all-Rust path when none is installed.
 

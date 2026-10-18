@@ -33,3 +33,7 @@ server.setRequestHandler(async (request) => {
 
 server.start()
 console.log(server.status())
+
+process.on('SIGTERM', async () => {
+  await server.stop()
+})

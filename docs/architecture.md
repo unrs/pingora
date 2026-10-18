@@ -5,15 +5,15 @@ The binding is a thin Node facade over one Pingora HTTP proxy service.
 ```text
 Node.js main thread
   Server (napi class)
-    ├── SharedState: route table (RwLock) + atomic metrics
+    ├── SharedState: route table (RwLock), handler, atomic metrics
     ├── start(): preflight listeners, spawn "pingora-server" thread
     └── stop(): send watch signal, join the thread via napi AsyncTask
 
 Pingora thread
   PingoraServer::run with a custom ShutdownSignalWatch
     └── HttpProxy<JsProxy>
-          request_filter        match route or write 404
-          upstream_peer         pick upstream, build HttpPeer, apply timeout
+          request_filter        match route, run optional handler, write decision/404
+          upstream_peer         pick upstream or handler override, build HttpPeer
           upstream_request_filter
           response_filter
           logging               update metrics
