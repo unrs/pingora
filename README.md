@@ -163,12 +163,12 @@ interface RequestDecision {
 `headers` field. `upstream` overrides the selected peer for this request.
 `requestHeaders`, `responseHeaders`, and their remove variants apply only to
 proxied responses, on top of route mutations. Route response mutations are not
-applied to synthetic responses; use the decision `headers` field for those. Repeated request header values are
-joined with `, ` and non-UTF-8 bytes are replaced with U+FFFD, so every
-forwarded value is visible to the handler. Handler errors and timeouts return
-`500`; malformed header mutations are left to Pingora's validation. A timeout is
-controlled by `handlerTimeoutMs`. Handlers are optional: requests take the
-all-Rust path when none is installed.
+applied to synthetic responses; use the decision `headers` field for those.
+Repeated request header values are joined with `, ` and non-UTF-8 bytes are
+replaced with U+FFFD, so every forwarded value is visible to the handler.
+Handler errors and timeouts return `500`; malformed header mutations are left
+to Pingora's validation. A timeout is controlled by `handlerTimeoutMs`.
+Handlers are optional: requests take the all-Rust path when none is installed.
 
 ## Benchmarks
 
