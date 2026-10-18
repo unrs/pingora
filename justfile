@@ -2,10 +2,11 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default: check
 
-# Install JavaScript dependencies and git hooks.
-install:
+# Initialize dependencies, release tooling, and git hooks.
+init:
     pnpm install
-    pnpm exec lefthook install
+    cargo binstall --help >/dev/null 2>&1 || cargo install cargo-binstall --locked
+    cargo binstall --no-confirm cargo-edit
 
 # Build the native binding in release mode.
 build:
@@ -53,17 +54,3 @@ clean:
     cargo clean
     rm -rf artifacts
     rm -f *.node npm/*/*.node
-
-# Bump the version and create the release commit/tag.
-# Run this on main after the release PR is merged.
-version v:
-    pnpm version {{v}} --no-git-tag-version
-    pnpm test
-    git add package.json Cargo.toml Cargo.lock pnpm-lock.yaml
-    git commit -m "chore: release v{{v}}"
-    git tag "v{{v}}" -m "chore: release v{{v}}"
-
-# Publish the platform packages (skips versions that already exist).
-publish-platforms:
-    pnpm exec napi create-npm-dirs
-    node scripts/publish-platforms.mjs

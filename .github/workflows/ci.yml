@@ -11,6 +11,8 @@ on:
       - LICENSE
       - .gitignore
   pull_request:
+  # `push` is limited to main; merge queue branches need this event.
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

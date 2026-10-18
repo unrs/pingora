@@ -111,26 +111,8 @@ implemented yet.
 
 ## Benchmarks
 
-`just bench` builds the release binding and runs Vitest HTTP benchmarks through
-a local Node.js HTTP **origin**:
-
-```text
-Node.js load generator -> proxy under test -> Node.js HTTP origin
-```
-
-"Direct origin (no proxy)" skips the middle hop. The same origin is used for
-[`pingora`](https://www.npmjs.com/package/pingora),
-[`http-proxy`](https://github.com/http-party/node-http-proxy), and
-[`http-proxy-middleware`](https://github.com/chimurai/http-proxy-middleware).
-
-```sh
-just bench
-```
-
-The suite measures single-request throughput and batches of 20 concurrent
-requests with keep-alive connections. Sample results from a local Linux x64
-machine (2026-10-18 Asia/Shanghai, Node 24, Pingora with 2 worker threads, no CPU
-isolation):
+Sample throughput from a local Linux x64 machine (Node 24, Pingora with 2 worker
+threads, keep-alive, 20 concurrent requests per batch):
 
 | Implementation           | 1 request (req/s) | 20 concurrent (req/s) |
 | ------------------------ | ----------------: | --------------------: |
@@ -139,61 +121,20 @@ isolation):
 | `http-proxy`             |             3,050 |                 3,276 |
 | `http-proxy-middleware`  |             2,448 |                 3,201 |
 
-These numbers are end-to-end Node numbers: the Vitest client and the Node
-origin share the same machine and event loop, so they measure the cost of adding
-a proxy to a Node stack, not Pingora's maximum throughput. The direct-origin row
-is a no-proxy baseline. Under a native load generator with a non-Node origin,
-Pingora's Rust data path is expected to be substantially faster; that requires
-the separate native benchmark matrix in the roadmap.
-
-Relative to the JS proxies in this harness, the binding is about 28% faster
-than `http-proxy` for single requests and about 87% faster at 20 concurrent
-requests. Run `just bench` on the target machine before drawing conclusions.
-Native comparisons against nginx, Caddy, and OpenResty are tracked in the
-roadmap benchmark matrix.
+These are end-to-end Node numbers, not Pingora's raw ceiling. See
+[docs/benchmarks.md](./docs/benchmarks.md) for the method and caveats.
 
 ## Requirements
 
 - **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)
-- **Building from source:** Node.js 20.17+ for the napi-rs CLI, pnpm 12+, and
-  [just](https://github.com/casey/just)
-- **Tests and benchmarks:** Node.js 22.12+ (Vitest 5); this is higher than the
-  runtime and build floors
-- Rust stable and a C toolchain (source builds only; prebuilt binaries are
-  planned for 1.0)
 - Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)
+- Prebuilt binaries are installed through npm; source builds are documented in
+  [docs/development.md](./docs/development.md).
 
-## Development
+## Contributing
 
-```sh
-pnpm install    # installs dependencies and the lefthook git hooks
-just build      # release build; use `just build-debug` for a faster build
-just test       # build and run the Rust and Node.js tests
-just check      # format check, clippy, Rust tests, build, and Node tests
-just --list     # show all available recipes
-```
-
-The build produces `pingora.<platform>.node`, `index.js` (CommonJS loader), and
-`index.d.ts`; all three are generated and git-ignored. Node's ESM interop makes
-`import { Server } from 'pingora'` work without a separate wrapper.
-
-Git hooks are managed by [lefthook](https://github.com/evilmartians/lefthook):
-pre-commit runs `cargo fmt` and clippy for Rust changes, and pre-push runs
-`just check`.
-
-## Releasing
-
-Releases are published from GitHub Actions using npm trusted publishing (OIDC).
-No long-lived `NPM_TOKEN` is required. See [docs/releasing.md](./docs/releasing.md)
-for the one-time npm setup and the release procedure.
-
-## Tooling
-
-- **pnpm** for dependency management and publishing.
-- **just** for local task recipes.
-- **lefthook** for Git hooks.
-- **Renovate** for dependency updates (`.renovaterc`).
-- GitHub Actions are pinned to full commit SHAs with a version comment.
+See [docs/development.md](./docs/development.md) for the local workflow and
+[docs/releasing.md](./docs/releasing.md) for the release process.
 
 ## License
 

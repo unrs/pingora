@@ -1,13 +1,14 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
+  # A publish that has started must finish: cancelling can leave some packages
+  # on npm and others missing.
   cancel-in-progress: false
 
 permissions:
@@ -18,28 +19,77 @@ env:
   MACOSX_DEPLOYMENT_TARGET: '11.0'
 
 jobs:
-  check:
-    name: Check release version
+  release:
+    name: Version or prepare release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      publish: ${{ steps.package-version.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
+          # Changesets needs history for changelogs and the version PR branch.
+          fetch-depth: 0
 
-      - name: Verify tag matches package.json
-        if: github.event_name == 'push'
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
+        with:
+          tool: cargo-binstall
+
+      - name: Install cargo-edit
+        run: cargo binstall --no-confirm cargo-edit
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create or update release pull request
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          commit-message: 'chore: release pingora'
+          pr-title: 'chore: release pingora'
+          version-script: pnpm run version
+
+      - name: Check package version on npm
+        id: package-version
+        if: steps.changesets.outputs.has-changesets == 'false'
         run: |
-          version=$(node -p "require('./package.json').version")
-          expected="v${version}"
-          if [ "${GITHUB_REF_NAME}" != "${expected}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version} (expected ${expected})" >&2
-            exit 1
-          fi
-          echo "Tag ${GITHUB_REF_NAME} matches package.json version ${version}"
+          set -euo pipefail
+          name=$(jq -r .name package.json)
+          version=$(jq -r .version package.json)
+          encoded_name=${name//\//%2f}
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            "https://registry.npmjs.org/${encoded_name}/${version}")
+          case "$status" in
+            200)
+              echo "${name}@${version} is already published."
+              ;;
+            404)
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+              echo "${name}@${version} is not published yet."
+              ;;
+            *)
+              echo "npm registry answered ${status} for ${name}@${version}" >&2
+              exit 1
+              ;;
+          esac
 
   build:
     name: Build ${{ matrix.target }}
-    needs: check
+    needs: release
+    if: needs.release.outputs.publish == 'true'
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -62,7 +112,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install Rust toolchain
@@ -79,7 +129,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build binding
-        run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
+        run: pnpm napi build --platform --release --target ${{ matrix.target }}
 
       - name: Upload binding
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -101,23 +151,21 @@ jobs:
   publish:
     name: Publish to npm
     needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
-    environment: npm
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       NPM_CONFIG_PROVENANCE: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install dependencies
@@ -137,12 +185,13 @@ jobs:
 
       - name: Assemble platform packages
         run: |
-          pnpm exec napi create-npm-dirs
-          pnpm exec napi artifacts
+          pnpm napi create-npm-dirs
+          pnpm napi artifacts
 
       - name: Publish platform packages
-        # Trusted publishing (OIDC) authenticates each publish; no NPM_TOKEN.
-        run: pnpm run publish:platforms
+        run: pnpm napi pre-publish --no-gh-release --tagstyle npm --npm-dir npm
 
-      - name: Publish main package
-        run: pnpm publish --access public --provenance --no-git-checks --ignore-scripts
+      - name: Publish packages
+        # The publish action runs `changeset publish` itself, pushes the tag, and
+        # creates the GitHub release. Trusted publishing authenticates via OIDC.
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
