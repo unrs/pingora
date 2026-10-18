@@ -285,11 +285,10 @@ test('stops idempotently and releases the port', async () => {
   await assert.rejects(fetch(`http://127.0.0.1:${proxy.port}/`))
 })
 
-test('reports invalid listeners on start', async () => {
+test('rejects invalid listeners on start', async () => {
   const server = new Server({ listeners: ['not-an-address'] })
+  assert.throws(() => server.start(), /listener|socket address/)
   assert.equal(server.status().state, 'failed')
-  assert.match(server.status().error, /invalid listener address/)
-  assert.throws(() => server.start(), /invalid listener address/)
 })
 
 test('enforces a single server per process', async () => {

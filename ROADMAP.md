@@ -374,7 +374,7 @@ handler.
 - [x] Upstream parsing (`IP:port`, `http://`, `https://`), SNI defaults,
       TLS verification defaults. Hostname resolution is left to the caller.
 - [x] Load balancing: round robin, random, first.
-- [x] Request- and response-header mutations with validation.
+- [x] Request- and response-header mutations, validated by Pingora at insert.
 - [x] Per-route timeouts applied to the upstream peer.
 - [x] `404` for unmatched routes, `502` for upstream failures, `500` for
       internal errors.

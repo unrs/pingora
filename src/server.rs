@@ -1,4 +1,3 @@
-use std::net::ToSocketAddrs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, Once};
@@ -103,12 +102,6 @@ impl JsServer {
             .unwrap_or_else(|| vec!["127.0.0.1:8080".to_string()]);
 
         let mut init_error = None;
-        for listener in &listeners {
-            if let Err(error) = validate_listener(listener) {
-                init_error = Some(error);
-            }
-        }
-
         let shared = match SharedState::new(options.routes.unwrap_or_default()) {
             Ok(shared) => Arc::new(shared),
             Err(error) => {
@@ -162,6 +155,8 @@ impl JsServer {
             ));
         }
 
+        // Pingora's listener service panics on invalid or busy addresses in a
+        // spawned thread, so preflight here to keep start() fallible.
         if let Err(error) = preflight_listeners(&self.state.listeners) {
             ACTIVE_SERVER.store(false, Ordering::Release);
             self.started.store(false, Ordering::Release);
@@ -368,19 +363,6 @@ fn init_logger(level: &str) {
     INIT_LOGGER.call_once(|| {
         let _ = env_logger::Builder::from_env(Env::default().default_filter_or(level)).try_init();
     });
-}
-
-fn validate_listener(listener: &str) -> Result<(), String> {
-    let mut addrs = listener
-        .to_socket_addrs()
-        .map_err(|error| format!("invalid listener address `{listener}`: {error}"))?;
-    let addr = addrs
-        .next()
-        .ok_or_else(|| format!("listener `{listener}` did not resolve to an address"))?;
-    if addr.port() == 0 {
-        return Err("listener port must not be 0".to_string());
-    }
-    Ok(())
 }
 
 fn preflight_listeners(listeners: &[String]) -> Result<(), String> {

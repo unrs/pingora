@@ -31,10 +31,13 @@ Pingora thread
 
 ## Lifecycle
 
-1. The constructor validates address syntax, routes, headers, and upstreams. A
-   validation error is stored and surfaced by `start()` and `status()`.
-2. `start()` acquires the process-wide singleton, preflight-binds TCP listeners,
-   and spawns a dedicated thread. It returns after the thread is spawned.
+1. The constructor parses routes and upstreams into typed values. Route errors
+   are stored and surfaced by `start()` and `status()`.
+2. `start()` acquires the process-wide singleton, preflights TCP listeners, and
+   spawns a dedicated thread. Listener preflight is the one deliberate check
+   outside Pingora: Pingora's listener service panics on an invalid or busy
+   address in a spawned thread instead of returning an error. Header names and
+   values are passed through and validated by Pingora when inserted.
 3. `stop()` sends `true` through a Tokio watch channel; the custom
    `ShutdownSignalWatch` returns `GracefulTerminate`. The returned `AsyncTask`
    joins the Pingora thread on a libuv worker, so the event loop is not blocked.

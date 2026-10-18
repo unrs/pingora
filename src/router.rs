@@ -133,12 +133,10 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
     let hosts = parse_hosts(options.host)?;
     let methods = parse_methods(options.methods)?;
     let match_headers = parse_match_headers(options.match_headers)?;
-    let request_headers = parse_headers(options.request_headers, "requestHeaders")?;
-    let response_headers = parse_headers(options.response_headers, "responseHeaders")?;
-    let remove_request_headers =
-        parse_header_names(options.remove_request_headers, "removeRequestHeaders")?;
-    let remove_response_headers =
-        parse_header_names(options.remove_response_headers, "removeResponseHeaders")?;
+    let request_headers = parse_headers(options.request_headers);
+    let response_headers = parse_headers(options.response_headers);
+    let remove_request_headers = parse_header_names(options.remove_request_headers);
+    let remove_response_headers = parse_header_names(options.remove_response_headers);
 
     if options.upstreams.is_empty() {
         return Err(format!("route `{id}` must have at least one upstream"));
@@ -253,39 +251,26 @@ fn parse_match_headers(
         .collect()
 }
 
-fn parse_headers(
-    headers: Option<HashMap<String, String>>,
-    field: &str,
-) -> Result<Vec<(String, String)>, String> {
-    let Some(headers) = headers else {
-        return Ok(Vec::new());
-    };
-
+fn parse_headers(headers: Option<HashMap<String, String>>) -> Vec<(String, String)> {
     headers
-        .into_iter()
-        .map(|(name, value)| {
-            HeaderName::from_bytes(name.as_bytes())
-                .map_err(|_| format!("{field} contains invalid header name `{name}`"))?;
-            HeaderValue::from_str(&value)
-                .map_err(|_| format!("{field} contains invalid value for `{name}`"))?;
-            Ok((name.to_ascii_lowercase(), value))
+        .map(|headers| {
+            headers
+                .into_iter()
+                .map(|(name, value)| (name.to_ascii_lowercase(), value))
+                .collect()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
-fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<String>, String> {
-    let Some(names) = names else {
-        return Ok(Vec::new());
-    };
-
+fn parse_header_names(names: Option<Vec<String>>) -> Vec<String> {
     names
-        .into_iter()
-        .map(|name| {
-            HeaderName::from_bytes(name.as_bytes())
-                .map_err(|_| format!("{field} contains invalid header name `{name}`"))?;
-            Ok(name.to_ascii_lowercase())
+        .map(|names| {
+            names
+                .into_iter()
+                .map(|name| name.to_ascii_lowercase())
+                .collect()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
 fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
