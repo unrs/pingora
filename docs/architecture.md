@@ -62,12 +62,14 @@ xorshift counter, and `first` always picks the first upstream.
 ## Request handler
 
 `setRequestHandler(fn)` builds a napi `ThreadsafeFunction` whose return value is
-a JavaScript promise. The Pingora worker calls it with a `RequestView` snapshot
-and awaits the promise under `handlerTimeoutMs`. The handler is cloned per
+a decision or a JavaScript promise. The Pingora worker calls it with a
+`RequestView` snapshot and awaits the promise under `handlerTimeoutMs`, if
+one is returned. The handler is cloned per
 request, so replacing or clearing it does not invalidate in-flight requests.
 Decisions are `continue`, `respond`, or `upstream`, plus optional header
-mutations. Handler errors, invalid decisions, and timeouts produce a `500`.
-Without a handler, requests never cross into JavaScript.
+mutations. Synthetic responses use the decision `headers`; route response
+mutations do not apply. Handler errors, invalid decisions, and timeouts produce a
+`500`. Without a handler, requests never cross into JavaScript.
 
 ## Metrics
 

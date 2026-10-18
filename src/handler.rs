@@ -11,37 +11,52 @@ use crate::options::UpstreamOptions;
 
 #[napi(object)]
 pub struct RequestView {
+    /// Request method, e.g. `GET`.
     pub method: String,
+    /// Raw, percent-encoded request path.
     pub path: String,
+    /// Query string without the leading `?`.
     pub query: Option<String>,
+    /// `Host` header including the port, if present.
     pub host: Option<String>,
+    /// Lowercase header names. Repeated values are joined with `, `.
     pub headers: HashMap<String, String>,
+    /// Downstream peer IP address.
     pub client_ip: Option<String>,
+    /// `http` for the current listener implementation.
     pub scheme: String,
+    /// HTTP version, e.g. `HTTP/1.1`.
     pub http_version: String,
+    /// Matched route id, or `None` when no route matched.
     pub route_id: Option<String>,
 }
 
 #[napi(object)]
 pub struct RequestDecision {
-    /// `continue`, `respond`, or `upstream`.
+    /// `continue` (default), `respond`, or `upstream`.
     pub action: Option<String>,
-    /// Synthetic response status for `respond`.
+    /// Final response status for `respond`.
     pub status: Option<u16>,
-    /// Synthetic response headers for `respond`.
+    /// Response headers for `respond`.
     pub headers: Option<HashMap<String, String>>,
-    /// Synthetic response body for `respond`.
+    /// Response body for `respond`.
     pub body: Option<String>,
     /// Upstream peer for `upstream`.
     pub upstream: Option<Either<String, UpstreamOptions>>,
+    /// Request headers added to a proxied request.
     pub request_headers: Option<HashMap<String, String>>,
+    /// Request headers removed from a proxied request.
     pub remove_request_headers: Option<Vec<String>>,
+    /// Response headers added to a proxied response.
     pub response_headers: Option<HashMap<String, String>>,
+    /// Response headers removed from a proxied response.
     pub remove_response_headers: Option<Vec<String>>,
 }
 
+pub type HandlerReturn = Either<Promise<RequestDecision>, RequestDecision>;
+
 pub type HandlerTsfn =
-    ThreadsafeFunction<RequestView, Promise<RequestDecision>, RequestView, Status, false, true>;
+    ThreadsafeFunction<RequestView, HandlerReturn, RequestView, Status, false, true>;
 
 pub enum HandlerError {
     Timeout,
@@ -60,8 +75,10 @@ impl RequestHandler {
 
     pub async fn call(&self, view: RequestView) -> Result<RequestDecision, HandlerError> {
         let call = async {
-            let promise = self.tsfn.call_async_catch(view).await?;
-            promise.await
+            match self.tsfn.call_async_catch(view).await? {
+                Either::A(promise) => promise.await,
+                Either::B(decision) => Ok(decision),
+            }
         };
 
         match tokio::time::timeout(self.timeout, call).await {
@@ -88,6 +105,7 @@ impl RequestView {
         }
 
         let host = crate::state::request_host(req);
+        // TODO(M3): derive https from the downstream TLS digest when TLS listeners exist.
         Self {
             method: req.method.as_str().to_string(),
             path: req.uri.path().to_string(),

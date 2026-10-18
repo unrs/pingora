@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use env_logger::Env;
-use napi::bindgen_prelude::{AsyncTask, Function, Promise};
+use napi::bindgen_prelude::{AsyncTask, Either, Function, Promise};
 use napi::{Error as NapiError, Status, Task};
 use napi_derive::napi;
 use pingora::server::configuration::{Opt, ServerConf};
@@ -292,7 +292,7 @@ impl JsServer {
     #[napi]
     pub fn set_request_handler(
         &self,
-        handler: Function<RequestView, Promise<RequestDecision>>,
+        handler: Function<RequestView, Either<Promise<RequestDecision>, RequestDecision>>,
     ) -> napi::Result<()> {
         let tsfn = handler
             .build_threadsafe_function::<RequestView>()
