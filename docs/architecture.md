@@ -61,6 +61,9 @@ xorshift counter, and `first` always picks the first upstream.
 
 ## Request handler
 
+TLS listeners use Pingora `TlsSettings` with ALPN `h2`/`http/1.1`; `start()`
+validates the certificate/key pair before handing them to Pingora.
+
 `setRequestHandler(fn)` builds a napi `ThreadsafeFunction` whose return value is
 a decision or a JavaScript promise. The Pingora worker calls it with a
 `RequestView` snapshot and awaits the promise under `handlerTimeoutMs`, if
