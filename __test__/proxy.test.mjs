@@ -81,9 +81,11 @@ async function createProxy(options = {}) {
 }
 
 test('proxies requests, applies headers, and reports metrics', async () => {
+  let seen
   const upstream = await startUpstream((req, res) => {
     res.setHeader('x-upstream', 'yes')
-    res.end(`upstream:${req.headers['x-route'] ?? ''}:${req.url}`)
+    seen = { route: req.headers['x-route'], url: req.url }
+    res.end('ok')
   })
   onTestFinished(() => upstream.close())
 
@@ -104,7 +106,8 @@ test('proxies requests, applies headers, and reports metrics', async () => {
 
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/api/hello?q=1`)
   assert.equal(response.status, 200)
-  assert.equal(await response.text(), 'upstream:api:/api/hello?q=1')
+  assert.equal(await response.text(), 'ok')
+  assert.deepEqual(seen, { route: 'api', url: '/api/hello?q=1' })
   assert.equal(response.headers.get('x-proxied'), 'yes')
   assert.equal(response.headers.get('x-upstream'), null)
 
