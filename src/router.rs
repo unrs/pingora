@@ -1,13 +1,16 @@
 use std::collections::HashMap;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
 use pingora::http::RequestHeader;
 use pingora::upstreams::peer::HttpPeer;
+use tokio::sync::watch;
 
 use crate::options::{RouteOptions, UpstreamOptions};
 
@@ -121,35 +124,145 @@ pub enum ResolveError {
     Failed(String),
 }
 
+const DNS_CACHE_TTL: Duration = Duration::from_secs(30);
+const DNS_MAX_INFLIGHT: usize = 32;
+const DNS_MAX_CACHE_ENTRIES: usize = 4_096;
+
+type DnsKey = (String, u16);
+type DnsResult = Result<SocketAddr, String>;
+type DnsWatch = watch::Receiver<Option<DnsResult>>;
+
+#[derive(Clone)]
+struct DnsCacheEntry {
+    addr: SocketAddr,
+    expires: Instant,
+}
+
+#[derive(Default)]
+struct DnsResolver {
+    cache: Mutex<HashMap<DnsKey, DnsCacheEntry>>,
+    inflight: Mutex<HashMap<DnsKey, DnsWatch>>,
+    active: AtomicUsize,
+}
+
+impl DnsResolver {
+    async fn resolve(
+        self: &Arc<Self>,
+        host: &str,
+        port: u16,
+        timeout: Option<Duration>,
+    ) -> Result<SocketAddr, ResolveError> {
+        let key = (host.to_ascii_lowercase(), port);
+        if let Some(addr) = self.cached(&key) {
+            return Ok(addr);
+        }
+
+        let rx = {
+            let mut inflight = self.inflight.lock().unwrap();
+            if let Some(rx) = inflight.get(&key) {
+                rx.clone()
+            } else {
+                if self.active.fetch_add(1, Ordering::AcqRel) >= DNS_MAX_INFLIGHT {
+                    self.active.fetch_sub(1, Ordering::AcqRel);
+                    return Err(ResolveError::Failed(
+                        "too many concurrent DNS lookups".to_string(),
+                    ));
+                }
+
+                let (tx, rx) = watch::channel(None);
+                inflight.insert(key.clone(), rx.clone());
+
+                let resolver = Arc::clone(self);
+                let host = host.to_string();
+                let task_key = key.clone();
+                tokio::task::spawn_blocking(move || {
+                    let result: DnsResult = (host.as_str(), port)
+                        .to_socket_addrs()
+                        .map_err(|error| {
+                            format!("failed to resolve upstream `{host}:{port}`: {error}")
+                        })
+                        .and_then(|mut addrs| {
+                            addrs.next().ok_or_else(|| {
+                                format!("upstream `{host}:{port}` did not resolve to an address")
+                            })
+                        });
+
+                    if let Ok(addr) = &result {
+                        let mut cache = resolver.cache.lock().unwrap();
+                        if cache.len() >= DNS_MAX_CACHE_ENTRIES {
+                            cache.clear();
+                        }
+                        cache.insert(
+                            task_key.clone(),
+                            DnsCacheEntry {
+                                addr: *addr,
+                                expires: Instant::now() + DNS_CACHE_TTL,
+                            },
+                        );
+                    }
+                    resolver.inflight.lock().unwrap().remove(&task_key);
+                    resolver.active.fetch_sub(1, Ordering::AcqRel);
+                    let _ = tx.send(Some(result));
+                });
+
+                rx
+            }
+        };
+
+        self.wait(rx, timeout).await
+    }
+
+    fn cached(&self, key: &(String, u16)) -> Option<SocketAddr> {
+        let mut cache = self.cache.lock().unwrap();
+        let entry = cache.get(key)?;
+        if entry.expires > Instant::now() {
+            Some(entry.addr)
+        } else {
+            cache.remove(key);
+            None
+        }
+    }
+
+    async fn wait(
+        &self,
+        mut rx: watch::Receiver<Option<DnsResult>>,
+        timeout: Option<Duration>,
+    ) -> Result<SocketAddr, ResolveError> {
+        let wait = async {
+            loop {
+                if let Some(result) = rx.borrow().clone() {
+                    return result;
+                }
+                if rx.changed().await.is_err() {
+                    return Err("DNS resolver dropped the request".to_string());
+                }
+            }
+        };
+
+        let result = match timeout {
+            Some(timeout) => tokio::time::timeout(timeout, wait)
+                .await
+                .map_err(|_| ResolveError::TimedOut)?,
+            None => wait.await,
+        };
+
+        result.map_err(ResolveError::Failed)
+    }
+}
+
+fn dns_resolver() -> &'static Arc<DnsResolver> {
+    static RESOLVER: OnceLock<Arc<DnsResolver>> = OnceLock::new();
+    RESOLVER.get_or_init(|| Arc::new(DnsResolver::default()))
+}
+
 impl Upstream {
     pub async fn to_peer(&self, timeout: Option<Duration>) -> Result<HttpPeer, ResolveError> {
         let addr = match self.host.parse::<std::net::IpAddr>() {
-            Ok(ip) => std::net::SocketAddr::new(ip, self.port),
+            Ok(ip) => SocketAddr::new(ip, self.port),
             Err(_) => {
-                let host = self.host.clone();
-                let port = self.port;
-                let lookup = async move {
-                    tokio::net::lookup_host((host.as_str(), port))
-                        .await
-                        .map_err(|error| {
-                            ResolveError::Failed(format!(
-                                "failed to resolve upstream `{host}:{port}`: {error}"
-                            ))
-                        })?
-                        .next()
-                        .ok_or_else(|| {
-                            ResolveError::Failed(format!(
-                                "upstream `{host}:{port}` did not resolve to an address"
-                            ))
-                        })
-                };
-
-                match timeout {
-                    Some(timeout) => tokio::time::timeout(timeout, lookup)
-                        .await
-                        .map_err(|_| ResolveError::TimedOut)??,
-                    None => lookup.await?,
-                }
+                dns_resolver()
+                    .resolve(&self.host, self.port, timeout)
+                    .await?
             }
         };
 

@@ -48,9 +48,13 @@ Routes are checked in registration order. All specified matchers must match.
 behind an `RwLock`; requests clone an `Arc<Route>` snapshot for the duration of
 the request.
 
-Upstreams are resolved when a route is added. `round_robin` uses a per-route
-atomic counter, `random` uses a process-wide xorshift counter, and `first`
-always picks the first upstream.
+Upstream hostnames are resolved at connect time by a shared resolver with a
+30-second cache, single-flight coalescing, and a bounded number of concurrent
+blocking lookups. IP literals skip DNS entirely. The route timeout bounds how
+long the request waits for resolution.
+
+`round_robin` uses a per-route atomic counter, `random` uses a process-wide
+xorshift counter, and `first` always picks the first upstream.
 
 ## Metrics
 
