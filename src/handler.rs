@@ -75,13 +75,17 @@ impl RequestHandler {
 impl RequestView {
     pub fn from_session(session: &Session, route_id: Option<&str>) -> Self {
         let req = session.req_header();
-        let headers = req
-            .headers
-            .iter()
-            .filter_map(|(name, value)| {
-                Some((name.as_str().to_string(), value.to_str().ok()?.to_string()))
-            })
-            .collect();
+        let mut headers: HashMap<String, String> = HashMap::new();
+        for (name, value) in req.headers.iter() {
+            let value = String::from_utf8_lossy(value.as_bytes());
+            headers
+                .entry(name.as_str().to_string())
+                .and_modify(|existing| {
+                    existing.push_str(", ");
+                    existing.push_str(&value);
+                })
+                .or_insert_with(|| value.into_owned());
+        }
 
         let host = crate::state::request_host(req);
         Self {

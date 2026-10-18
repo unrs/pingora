@@ -296,3 +296,73 @@ test('does not keep the event loop alive after stop', async () => {
   }
   assert.equal(result[0], 0)
 })
+
+test('joins repeated request headers in the view', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  onTestFinished(() => upstream.close())
+
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  onTestFinished(() => proxy.stop())
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+
+  let seen
+  proxy.server.setRequestHandler(async (request) => {
+    seen = request
+    return { action: 'respond', body: 'ok' }
+  })
+
+  await new Promise((resolve, reject) => {
+    const request = http.request(
+      {
+        host: '127.0.0.1',
+        port: proxy.port,
+        path: '/',
+        headers: { 'x-repeat': ['one', 'two'] },
+      },
+      (response) => {
+        response.resume()
+        response.on('end', resolve)
+      },
+    )
+    request.on('error', reject)
+    request.end()
+  })
+
+  assert.equal(seen.headers['x-repeat'], 'one, two')
+})
+
+test('exposes non-UTF8 request header values lossily', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  onTestFinished(() => upstream.close())
+
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  onTestFinished(() => proxy.stop())
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+
+  let seen
+  proxy.server.setRequestHandler(async (request) => {
+    seen = request
+    return { action: 'respond', body: 'ok' }
+  })
+
+  await new Promise((resolve, reject) => {
+    const socket = net.connect(proxy.port, '127.0.0.1', () => {
+      socket.write(
+        Buffer.concat([
+          Buffer.from('GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nx-internal: '),
+          Buffer.from([0x80]),
+          Buffer.from('\r\nConnection: close\r\n\r\n'),
+        ]),
+      )
+    })
+    socket.on('data', () => {})
+    socket.on('end', resolve)
+    socket.on('error', reject)
+  })
+
+  assert.ok(seen.headers['x-internal'].includes('\uFFFD'))
+})
