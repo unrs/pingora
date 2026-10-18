@@ -7,7 +7,7 @@ use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
 use pingora::{Error, ErrorSource, ErrorType};
 
-use crate::router::{normalize_host, Route};
+use crate::router::{normalize_host, ResolveError, Route};
 use crate::state::{request_host, SharedState};
 
 pub struct JsProxy {
@@ -72,10 +72,19 @@ impl ProxyHttp for JsProxy {
             .pick()
             .ok_or_else(|| Error::explain(ErrorType::InternalError, "route has no upstream"))?;
 
-        let mut peer = upstream.to_peer().await.map_err(|error| {
-            log::error!("{error}");
-            Error::new_up(ErrorType::ConnectError)
-        })?;
+        let mut peer = upstream
+            .to_peer(route.timeout)
+            .await
+            .map_err(|error| match error {
+                ResolveError::TimedOut => {
+                    log::warn!("upstream resolution timed out");
+                    Error::new_up(ErrorType::ConnectTimedout)
+                }
+                ResolveError::Failed(message) => {
+                    log::error!("{message}");
+                    Error::new_up(ErrorType::ConnectError)
+                }
+            })?;
         if let Some(timeout) = route.timeout {
             peer.options.connection_timeout = Some(timeout);
             peer.options.total_connection_timeout = Some(timeout);

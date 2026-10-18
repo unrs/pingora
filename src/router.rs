@@ -115,25 +115,42 @@ impl HostPattern {
     }
 }
 
+#[derive(Debug)]
+pub enum ResolveError {
+    TimedOut,
+    Failed(String),
+}
+
 impl Upstream {
-    pub async fn to_peer(&self) -> Result<HttpPeer, String> {
+    pub async fn to_peer(&self, timeout: Option<Duration>) -> Result<HttpPeer, ResolveError> {
         let addr = match self.host.parse::<std::net::IpAddr>() {
             Ok(ip) => std::net::SocketAddr::new(ip, self.port),
-            Err(_) => tokio::net::lookup_host((self.host.as_str(), self.port))
-                .await
-                .map_err(|error| {
-                    format!(
-                        "failed to resolve upstream `{}:{}`: {error}",
-                        self.host, self.port
-                    )
-                })?
-                .next()
-                .ok_or_else(|| {
-                    format!(
-                        "upstream `{}:{}` did not resolve to an address",
-                        self.host, self.port
-                    )
-                })?,
+            Err(_) => {
+                let host = self.host.clone();
+                let port = self.port;
+                let lookup = async move {
+                    tokio::net::lookup_host((host.as_str(), port))
+                        .await
+                        .map_err(|error| {
+                            ResolveError::Failed(format!(
+                                "failed to resolve upstream `{host}:{port}`: {error}"
+                            ))
+                        })?
+                        .next()
+                        .ok_or_else(|| {
+                            ResolveError::Failed(format!(
+                                "upstream `{host}:{port}` did not resolve to an address"
+                            ))
+                        })
+                };
+
+                match timeout {
+                    Some(timeout) => tokio::time::timeout(timeout, lookup)
+                        .await
+                        .map_err(|_| ResolveError::TimedOut)??,
+                    None => lookup.await?,
+                }
+            }
         };
 
         let mut peer = HttpPeer::new(addr, self.tls, self.sni.clone());

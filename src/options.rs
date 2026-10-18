@@ -51,7 +51,7 @@ pub struct RouteOptions {
     pub response_headers: Option<HashMap<String, String>>,
     /// Response headers removed before sending downstream.
     pub remove_response_headers: Option<Vec<String>>,
-    /// Connect/read/write timeout for this route's upstreams, in ms.
+    /// Connect, DNS, read, and write timeout for this route's upstreams, in ms.
     pub timeout_ms: Option<u32>,
 }
 
