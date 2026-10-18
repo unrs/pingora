@@ -30,18 +30,21 @@ impl JsProxy {
         decision: RequestDecision,
     ) -> Result<bool, String> {
         ctx.route = route;
-        ctx.request_headers = parse_headers(decision.request_headers, "requestHeaders")?;
-        ctx.remove_request_headers =
-            parse_header_names(decision.remove_request_headers, "removeRequestHeaders")?;
-        ctx.response_headers = parse_headers(decision.response_headers, "responseHeaders")?;
-        ctx.remove_response_headers =
-            parse_header_names(decision.remove_response_headers, "removeResponseHeaders")?;
 
         let action = decision
             .action
             .as_deref()
             .unwrap_or("continue")
             .to_ascii_lowercase();
+        if action != "respond" {
+            ctx.request_headers = parse_headers(decision.request_headers, "requestHeaders")?;
+            ctx.remove_request_headers =
+                parse_header_names(decision.remove_request_headers, "removeRequestHeaders")?;
+            ctx.response_headers = parse_headers(decision.response_headers, "responseHeaders")?;
+            ctx.remove_response_headers =
+                parse_header_names(decision.remove_response_headers, "removeResponseHeaders")?;
+        }
+
         match action.as_str() {
             "continue" => Ok(false),
             "upstream" => {
@@ -57,17 +60,16 @@ impl JsProxy {
                     return Err(format!("invalid response status `{status}`"));
                 }
                 let is_head = session.req_header().method == http::Method::HEAD;
-                let headers = parse_headers(decision.headers, "headers")?;
                 let body = decision.body.unwrap_or_default();
-                if matches!(status, 204 | 205 | 304) && !body.is_empty() {
-                    return Err(format!("response status `{status}` does not allow a body"));
-                }
                 let mut response = ResponseHeader::build(status, None)
                     .map_err(|error| format!("invalid response: {error}"))?;
-                for (name, value) in headers {
+                for (name, value) in decision.headers.unwrap_or_default() {
                     response
                         .insert_header(name, value)
                         .map_err(|error| format!("invalid response header: {error}"))?;
+                }
+                if status == 204 {
+                    response.remove_header(&http::header::CONTENT_LENGTH);
                 }
                 if status != 204 && status != 304 {
                     response

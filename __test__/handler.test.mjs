@@ -173,19 +173,9 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   proxy.server.setRequestHandler(async () => ({ action: 'invalid' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/invalid`)).status, 500)
 
-  proxy.server.setRequestHandler(async () => ({
-    action: 'respond',
-    status: 204,
-    body: 'not allowed',
-  }))
-  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/no-body`)).status, 500)
 
-  proxy.server.setRequestHandler(async () => ({
-    action: 'respond',
-    status: 205,
-    body: 'not allowed',
-  }))
-  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/reset-content`)).status, 500)
+  proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 600 }))
+  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/bad-status`)).status, 500)
 
   proxy.server.setRequestHandler(async () => {
     await delay(500)
@@ -210,10 +200,25 @@ test('replaces and clears handlers while running', async () => {
   proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 202, body: 'b' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/`)).status, 202)
 
-  proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 204 }))
+  proxy.server.setRequestHandler(async () => ({
+    action: 'respond',
+    status: 204,
+    headers: { 'content-length': '5' },
+    body: 'ignored',
+  }))
   const noContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(noContent.status, 204)
   assert.equal(await noContent.text(), '')
+  assert.equal(noContent.headers.get('content-length'), null)
+
+  proxy.server.setRequestHandler(async () => ({
+    action: 'respond',
+    status: 205,
+    body: 'ignored',
+  }))
+  const resetContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(resetContent.status, 205)
+  assert.equal(await resetContent.text(), '')
 
   proxy.server.clearRequestHandler()
   const response = await fetch(`http://127.0.0.1:${proxy.port}/`)
