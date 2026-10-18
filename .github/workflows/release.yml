@@ -55,7 +55,10 @@ jobs:
           tool: cargo-binstall
 
       - name: Install cargo-edit
-        run: cargo binstall --no-confirm cargo-edit@0.13.13
+        run: |
+          if ! cargo set-version --help >/dev/null 2>&1; then
+            cargo binstall --no-confirm cargo-edit@0.13.13
+          fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
