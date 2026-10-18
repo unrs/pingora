@@ -49,6 +49,10 @@ async function waitForHttps(port, path = '/') {
 function http2Request(port, path = '/') {
   const client = http2.connect(`https://127.0.0.1:${port}`, { ca })
   return new Promise((resolve, reject) => {
+    client.once('error', (error) => {
+      client.close()
+      reject(error)
+    })
     const request = client.request({ ':path': path })
     let headers
     const chunks = []
