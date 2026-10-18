@@ -204,19 +204,18 @@ impl ProxyHttp for JsProxy {
     where
         Self::CTX: Send + Sync,
     {
-        let mut remove = Vec::new();
-        let mut insert = Vec::new();
         if let Some(route) = ctx.route.as_ref() {
-            remove.extend(route.remove_request_headers.iter().cloned());
-            insert.extend(route.request_headers.iter().cloned());
+            for name in route.remove_request_headers.iter() {
+                upstream_request.remove_header(name.as_str());
+            }
+            for (name, value) in route.request_headers.iter().cloned() {
+                upstream_request.insert_header(name, value)?;
+            }
         }
-        remove.extend(ctx.remove_request_headers.iter().cloned());
-        insert.extend(ctx.request_headers.iter().cloned());
-
-        for name in remove {
+        for name in ctx.remove_request_headers.iter() {
             upstream_request.remove_header(name.as_str());
         }
-        for (name, value) in insert {
+        for (name, value) in ctx.request_headers.iter().cloned() {
             upstream_request.insert_header(name, value)?;
         }
 
@@ -232,19 +231,18 @@ impl ProxyHttp for JsProxy {
     where
         Self::CTX: Send + Sync,
     {
-        let mut remove = Vec::new();
-        let mut insert = Vec::new();
         if let Some(route) = ctx.route.as_ref() {
-            remove.extend(route.remove_response_headers.iter().cloned());
-            insert.extend(route.response_headers.iter().cloned());
+            for name in route.remove_response_headers.iter() {
+                upstream_response.remove_header(name.as_str());
+            }
+            for (name, value) in route.response_headers.iter().cloned() {
+                upstream_response.insert_header(name, value)?;
+            }
         }
-        remove.extend(ctx.remove_response_headers.iter().cloned());
-        insert.extend(ctx.response_headers.iter().cloned());
-
-        for name in remove {
+        for name in ctx.remove_response_headers.iter() {
             upstream_response.remove_header(name.as_str());
         }
-        for (name, value) in insert {
+        for (name, value) in ctx.response_headers.iter().cloned() {
             upstream_response.insert_header(name, value)?;
         }
 

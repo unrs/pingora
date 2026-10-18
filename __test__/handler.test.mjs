@@ -110,7 +110,14 @@ test('overrides the upstream and mutates headers', async () => {
   onTestFinished(() => second.close())
 
   const proxy = await createProxy({
-    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${first.port}`] }],
+    routes: [
+      {
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${first.port}`],
+        requestHeaders: { 'x-route-header': 'route' },
+        responseHeaders: { 'x-route-response': 'route' },
+      },
+    ],
   })
   onTestFinished(() => proxy.stop())
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
@@ -121,9 +128,9 @@ test('overrides the upstream and mutates headers', async () => {
         action: 'upstream',
         upstream: `127.0.0.1:${second.port}`,
         requestHeaders: { 'x-handler': 'yes' },
-        removeRequestHeaders: ['x-remove'],
+        removeRequestHeaders: ['x-remove', 'x-route-header'],
         responseHeaders: { 'x-response': 'yes' },
-        removeResponseHeaders: ['x-remove-response'],
+        removeResponseHeaders: ['x-remove-response', 'x-route-response'],
       }
     }
     return { action: 'continue' }
@@ -135,8 +142,10 @@ test('overrides the upstream and mutates headers', async () => {
   assert.equal(await response.text(), 'second')
   assert.equal(response.headers.get('x-response'), 'yes')
   assert.equal(response.headers.get('x-remove-response'), null)
+  assert.equal(response.headers.get('x-route-response'), null)
   assert.equal(observed['x-handler'], 'yes')
   assert.equal(observed['x-remove'], undefined)
+  assert.equal(observed['x-route-header'], undefined)
 })
 
 test('maps handler errors, invalid decisions, and timeouts to 500', async () => {
