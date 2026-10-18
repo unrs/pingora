@@ -38,8 +38,8 @@ pub struct RouteOptions {
     pub methods: Option<Vec<String>>,
     /// Headers that must all be present with the given values.
     pub match_headers: Option<HashMap<String, String>>,
-    /// Upstreams; strings accept `host:port`, `http://host[:port]`, or
-    /// `https://host[:port]`.
+    /// Upstreams; strings accept `IP:port`, `http://IP[:port]`, or
+    /// `https://IP[:port]`. Hostnames must be resolved by the caller.
     pub upstreams: Vec<Either<String, UpstreamOptions>>,
     /// `round_robin` (default), `random`, or `first`.
     pub strategy: Option<String>,
@@ -51,13 +51,13 @@ pub struct RouteOptions {
     pub response_headers: Option<HashMap<String, String>>,
     /// Response headers removed before sending downstream.
     pub remove_response_headers: Option<Vec<String>>,
-    /// Connect, DNS, read, and write timeout for this route's upstreams, in ms.
+    /// Connect, read, and write timeout for this route's upstreams, in ms.
     pub timeout_ms: Option<u32>,
 }
 
 #[napi(object)]
 pub struct UpstreamOptions {
-    /// `host:port`, `http://host[:port]`, or `https://host[:port]`.
+    /// `IP:port`, `http://IP[:port]`, or `https://IP[:port]`.
     pub address: String,
     /// Override the scheme-derived TLS setting.
     pub tls: Option<bool>,

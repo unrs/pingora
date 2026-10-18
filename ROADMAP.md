@@ -62,6 +62,9 @@ These are deliberately out of scope for the first stable release:
   the Unix releases are stable.
 - **A caching proxy before 1.0.** Pingora has a cache framework, but exposing it
   well needs a separate design cycle.
+- **A custom DNS resolver or service-discovery layer.** Pingora 0.9 has no DNS
+  discovery; the binding stays thin and requires resolved IP addresses instead
+  of implementing its own resolver.
 
 ## 3. Design decisions
 
@@ -207,7 +210,7 @@ interface ServerOptions {
 }
 
 interface ListenerOptions {
-  address: string // "host:port", or "unix:/path" in Phase 3
+  address: string // "IP:port", or "unix:/path" in Phase 3
   tls?: { cert: string; key: string }
   http2?: boolean
 }
@@ -368,8 +371,8 @@ handler.
       propagation, idempotent stop.
 - [x] Listener parsing and preflight validation for TCP.
 - [x] Route table with host, path, path prefix, method, and header matching.
-- [x] Upstream parsing (`host:port`, `http://`, `https://`), SNI defaults,
-      TLS verification defaults.
+- [x] Upstream parsing (`IP:port`, `http://`, `https://`), SNI defaults,
+      TLS verification defaults. Hostname resolution is left to the caller.
 - [x] Load balancing: round robin, random, first.
 - [x] Request- and response-header mutations with validation.
 - [x] Per-route timeouts applied to the upstream peer.

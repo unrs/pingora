@@ -1,16 +1,14 @@
 use std::collections::HashMap;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
 use pingora::http::RequestHeader;
 use pingora::upstreams::peer::HttpPeer;
-use tokio::sync::watch;
 
 use crate::options::{RouteOptions, UpstreamOptions};
 
@@ -30,8 +28,7 @@ pub enum HostPattern {
 
 #[derive(Debug, Clone)]
 pub struct Upstream {
-    pub host: String,
-    pub port: u16,
+    pub addr: SocketAddr,
     pub tls: bool,
     pub sni: String,
     pub verify: bool,
@@ -118,158 +115,12 @@ impl HostPattern {
     }
 }
 
-#[derive(Debug)]
-pub enum ResolveError {
-    TimedOut,
-    Failed(String),
-}
-
-const DNS_CACHE_TTL: Duration = Duration::from_secs(30);
-const DNS_MAX_INFLIGHT: usize = 32;
-const DNS_MAX_CACHE_ENTRIES: usize = 4_096;
-
-type DnsKey = (String, u16);
-type DnsResult = Result<SocketAddr, String>;
-type DnsWatch = watch::Receiver<Option<DnsResult>>;
-
-#[derive(Clone)]
-struct DnsCacheEntry {
-    addr: SocketAddr,
-    expires: Instant,
-}
-
-#[derive(Default)]
-struct DnsResolver {
-    cache: Mutex<HashMap<DnsKey, DnsCacheEntry>>,
-    inflight: Mutex<HashMap<DnsKey, DnsWatch>>,
-    active: AtomicUsize,
-}
-
-impl DnsResolver {
-    async fn resolve(
-        self: &Arc<Self>,
-        host: &str,
-        port: u16,
-        timeout: Option<Duration>,
-    ) -> Result<SocketAddr, ResolveError> {
-        let key = (host.to_ascii_lowercase(), port);
-        if let Some(addr) = self.cached(&key) {
-            return Ok(addr);
-        }
-
-        let rx = {
-            let mut inflight = self.inflight.lock().unwrap();
-            if let Some(rx) = inflight.get(&key) {
-                rx.clone()
-            } else {
-                if self.active.fetch_add(1, Ordering::AcqRel) >= DNS_MAX_INFLIGHT {
-                    self.active.fetch_sub(1, Ordering::AcqRel);
-                    return Err(ResolveError::Failed(
-                        "too many concurrent DNS lookups".to_string(),
-                    ));
-                }
-
-                let (tx, rx) = watch::channel(None);
-                inflight.insert(key.clone(), rx.clone());
-
-                let resolver = Arc::clone(self);
-                let host = host.to_string();
-                let task_key = key.clone();
-                tokio::task::spawn_blocking(move || {
-                    let result: DnsResult = (host.as_str(), port)
-                        .to_socket_addrs()
-                        .map_err(|error| {
-                            format!("failed to resolve upstream `{host}:{port}`: {error}")
-                        })
-                        .and_then(|mut addrs| {
-                            addrs.next().ok_or_else(|| {
-                                format!("upstream `{host}:{port}` did not resolve to an address")
-                            })
-                        });
-
-                    if let Ok(addr) = &result {
-                        let mut cache = resolver.cache.lock().unwrap();
-                        if cache.len() >= DNS_MAX_CACHE_ENTRIES {
-                            cache.clear();
-                        }
-                        cache.insert(
-                            task_key.clone(),
-                            DnsCacheEntry {
-                                addr: *addr,
-                                expires: Instant::now() + DNS_CACHE_TTL,
-                            },
-                        );
-                    }
-                    resolver.inflight.lock().unwrap().remove(&task_key);
-                    resolver.active.fetch_sub(1, Ordering::AcqRel);
-                    let _ = tx.send(Some(result));
-                });
-
-                rx
-            }
-        };
-
-        self.wait(rx, timeout).await
-    }
-
-    fn cached(&self, key: &(String, u16)) -> Option<SocketAddr> {
-        let mut cache = self.cache.lock().unwrap();
-        let entry = cache.get(key)?;
-        if entry.expires > Instant::now() {
-            Some(entry.addr)
-        } else {
-            cache.remove(key);
-            None
-        }
-    }
-
-    async fn wait(
-        &self,
-        mut rx: watch::Receiver<Option<DnsResult>>,
-        timeout: Option<Duration>,
-    ) -> Result<SocketAddr, ResolveError> {
-        let wait = async {
-            loop {
-                if let Some(result) = rx.borrow().clone() {
-                    return result;
-                }
-                if rx.changed().await.is_err() {
-                    return Err("DNS resolver dropped the request".to_string());
-                }
-            }
-        };
-
-        let result = match timeout {
-            Some(timeout) => tokio::time::timeout(timeout, wait)
-                .await
-                .map_err(|_| ResolveError::TimedOut)?,
-            None => wait.await,
-        };
-
-        result.map_err(ResolveError::Failed)
-    }
-}
-
-fn dns_resolver() -> &'static Arc<DnsResolver> {
-    static RESOLVER: OnceLock<Arc<DnsResolver>> = OnceLock::new();
-    RESOLVER.get_or_init(|| Arc::new(DnsResolver::default()))
-}
-
 impl Upstream {
-    pub async fn to_peer(&self, timeout: Option<Duration>) -> Result<HttpPeer, ResolveError> {
-        let addr = match self.host.parse::<std::net::IpAddr>() {
-            Ok(ip) => SocketAddr::new(ip, self.port),
-            Err(_) => {
-                dns_resolver()
-                    .resolve(&self.host, self.port, timeout)
-                    .await?
-            }
-        };
-
-        let mut peer = HttpPeer::new(addr, self.tls, self.sni.clone());
+    pub fn to_peer(&self) -> HttpPeer {
+        let mut peer = HttpPeer::new(self.addr, self.tls, self.sni.clone());
         peer.options.verify_cert = self.verify;
         peer.options.verify_hostname = self.verify;
-        Ok(peer)
+        peer
     }
 }
 
@@ -470,13 +321,17 @@ fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, St
         return Err(format!("upstream `{address}` has no host"));
     }
 
+    let ip: IpAddr = host.parse().map_err(|_| {
+        format!(
+            "upstream `{address}` uses a hostname; use an IP literal (DNS resolution is the caller's responsibility)"
+        )
+    })?;
     let tls = tls_override.unwrap_or(scheme_tls);
     let port = authority.port_u16().unwrap_or(if tls { 443 } else { 80 });
     let sni = sni_override.unwrap_or_else(|| host.to_string());
 
     Ok(Upstream {
-        host: host.to_string(),
-        port,
+        addr: SocketAddr::new(ip, port),
         tls,
         sni,
         verify,
@@ -541,8 +396,7 @@ mod tests {
     fn relative_upstream_parses_tls_and_port_defaults() {
         let upstream = parse_upstream(Either::A("https://127.0.0.1".to_string())).unwrap();
         assert!(upstream.tls);
-        assert_eq!(upstream.port, 443);
-        assert_eq!(upstream.host, "127.0.0.1");
+        assert_eq!(upstream.addr.port(), 443);
         assert_eq!(upstream.sni, "127.0.0.1");
     }
 
@@ -561,8 +415,8 @@ mod tests {
     #[test]
     fn parses_ipv6_literal_without_brackets() {
         let upstream = parse_upstream(Either::A("[::1]:9000".to_string())).unwrap();
-        assert_eq!(upstream.host, "::1");
-        assert_eq!(upstream.port, 9000);
+        assert!(upstream.addr.is_ipv6());
+        assert_eq!(upstream.addr.port(), 9000);
         assert_eq!(upstream.sni, "::1");
     }
 
@@ -572,9 +426,9 @@ mod tests {
             "127.0.0.1:9000".to_string(),
             "127.0.0.1:9001".to_string(),
         ]);
-        let first = route.pick().unwrap().port;
-        let second = route.pick().unwrap().port;
-        let third = route.pick().unwrap().port;
+        let first = route.pick().unwrap().addr.port();
+        let second = route.pick().unwrap().addr.port();
+        let third = route.pick().unwrap().addr.port();
         assert_ne!(first, second);
         assert_eq!(first, third);
     }

@@ -93,7 +93,7 @@ interface Route {
 }
 
 interface Upstream {
-  address: string // host:port, http://..., or https://...
+  address: string // IP:port, http://IP..., or https://IP...
   tls?: boolean
   sni?: string
   verify?: boolean // defaults to true
@@ -104,6 +104,8 @@ Routes are evaluated in registration order; the first match wins. All specified
 matchers must match. A request with no matching route receives `404`; an
 upstream connection failure receives `502`.
 
+Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
+does not implement DNS discovery; resolve hostnames before adding routes.
 Upstream TLS is verified by default. Unix sockets and listener TLS are not
 implemented yet.
 

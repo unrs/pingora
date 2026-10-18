@@ -48,10 +48,9 @@ Routes are checked in registration order. All specified matchers must match.
 behind an `RwLock`; requests clone an `Arc<Route>` snapshot for the duration of
 the request.
 
-Upstream hostnames are resolved at connect time by a shared resolver with a
-30-second cache, single-flight coalescing, and a bounded number of concurrent
-blocking lookups. IP literals skip DNS entirely. The route timeout bounds how
-long the request waits for resolution.
+Upstream addresses are required to be IP literals. Hostname resolution and
+service discovery are deliberately left outside the binding: Pingora 0.9 has no
+DNS discovery, and the binding stays a thin mapping onto its peer API.
 
 `round_robin` uses a per-route atomic counter, `random` uses a process-wide
 xorshift counter, and `first` always picks the first upstream.

@@ -262,6 +262,10 @@ test('rejects invalid routes and double start', async () => {
   onTestFinished(() => proxy.stop())
 
   assert.throws(() => proxy.server.addRoute({ upstreams: [] }), /at least one upstream/)
+  assert.throws(
+    () => proxy.server.addRoute({ upstreams: ['localhost:3000'] }),
+    /IP literal/,
+  )
   assert.throws(() => proxy.server.start(), /already been started/)
 })
 
