@@ -225,6 +225,7 @@ test('replaces and clears handlers while running', async () => {
   const resetContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(resetContent.status, 205)
   assert.equal(await resetContent.text(), '')
+  assert.equal(resetContent.headers.get('content-length'), '0')
 
   proxy.server.clearRequestHandler()
   const response = await fetch(`http://127.0.0.1:${proxy.port}/`)

@@ -68,10 +68,14 @@ impl JsProxy {
                         .insert_header(name, value)
                         .map_err(|error| format!("invalid response header: {error}"))?;
                 }
-                if status == 204 {
+                if matches!(status, 204 | 205) {
                     response.remove_header(&http::header::CONTENT_LENGTH);
                 }
-                if status != 204 && status != 304 {
+                if status == 205 {
+                    response
+                        .set_content_length(0)
+                        .map_err(|error| format!("invalid response body: {error}"))?;
+                } else if status != 204 && status != 304 {
                     response
                         .set_content_length(body.len())
                         .map_err(|error| format!("invalid response body: {error}"))?;
