@@ -26,8 +26,8 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      publish: ${{ steps.state.outputs.publish }}
+      version: ${{ steps.package-version.outputs.version }}
+      publish: ${{ steps.package-version.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install Rust toolchain
@@ -47,52 +47,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Read current version
-        id: version
-        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
-
-      - name: Create release pull request
+      - name: Create or update release pull request
         id: changesets
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'chore: release package(s)'
-          pr-title: 'chore: release package(s)'
-          # The native packages cannot be published by the action: they need a
-          # four-target build matrix. This no-op lets the action expose whether
-          # there were pending changesets, then the jobs below do the release.
-          publish-script: pnpm run release:noop
-          version-script: pnpm run version-packages
-          create-github-releases: false
-          push-git-tags: false
+          commit-message: 'chore: release pingora'
+          pr-title: 'chore: release pingora'
+          version-script: pnpm run version
 
-      - name: Decide whether this version needs a release
-        id: state
-        env:
-          HAS_CHANGESETS: ${{ steps.changesets.outputs.has-changesets }}
-          VERSION: ${{ steps.version.outputs.version }}
+      - name: Check package version on npm
+        id: package-version
+        if: steps.changesets.outputs.has-changesets == 'false'
         run: |
           set -euo pipefail
-
-          if [ "${HAS_CHANGESETS}" != "false" ]; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "Pending changesets; the version pull request was created or updated."
-            exit 0
-          fi
-
+          name=$(jq -r .name package.json)
+          version=$(jq -r .version package.json)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          encoded_name=${name//\//%2f}
           status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-            "https://registry.npmjs.org/pingora/${VERSION}")
+            "https://registry.npmjs.org/${encoded_name}/${version}")
           case "$status" in
             200)
-              echo "publish=false" >> "$GITHUB_OUTPUT"
-              echo "pingora@${VERSION} is already published."
+              echo "${name}@${version} is already published."
               ;;
             404)
               echo "publish=true" >> "$GITHUB_OUTPUT"
-              echo "pingora@${VERSION} is not published yet."
+              echo "${name}@${version} is not published yet."
               ;;
             *)
-              echo "npm registry answered ${status} for pingora@${VERSION}" >&2
+              echo "npm registry answered ${status} for ${name}@${version}" >&2
               exit 1
               ;;
           esac
@@ -123,7 +106,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install Rust toolchain
@@ -140,7 +123,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build binding
-        run: pnpm exec napi build --platform --release --target ${{ matrix.target }}
+        run: pnpm napi build --platform --release --target ${{ matrix.target }}
 
       - name: Upload binding
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -161,10 +144,8 @@ jobs:
 
   publish:
     name: Publish to npm
-    needs:
-      - release
-      - build
-    if: needs.release.outputs.publish == 'true'
+    needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -174,15 +155,12 @@ jobs:
       NPM_CONFIG_PROVENANCE: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Needed to push the release tag after a successful publish.
-          persist-credentials: true
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install dependencies
@@ -202,30 +180,13 @@ jobs:
 
       - name: Assemble platform packages
         run: |
-          pnpm exec napi create-npm-dirs
-          pnpm exec napi artifacts
+          pnpm napi create-npm-dirs
+          pnpm napi artifacts
 
       - name: Publish platform packages
-        # Trusted publishing (OIDC) authenticates each publish; no NPM_TOKEN.
-        run: pnpm run publish:platforms
+        run: pnpm napi pre-publish --no-gh-release --tagstyle npm --npm-dir npm
 
-      - name: Add platform packages to the root manifest
-        run: pnpm run prepare:root
-
-      - name: Publish main package
-        run: pnpm run publish:root
-
-      - name: Create release tag
-        env:
-          VERSION: ${{ needs.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          tag="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag ${tag} already exists on origin."
-            exit 0
-          fi
-          if ! git rev-parse --verify "${tag}" >/dev/null 2>&1; then
-            git tag -a "${tag}" -m "${tag}"
-          fi
-          git push origin "${tag}"
+      - name: Publish packages
+        # The publish action runs `changeset publish` itself, pushes the tag, and
+        # creates the GitHub release. Trusted publishing authenticates via OIDC.
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2

@@ -55,15 +55,11 @@
     "fmt": "cargo fmt --all",
     "fmt:check": "cargo fmt --all -- --check",
     "lint": "cargo clippy --all-targets -- -D warnings",
-    "publish:platforms": "node scripts/publish-platforms.mjs",
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
     "test:watch": "pnpm run build:debug && vitest",
     "changeset": "changeset",
-    "version-packages": "changeset version && node scripts/sync-versions.mjs && cargo metadata --format-version 1 > /dev/null",
-    "prepare:root": "node scripts/prepare-root-package.mjs",
-    "publish:root": "node scripts/publish-root.mjs",
-    "release:noop": "node scripts/release-noop.mjs"
+    "version": "changeset version && node scripts/sync-versions.mjs && cargo metadata --format-version 1 > /dev/null"
   },
   "publishConfig": {
     "access": "public",

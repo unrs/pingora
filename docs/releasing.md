@@ -18,10 +18,10 @@ One release publishes five packages, all at the same version:
 | `@pingora/binding-darwin-arm64`    | macOS Apple Silicon native addon      |
 
 The repository does **not** list the platform packages in
-`optionalDependencies`. At publish time `scripts/prepare-root-package.mjs` reads
-the generated `npm/*/package.json` files, verifies their versions, and adds them
-to the root manifest that is published. Local development uses the `.node` file
-produced by `napi build`.
+`optionalDependencies`. At publish time `napi pre-publish` publishes the generated
+platform packages and adds them to the root manifest; `changeset publish` then
+publishes `pingora`. Local development uses the `.node` file produced by
+`napi build`.
 
 ## Adding a changeset
 
@@ -63,7 +63,7 @@ commit to `main`.
 
 ## What the version pull request contains
 
-`pnpm version-packages` runs:
+`pnpm run version` runs:
 
 ```sh
 changeset version
@@ -87,11 +87,13 @@ After the version pull request is merged, `release.yml`:
 1. builds four native targets;
 2. uploads the generated `index.js` and `index.d.ts` from the Linux x64 build;
 3. runs `napi create-npm-dirs` and `napi artifacts`;
-4. publishes each `@pingora/binding-*` package (existing versions are skipped);
-5. adds the platform packages to the root manifest with `prepare:root`;
-6. publishes `pingora` through `publish:root`, which also skips an existing
-   version;
-7. creates and pushes the `vX.Y.Z` tag.
+4. runs `napi pre-publish`, which publishes each `@pingora/binding-*` package
+   and adds the platform packages to the root manifest (existing versions are
+   skipped);
+5. runs `changesets/action/publish`, which executes `changeset publish`,
+   publishes `pingora`, creates the `vX.Y.Z` tag (this repository is a single
+   root package, which is the tag format Changesets uses), pushes the tag, and
+   creates the GitHub release.
 
 Provenance attestations are attached to all packages.
 

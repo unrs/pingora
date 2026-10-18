@@ -59,5 +59,5 @@ changeset:
     pnpm changeset
 
 # Apply pending changesets locally (normally run by the release workflow).
-version-packages:
-    pnpm version-packages
+version:
+    pnpm run version
