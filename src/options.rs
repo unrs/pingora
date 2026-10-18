@@ -5,8 +5,9 @@ use napi_derive::napi;
 
 #[napi(object)]
 pub struct ServerOptions {
-    /// Listener addresses. Defaults to `127.0.0.1:8080`.
-    pub listeners: Option<Vec<String>>,
+    /// Listener addresses or per-listener TLS settings. Defaults to
+    /// `127.0.0.1:8080`.
+    pub listeners: Option<Vec<Either<String, ListenerOptions>>>,
     /// Initial routes. More can be added at runtime.
     pub routes: Option<Vec<RouteOptions>>,
     /// Worker threads for the proxy service.
@@ -55,6 +56,22 @@ pub struct RouteOptions {
     pub remove_response_headers: Option<Vec<String>>,
     /// Connect, read, and write timeout for this route's upstreams, in ms.
     pub timeout_ms: Option<u32>,
+}
+
+#[napi(object)]
+pub struct ListenerOptions {
+    /// `host:port` to listen on.
+    pub address: String,
+    /// Terminate TLS on this listener.
+    pub tls: Option<TlsOptions>,
+}
+
+#[napi(object)]
+pub struct TlsOptions {
+    /// PEM certificate chain path.
+    pub cert: String,
+    /// PEM private key path.
+    pub key: String,
 }
 
 #[napi(object)]

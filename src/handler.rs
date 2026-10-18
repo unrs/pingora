@@ -105,7 +105,15 @@ impl RequestView {
         }
 
         let host = crate::state::request_host(req);
-        // TODO(M3): derive https from the downstream TLS digest when TLS listeners exist.
+        let scheme = if session
+            .digest()
+            .and_then(|digest| digest.ssl_digest.as_ref())
+            .is_some()
+        {
+            "https"
+        } else {
+            "http"
+        };
         Self {
             method: req.method.as_str().to_string(),
             path: req.uri.path().to_string(),
@@ -116,7 +124,7 @@ impl RequestView {
                 .client_addr()
                 .and_then(|addr| addr.as_inet())
                 .map(|addr| addr.ip().to_string()),
-            scheme: req.uri.scheme_str().unwrap_or("http").to_string(),
+            scheme: scheme.to_string(),
             http_version: format!("{:?}", req.version),
             route_id: route_id.map(ToString::to_string),
         }
