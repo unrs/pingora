@@ -26,7 +26,6 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      version: ${{ steps.package-version.outputs.version }}
       publish: ${{ steps.package-version.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,7 +61,6 @@ jobs:
           set -euo pipefail
           name=$(jq -r .name package.json)
           version=$(jq -r .version package.json)
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
           encoded_name=${name//\//%2f}
           status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
             "https://registry.npmjs.org/${encoded_name}/${version}")

@@ -67,13 +67,13 @@ commit to `main`.
 
 ```sh
 changeset version
-node scripts/sync-versions.mjs
+node scripts/sync-cargo-version.mjs
 cargo metadata --format-version 1 > /dev/null
 ```
 
 - `changeset version` updates `package.json`, writes `CHANGELOG.md`, and removes
   the consumed changesets.
-- `sync-versions.mjs` copies the npm version into `Cargo.toml`.
+- `sync-cargo-version.mjs` copies the npm version into `Cargo.toml`.
 - `cargo metadata` updates the `pingora-node` entry in `Cargo.lock` without a
   full compile.
 
