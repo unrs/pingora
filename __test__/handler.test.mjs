@@ -6,54 +6,13 @@ import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
-import { Server } from '../index.js'
-
-async function freePort() {
-  const probe = net.createServer()
-  await new Promise((resolve, reject) => {
-    probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', resolve)
-  })
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
-  return port
-}
-
-async function startUpstream(handler) {
-  const server = http.createServer(handler)
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  return {
-    port: server.address().port,
-    close: () => new Promise((resolve) => server.close(resolve)),
-  }
-}
-
-async function waitForProxy(url) {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      return await fetch(url)
-    } catch {
-      await delay(50)
-    }
-  }
-  throw new Error(`proxy at ${url} did not become ready`)
-}
-
-async function createProxy(options = {}) {
-  const port = await freePort()
-  const server = new Server({
-    listeners: [`127.0.0.1:${port}`],
-    gracePeriodMs: 0,
-    shutdownTimeoutMs: 0,
-    logLevel: 'off',
-    ...options,
-  })
-  server.start()
-  return { server, port, stop: () => server.stop() }
-}
+import {
+  createProxy,
+  eventually,
+  freePort,
+  startUpstream,
+  waitForProxy,
+} from './helpers.mjs'
 
 test('passes a request view and returns a synthetic response', async () => {
   const upstream = await startUpstream((_req, res) => res.end('upstream'))
@@ -103,8 +62,10 @@ test('passes a request view and returns a synthetic response', async () => {
   const proxied = await waitForProxy(`http://127.0.0.1:${proxy.port}/other`)
   assert.equal(await proxied.text(), 'upstream')
 
-  await delay(20)
-  const metrics = proxy.server.metrics()
+  const metrics = await eventually(() => {
+    const metrics = proxy.server.metrics()
+    return metrics.active === 0 && metrics.responsesOk === 3 ? metrics : null
+  }, 'synthetic response metrics did not settle')
   assert.equal(metrics.requests, 3)
   assert.equal(metrics.responsesOk, 3)
   assert.equal(metrics.active, 0)
@@ -126,8 +87,8 @@ test('overrides the upstream and mutates headers', async () => {
       {
         pathPrefix: '/',
         upstreams: [`127.0.0.1:${first.port}`],
-        requestHeaders: { 'x-route-header': 'route' },
-        responseHeaders: { 'x-route-response': 'route' },
+        requestHeaders: { 'x-route-header': 'route', 'x-precedence': 'route' },
+        responseHeaders: { 'x-route-response': 'route', 'x-response-precedence': 'route' },
       },
     ],
   })
@@ -139,9 +100,9 @@ test('overrides the upstream and mutates headers', async () => {
       return {
         action: 'upstream',
         upstream: `127.0.0.1:${second.port}`,
-        requestHeaders: { 'x-handler': 'yes' },
+        requestHeaders: { 'x-handler': 'yes', 'x-precedence': 'handler' },
         removeRequestHeaders: ['x-remove', 'x-route-header'],
-        responseHeaders: { 'x-response': 'yes' },
+        responseHeaders: { 'x-response': 'yes', 'x-response-precedence': 'handler' },
         removeResponseHeaders: ['x-remove-response', 'x-route-response'],
       }
     }
@@ -155,9 +116,11 @@ test('overrides the upstream and mutates headers', async () => {
   assert.equal(response.headers.get('x-response'), 'yes')
   assert.equal(response.headers.get('x-remove-response'), null)
   assert.equal(response.headers.get('x-route-response'), null)
+  assert.equal(response.headers.get('x-response-precedence'), 'handler')
   assert.equal(observed['x-handler'], 'yes')
   assert.equal(observed['x-remove'], undefined)
   assert.equal(observed['x-route-header'], undefined)
+  assert.equal(observed['x-precedence'], 'handler')
 })
 
 test('maps handler errors, invalid decisions, and timeouts to 500', async () => {
