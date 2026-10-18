@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use pingora::http::RequestHeader;
 
+use crate::handler::RequestHandler;
 use crate::options::RouteOptions;
 use crate::router::{normalize_host, parse_route, Route};
 
@@ -58,6 +59,7 @@ pub struct SharedState {
     next_route_id: AtomicU64,
     metrics: Metrics,
     started_at: Instant,
+    handler: RwLock<Option<Arc<RequestHandler>>>,
 }
 
 impl SharedState {
@@ -67,6 +69,7 @@ impl SharedState {
             next_route_id: AtomicU64::new(1),
             metrics: Metrics::default(),
             started_at: Instant::now(),
+            handler: RwLock::new(None),
         };
 
         for route in routes {
@@ -103,6 +106,14 @@ impl SharedState {
 
     pub fn route_count(&self) -> usize {
         self.routes.read().unwrap().len()
+    }
+
+    pub fn set_handler(&self, handler: Option<Arc<RequestHandler>>) {
+        *self.handler.write().unwrap() = handler;
+    }
+
+    pub fn handler(&self) -> Option<Arc<RequestHandler>> {
+        self.handler.read().unwrap().clone()
     }
 
     pub fn match_route(&self, req: &RequestHeader, host: &str, path: &str) -> Option<Arc<Route>> {

@@ -1,84 +1,15 @@
 import assert from 'node:assert/strict'
-import http from 'node:http'
-import net from 'node:net'
-import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
 import { Server } from '../index.js'
-
-async function freePort() {
-  const probe = net.createServer()
-  await new Promise((resolve, reject) => {
-    probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', resolve)
-  })
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
-  return port
-}
-
-async function startUpstream(handler) {
-  const server = http.createServer(handler)
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  return {
-    port: server.address().port,
-    close: () => new Promise((resolve) => server.close(resolve)),
-  }
-}
-
-async function waitForProxy(url) {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      return await fetch(url)
-    } catch {
-      await delay(50)
-    }
-  }
-  throw new Error(`proxy at ${url} did not become ready`)
-}
-
-async function eventually(predicate, message) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const value = predicate()
-    if (value) return value
-    await delay(10)
-  }
-  throw new Error(message)
-}
-
-function request(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const req = http.request(url, options, (res) => {
-      const chunks = []
-      res.on('data', (chunk) => chunks.push(chunk))
-      res.on('end', () =>
-        resolve({
-          status: res.statusCode,
-          headers: res.headers,
-          body: Buffer.concat(chunks).toString(),
-        }),
-      )
-    })
-    req.once('error', reject)
-    req.end()
-  })
-}
-
-async function createProxy(options = {}) {
-  const port = await freePort()
-  const server = new Server({
-    listeners: [`127.0.0.1:${port}`],
-    gracePeriodMs: 0,
-    shutdownTimeoutMs: 0,
-    logLevel: 'off',
-    ...options,
-  })
-  server.start()
-  return { server, port, stop: () => server.stop() }
-}
+import {
+  createProxy,
+  eventually,
+  freePort,
+  request,
+  startUpstream,
+  waitForProxy,
+} from './helpers.mjs'
 
 test('proxies requests, applies headers, and reports metrics', async () => {
   let seen

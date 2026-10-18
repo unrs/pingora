@@ -3,9 +3,9 @@
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 
-> **Status: core reverse proxy (M1).** Static routes, host/path/method/header
-> matching, load balancing, header mutation, metrics, and graceful lifecycle are
-> implemented. TLS and the programmable JS request handler are next; see
+> **Status: programmable reverse proxy (M2).** Static routes, load balancing,
+> header mutation, metrics, graceful lifecycle, and an async JavaScript request
+> handler are implemented. TLS and protocol coverage are next; see
 > [ROADMAP.md](./ROADMAP.md).
 
 ## Install
@@ -40,7 +40,8 @@ process.on('SIGTERM', async () => {
 })
 ```
 
-A runnable version is in [examples/basic-proxy.mjs](./examples/basic-proxy.mjs).
+A runnable version is in [examples/basic-proxy.mjs](./examples/basic-proxy.mjs). The
+handler example is [examples/request-handler.mjs](./examples/request-handler.mjs).
 
 ## API
 
@@ -55,6 +56,7 @@ A runnable version is in [examples/basic-proxy.mjs](./examples/basic-proxy.mjs).
 | `shutdownTimeoutMs`          | `number`   | Runtime shutdown timeout. Defaults to `5000`.            |
 | `upstreamKeepalivePoolSize`  | `number`   | Upstream connection pool size. Defaults to `128`.        |
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
+| `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
 
 Invalid options are reported by `start()` and in `status().error`.
 
@@ -69,6 +71,8 @@ Invalid options are reported by `start()` and in `status().error`.
   uptime.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
+- `setRequestHandler(fn): void` — installs an async request handler.
+- `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.
 
 `state` is one of `idle`, `starting`, `running`, `stopping`, `stopped`, or
 `failed`.
@@ -108,6 +112,63 @@ Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
 does not implement DNS discovery; resolve hostnames before adding routes.
 Upstream TLS is verified by default. Unix sockets and listener TLS are not
 implemented yet.
+
+### Request handler
+
+The optional handler runs after route matching but before proxying. It receives
+a request view and returns a decision or a promise resolving to one:
+
+```js
+server.setRequestHandler(async (request) => {
+  if (request.path === '/health') {
+    return { action: 'respond', status: 200, body: 'ok' }
+  }
+  if (request.headers.authorization !== 'Bearer secret') {
+    return { action: 'respond', status: 401, body: 'unauthorized' }
+  }
+  if (request.path.startsWith('/canary')) {
+    return { action: 'upstream', upstream: '127.0.0.1:3001' }
+  }
+  return { action: 'continue' }
+})
+```
+
+```ts
+interface RequestView {
+  method: string
+  path: string
+  query?: string
+  host?: string
+  headers: Record<string, string>
+  clientIp?: string
+  scheme: string
+  httpVersion: string
+  routeId?: string
+}
+
+interface RequestDecision {
+  action?: 'continue' | 'respond' | 'upstream'
+  status?: number
+  headers?: Record<string, string>
+  body?: string
+  upstream?: string | Upstream
+  requestHeaders?: Record<string, string>
+  removeRequestHeaders?: string[]
+  responseHeaders?: Record<string, string>
+  removeResponseHeaders?: string[]
+}
+```
+
+`continue` is the default. `respond` writes a synthetic response and uses its
+`headers` field. `upstream` overrides the selected peer for this request.
+`requestHeaders`, `responseHeaders`, and their remove variants apply only to
+proxied responses, on top of route mutations. Route response mutations are not
+applied to synthetic responses; use the decision `headers` field for those.
+Repeated request header values are joined with `, ` and non-UTF-8 bytes are
+replaced with U+FFFD, so every forwarded value is visible to the handler.
+Handler errors and timeouts return `500`; malformed header mutations are left
+to Pingora's validation. A timeout is controlled by `handlerTimeoutMs`.
+Handlers are optional: requests take the all-Rust path when none is installed.
 
 ## Benchmarks
 

@@ -288,7 +288,7 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
         .collect()
 }
 
-fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
+pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
     let (address, tls_override, sni_override, verify) = match value {
         Either::A(address) => (address, None, None, true),
         Either::B(options) => (

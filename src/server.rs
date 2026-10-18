@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use env_logger::Env;
-use napi::bindgen_prelude::AsyncTask;
+use napi::bindgen_prelude::{AsyncTask, Either, Function, Promise};
 use napi::{Error as NapiError, Status, Task};
 use napi_derive::napi;
 use pingora::server::configuration::{Opt, ServerConf};
 use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, ShutdownSignalWatch};
 use tokio::sync::watch;
 
+use crate::handler::{RequestDecision, RequestHandler, RequestView};
 use crate::options::{RouteOptions, ServerOptions};
 use crate::proxy::JsProxy;
 use crate::state::{status_text, SharedState};
@@ -54,6 +55,7 @@ struct ServerState {
     grace_period: Duration,
     shutdown_timeout: Duration,
     upstream_keepalive_pool_size: usize,
+    handler_timeout: Duration,
     log_level: String,
     init_error: Option<String>,
     shutdown_tx: watch::Sender<bool>,
@@ -96,6 +98,7 @@ impl JsServer {
             shutdown_timeout_ms: None,
             upstream_keepalive_pool_size: None,
             log_level: None,
+            handler_timeout_ms: None,
         });
 
         let listeners = options
@@ -129,6 +132,9 @@ impl JsServer {
                 log_level: options
                     .log_level
                     .unwrap_or_else(|| "pingora=warn".to_string()),
+                handler_timeout: Duration::from_millis(
+                    options.handler_timeout_ms.unwrap_or(1_000).max(1).into(),
+                ),
                 init_error,
                 shutdown_tx,
                 status: AtomicU8::new(IDLE),
@@ -281,6 +287,29 @@ impl JsServer {
     #[napi]
     pub fn remove_route(&self, id: String) -> bool {
         self.state.shared.remove_route(&id)
+    }
+
+    #[napi]
+    pub fn set_request_handler(
+        &self,
+        handler: Function<RequestView, Either<Promise<RequestDecision>, RequestDecision>>,
+    ) -> napi::Result<()> {
+        let tsfn = handler
+            .build_threadsafe_function::<RequestView>()
+            .weak::<true>()
+            .build()?;
+        self.state
+            .shared
+            .set_handler(Some(Arc::new(RequestHandler::new(
+                tsfn,
+                self.state.handler_timeout,
+            ))));
+        Ok(())
+    }
+
+    #[napi]
+    pub fn clear_request_handler(&self) {
+        self.state.shared.set_handler(None);
     }
 }
 
