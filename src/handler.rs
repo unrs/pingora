@@ -41,7 +41,7 @@ pub struct RequestDecision {
 }
 
 pub type HandlerTsfn =
-    ThreadsafeFunction<RequestView, Promise<RequestDecision>, RequestView, Status, false>;
+    ThreadsafeFunction<RequestView, Promise<RequestDecision>, RequestView, Status, false, true>;
 
 pub enum HandlerError {
     Timeout,

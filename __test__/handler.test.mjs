@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import http from 'node:http'
 import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -264,4 +266,33 @@ test('stops cleanly with an in-flight handler', async () => {
   await stopping
   await pending
   assert.equal(proxy.server.status().state, 'stopped')
+})
+
+
+test('does not keep the event loop alive after stop', async () => {
+  const port = await freePort()
+  const script = `
+    const { Server } = require('./index.js')
+    const server = new Server({
+      listeners: ['127.0.0.1:' + process.env.PORT],
+      logLevel: 'off',
+    })
+    server.setRequestHandler(async () => ({ action: 'continue' }))
+    server.start()
+    setTimeout(() => server.stop(), 50)
+  `
+  const child = spawn(process.execPath, ['-e', script], {
+    cwd: new URL('..', import.meta.url),
+    env: { ...process.env, PORT: String(port) },
+    stdio: 'ignore',
+  })
+  const result = await Promise.race([
+    once(child, 'exit'),
+    delay(5_000).then(() => null),
+  ])
+  if (!result) {
+    child.kill('SIGKILL')
+    assert.fail('process did not exit after server.stop()')
+  }
+  assert.equal(result[0], 0)
 })

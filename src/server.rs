@@ -294,7 +294,10 @@ impl JsServer {
         &self,
         handler: Function<RequestView, Promise<RequestDecision>>,
     ) -> napi::Result<()> {
-        let tsfn = handler.build_threadsafe_function::<RequestView>().build()?;
+        let tsfn = handler
+            .build_threadsafe_function::<RequestView>()
+            .weak::<true>()
+            .build()?;
         self.state
             .shared
             .set_handler(Some(Arc::new(RequestHandler::new(
