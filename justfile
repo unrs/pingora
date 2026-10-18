@@ -2,9 +2,11 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default: check
 
-# Install JavaScript dependencies and git hooks.
-install:
+# Initialize dependencies, release tooling, and git hooks.
+init:
     pnpm install
+    cargo binstall --help >/dev/null 2>&1 || cargo install cargo-binstall --locked
+    cargo binstall --no-confirm cargo-edit
     pnpm exec lefthook install
 
 # Build the native binding in release mode.
@@ -53,11 +55,3 @@ clean:
     cargo clean
     rm -rf artifacts
     rm -f *.node npm/*/*.node
-
-# Add a changeset for the current branch.
-changeset:
-    pnpm changeset
-
-# Apply pending changesets locally (normally run by the release workflow).
-version:
-    pnpm run version

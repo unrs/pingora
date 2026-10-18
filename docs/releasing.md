@@ -28,8 +28,7 @@ publishes `pingora`. Local development uses the `.node` file produced by
 Every user-facing pull request needs a changeset:
 
 ```sh
-just changeset
-# or: pnpm changeset
+pnpm changeset
 ```
 
 Commit the generated `.changeset/*.md` file with the change. Use `minor` for
@@ -67,15 +66,16 @@ commit to `main`.
 
 ```sh
 changeset version
-node scripts/sync-cargo-version.mjs
-cargo metadata --format-version 1 > /dev/null
+cargo set-version --workspace "$(node -p 'require("./package.json").version')"
 ```
 
 - `changeset version` updates `package.json`, writes `CHANGELOG.md`, and removes
   the consumed changesets.
-- `sync-cargo-version.mjs` copies the npm version into `Cargo.toml`.
-- `cargo metadata` updates the `pingora-node` entry in `Cargo.lock` without a
-  full compile.
+- `cargo set-version` comes from
+  [`cargo-edit`](https://github.com/killercup/cargo-edit) and updates both
+  `Cargo.toml` and `Cargo.lock`.
+- Run `just init` locally to install `cargo-edit` along with the other
+  development dependencies.
 
 The version pull request should contain `package.json`, `Cargo.toml`,
 `Cargo.lock`, `CHANGELOG.md`, and the deleted changeset files.
@@ -116,11 +116,9 @@ add a trusted publisher under **Settings → Trusted publishing**:
 | Organization/user | `unrs`         |
 | Repository        | `pingora`      |
 | Workflow filename | `release.yml`  |
-| Environment       | `npm`          |
 
-The environment name must match `environment: npm` on the `publish` job. The
-workflow filename must match exactly; renaming it requires updating every
-trusted publisher configuration.
+Leave the environment field empty. The workflow filename must match exactly;
+renaming it requires updating every trusted publisher configuration.
 
 ### 3. Allow GitHub Actions to create pull requests
 
@@ -159,7 +157,7 @@ Check that `CHANGELOG.md` names the release and that the GitHub Actions run has
 | Version PR is not created                           | Actions cannot create pull requests; enable the repository setting above.        |
 | `EOTP` / token prompt during publish                | OIDC was not used; check `id-token: write` and the trusted publisher config.      |
 | `403 Forbidden` for one platform package            | That package has no trusted publisher configured, or the workflow name differs.  |
-| `Access token expired or revoked`                   | The npm environment/workflow/repository in the trusted publisher config is wrong. |
+| `Access token expired or revoked`                   | The workflow/repository in the trusted publisher config is wrong. |
 | `cannot publish over previously published versions` | The version already exists; the release job should have skipped it.              |
 | Provenance missing                                  | `id-token: write` is absent or pnpm is too old for trusted publishing.           |
 | `ERR_PNPM_GIT_UNCLEAN` / git check failure          | The publish command is missing `--no-git-checks` in CI.                          |

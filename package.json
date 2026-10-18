@@ -58,7 +58,7 @@
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
     "test:watch": "pnpm run build:debug && vitest",
-    "version": "changeset version && node scripts/sync-cargo-version.mjs && cargo metadata --format-version 1 > /dev/null"
+    "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\""
   },
   "publishConfig": {
     "access": "public",

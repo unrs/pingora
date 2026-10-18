@@ -166,7 +166,7 @@ roadmap benchmark matrix.
 ## Development
 
 ```sh
-pnpm install    # installs dependencies and the lefthook git hooks
+just init       # installs dependencies, cargo-edit, and the git hooks
 just build      # release build; use `just build-debug` for a faster build
 just test       # build and run the Rust and Node.js tests
 just check      # format check, clippy, Rust tests, build, and Node tests
@@ -187,7 +187,7 @@ Releases are driven by [Changesets](https://changesets.dev). Add a changeset to
 each user-facing pull request:
 
 ```sh
-just changeset
+pnpm changeset
 ```
 
 After merge, CI opens a "Version Packages" pull request; merging it builds and
