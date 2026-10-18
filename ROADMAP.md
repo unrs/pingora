@@ -317,9 +317,9 @@ singleton guard is held. `stop()` is idempotent.
 | Per-route connect/read timeout| 0.1   | Implemented     |
 | Graceful start/stop/status    | 0.1   | Implemented     |
 | Metrics counters              | 0.1   | Implemented     |
-| Async request handler         | 0.2   | Planned     |
-| Synthetic responses           | 0.2   | Planned     |
-| Upstream override per request | 0.2   | Planned     |
+| Async request handler         | 0.2   | Implemented |
+| Synthetic responses           | 0.2   | Implemented |
+| Upstream override per request | 0.2   | Implemented |
 | Readiness promise             | 0.2   | Planned     |
 | TLS termination (rustls)      | 0.3   | Planned     |
 | HTTP/2 downstream (ALPN)      | 0.3   | Planned     |
@@ -392,19 +392,19 @@ cover success, 404, 502, route updates, and double stop.
 
 **Goal:** make the proxy scriptable without sacrificing the fast path.
 
-- [ ] `setRequestHandler(fn)` / `clearRequestHandler()` with async
+- [x] `setRequestHandler(fn)` / `clearRequestHandler()` with async
       `Promise<RequestDecision>` support.
-- [ ] Request view: method, path, query, host, headers, client IP, scheme,
+- [x] Request view: method, path, query, host, headers, client IP, scheme,
       HTTP version, matched route id.
-- [ ] Decisions: `continue`, `respond`, upstream override, request/response
+- [x] Decisions: `continue`, `respond`, upstream override, request/response
       header mutations.
-- [ ] Stable validation and error mapping for invalid decisions.
-- [ ] Handler errors → `500`; handler never crashes the server.
-- [ ] Configurable handler timeout (protects the event loop and upstream
+- [x] Stable validation and error mapping for invalid decisions.
+- [x] Handler errors → `500`; handler never crashes the server.
+- [x] Configurable handler timeout (protects the event loop and upstream
       latency).
-- [ ] Hot route updates while requests are in flight, with safe Arc snapshots.
-- [ ] GC/lifetime tests for handler replacement and server shutdown.
-- [ ] Docs: auth gate, canary routing, synthetic response, header rewriting.
+- [x] Hot route updates while requests are in flight, with safe Arc snapshots.
+- [x] GC/lifetime tests for handler replacement and server shutdown.
+- [x] Docs: auth gate, canary routing, synthetic response, header rewriting.
 
 **Exit criteria:** all handler behaviors are covered by integration tests,
 including async delays, rejections, invalid decisions, replacement while

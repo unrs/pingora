@@ -253,7 +253,7 @@ fn parse_match_headers(
         .collect()
 }
 
-fn parse_headers(
+pub(crate) fn parse_headers(
     headers: Option<HashMap<String, String>>,
     field: &str,
 ) -> Result<Vec<(String, String)>, String> {
@@ -273,7 +273,10 @@ fn parse_headers(
         .collect()
 }
 
-fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<String>, String> {
+pub(crate) fn parse_header_names(
+    names: Option<Vec<String>>,
+    field: &str,
+) -> Result<Vec<String>, String> {
     let Some(names) = names else {
         return Ok(Vec::new());
     };
@@ -288,7 +291,7 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
         .collect()
 }
 
-fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
+pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
     let (address, tls_override, sni_override, verify) = match value {
         Either::A(address) => (address, None, None, true),
         Either::B(options) => (

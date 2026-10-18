@@ -24,8 +24,9 @@ Pingora thread
 - `src/options.rs` — napi option objects (`ServerOptions`, `RouteOptions`, `UpstreamOptions`).
 - `src/router.rs` — route validation/matching, upstream parsing, load balancing.
 - `src/state.rs` — hot route table, request metrics, host helpers.
-- `src/proxy.rs` — `ProxyHttp` implementation. No JavaScript is called on the
-  request path in M1.
+- `src/handler.rs` — napi request/decision types and the async TSFN call.
+- `src/proxy.rs` — `ProxyHttp` implementation. JavaScript is called only when a
+  request handler is installed.
 - `src/server.rs` — napi `Server` class, singleton guard, listener preflight,
   thread lifecycle, graceful shutdown, `AsyncTask` join.
 
@@ -57,6 +58,16 @@ DNS discovery, and the binding stays a thin mapping onto its peer API.
 
 `round_robin` uses a per-route atomic counter, `random` uses a process-wide
 xorshift counter, and `first` always picks the first upstream.
+
+## Request handler
+
+`setRequestHandler(fn)` builds a napi `ThreadsafeFunction` whose return value is
+a JavaScript promise. The Pingora worker calls it with a `RequestView` snapshot
+and awaits the promise under `handlerTimeoutMs`. The handler is cloned per
+request, so replacing or clearing it does not invalidate in-flight requests.
+Decisions are `continue`, `respond`, or `upstream`, plus optional header
+mutations. Handler errors, invalid decisions, and timeouts produce a `500`.
+Without a handler, requests never cross into JavaScript.
 
 ## Metrics
 

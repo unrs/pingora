@@ -1,3 +1,4 @@
+mod handler;
 mod options;
 mod proxy;
 mod router;

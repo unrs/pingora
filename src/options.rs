@@ -21,6 +21,8 @@ pub struct ServerOptions {
     pub upstream_keepalive_pool_size: Option<u32>,
     /// Default log filter, e.g. `pingora=info`. `RUST_LOG` takes precedence.
     pub log_level: Option<String>,
+    /// Request handler timeout, in milliseconds. Defaults to 1000.
+    pub handler_timeout_ms: Option<u32>,
 }
 
 #[napi(object)]
