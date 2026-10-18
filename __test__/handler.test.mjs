@@ -102,6 +102,12 @@ test('passes a request view and returns a synthetic response', async () => {
 
   const proxied = await waitForProxy(`http://127.0.0.1:${proxy.port}/other`)
   assert.equal(await proxied.text(), 'upstream')
+
+  await delay(20)
+  const metrics = proxy.server.metrics()
+  assert.equal(metrics.requests, 3)
+  assert.equal(metrics.responsesOk, 3)
+  assert.equal(metrics.active, 0)
 })
 
 test('overrides the upstream and mutates headers', async () => {
@@ -173,6 +179,12 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   proxy.server.setRequestHandler(async () => ({ action: 'invalid' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/invalid`)).status, 500)
 
+  proxy.server.setRequestHandler(async () => ({ action: 'upstream' }))
+  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/no-upstream`)).status, 500)
+
+  proxy.server.setRequestHandler(async () => undefined)
+  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/undefined`)).status, 500)
+
 
   proxy.server.setRequestHandler(async () => ({
     action: 'respond',
@@ -211,6 +223,20 @@ test('replaces and clears handlers while running', async () => {
   const noContent = await fetch(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(noContent.status, 204)
   assert.equal(await noContent.text(), '')
+
+  proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 304 }))
+  const notModified = await fetch(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(notModified.status, 304)
+  assert.equal(await notModified.text(), '')
+
+  proxy.server.setRequestHandler((_request) => ({
+    action: 'respond',
+    status: 200,
+    body: 'sync',
+  }))
+  const sync = await fetch(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(sync.status, 200)
+  assert.equal(await sync.text(), 'sync')
 
   proxy.server.clearRequestHandler()
   const response = await fetch(`http://127.0.0.1:${proxy.port}/`)
