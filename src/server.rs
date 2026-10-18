@@ -1,6 +1,6 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Condvar, Mutex, Once};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -59,6 +59,8 @@ struct ServerState {
     shutdown_tx: watch::Sender<bool>,
     status: AtomicU8,
     last_error: Mutex<Option<String>>,
+    exited: Mutex<bool>,
+    exit_cv: Condvar,
 }
 
 impl ServerState {
@@ -131,6 +133,8 @@ impl JsServer {
                 shutdown_tx,
                 status: AtomicU8::new(IDLE),
                 last_error: Mutex::new(None),
+                exited: Mutex::new(false),
+                exit_cv: Condvar::new(),
             }),
             started: AtomicBool::new(false),
             join: Mutex::new(None),
@@ -190,6 +194,8 @@ impl JsServer {
                     state.set_status(STOPPED);
                 }
                 ACTIVE_SERVER.store(false, Ordering::Release);
+                *state.exited.lock().unwrap() = true;
+                state.exit_cv.notify_all();
             });
 
         match thread {
@@ -216,6 +222,7 @@ impl JsServer {
         if !self.started.load(Ordering::Acquire) {
             return AsyncTask::new(StopTask {
                 join: None,
+                started: false,
                 state: self.state.clone(),
             });
         }
@@ -228,6 +235,7 @@ impl JsServer {
         let join = self.join.lock().unwrap().take();
         AsyncTask::new(StopTask {
             join,
+            started: true,
             state: self.state.clone(),
         })
     }
@@ -278,6 +286,7 @@ impl JsServer {
 
 pub struct StopTask {
     join: Option<JoinHandle<()>>,
+    started: bool,
     state: Arc<ServerState>,
 }
 
@@ -291,6 +300,11 @@ impl Task for StopTask {
                 self.state.set_error("pingora server thread panicked");
                 self.state.set_status(FAILED);
                 return Ok(());
+            }
+        } else if self.started {
+            let mut exited = self.state.exited.lock().unwrap();
+            while !*exited {
+                exited = self.state.exit_cv.wait(exited).unwrap();
             }
         }
         if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {

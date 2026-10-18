@@ -269,6 +269,22 @@ test('rejects invalid routes and double start', async () => {
     () => proxy.server.addRoute({ upstreams: ['localhost:3000'] }),
     /IP literal/,
   )
+  assert.throws(
+    () =>
+      proxy.server.addRoute({
+        upstreams: ['127.0.0.1:1'],
+        requestHeaders: { 'bad name': 'x' },
+      }),
+    /invalid header name/,
+  )
+  assert.throws(
+    () =>
+      proxy.server.addRoute({
+        upstreams: ['127.0.0.1:1'],
+        responseHeaders: { 'x-test': 'bad\nvalue' },
+      }),
+    /invalid value/,
+  )
   assert.throws(() => proxy.server.start(), /already been started/)
 })
 
@@ -307,4 +323,18 @@ test('stop before start is a no-op', async () => {
   const server = new Server({ listeners: [`127.0.0.1:${await freePort()}`] })
   await server.stop()
   assert.equal(server.status().state, 'idle')
+})
+
+test('concurrent stop calls both wait for the server thread', async () => {
+  const proxy = await createProxy()
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+
+  const first = proxy.server.stop()
+  const second = proxy.server.stop()
+  await Promise.all([first, second])
+  assert.equal(proxy.server.status().state, 'stopped')
+
+  const next = new Server({ listeners: [`127.0.0.1:${await freePort()}`] })
+  next.start()
+  await next.stop()
 })
