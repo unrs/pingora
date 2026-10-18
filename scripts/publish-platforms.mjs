@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const dryRun = process.env.DRY_RUN === '1'
+const root = JSON.parse(fs.readFileSync('package.json', 'utf8'))
 const npmDir = path.resolve('npm')
 const dirs = fs
   .readdirSync(npmDir, { withFileTypes: true })
@@ -19,6 +20,10 @@ for (const dir of dirs) {
   const { name, version } = JSON.parse(
     fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
   )
+
+  if (version !== root.version) {
+    throw new Error(`${name}@${version} does not match ${root.name}@${root.version}`)
+  }
 
   const readmePath = path.join(packageDir, 'README.md')
   if (fs.existsSync(readmePath)) {

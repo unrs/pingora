@@ -54,16 +54,10 @@ clean:
     rm -rf artifacts
     rm -f *.node npm/*/*.node
 
-# Bump the version and create the release commit/tag.
-# Run this on main after the release PR is merged.
-version v:
-    pnpm version {{v}} --no-git-tag-version
-    pnpm test
-    git add package.json Cargo.toml Cargo.lock pnpm-lock.yaml
-    git commit -m "chore: release v{{v}}"
-    git tag "v{{v}}" -m "chore: release v{{v}}"
+# Add a changeset for the current branch.
+changeset:
+    pnpm changeset
 
-# Publish the platform packages (skips versions that already exist).
-publish-platforms:
-    pnpm exec napi create-npm-dirs
-    node scripts/publish-platforms.mjs
+# Apply pending changesets locally (normally run by the release workflow).
+version-packages:
+    pnpm version-packages

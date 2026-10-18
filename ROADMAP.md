@@ -460,8 +460,8 @@ numbers are documented, and a security checklist has been signed off.
 - [ ] API freeze and semver policy; deprecation process.
 - [ ] Prebuilt binaries: Linux x64/arm64 glibc, Linux x64/arm64 musl,
       macOS x64/arm64.
-- [ ] npm platform packages, optional dependencies, provenance, and release
-      workflow driven by tags.
+- [ ] npm platform packages, publish-time optional dependencies, provenance,
+      and a Changesets-driven release workflow.
 - [ ] CI matrix for the Node.js release lines selected by the support policy on
       Linux and macOS, plus the runtime compatibility floor.
 - [ ] API reference, guides, migration notes, and troubleshooting.
@@ -610,8 +610,10 @@ the maintainer can override any of them.
 - **Package manager:** pnpm. `pnpm-lock.yaml` is committed and CI installs with
   `--frozen-lockfile`.
 - **Generated platform packages:** `npm/` is produced by `napi create-npm-dirs`
-  at release time and is git-ignored; only the root `optionalDependencies` are
-  tracked.
+  at release time and is git-ignored. Platform `optionalDependencies` are added
+  to a temporary root manifest only while publishing.
+- **Versioning:** Changesets. Pull requests carry a changeset; the release
+  workflow owns versioning, publishing, and the `vX.Y.Z` tag.
 - **Tasks:** [just](https://github.com/casey/just). `just check` is the local
   gate; CI runs the underlying pnpm/cargo commands directly.
 - **Git hooks:** lefthook. Pre-commit runs `cargo fmt` and clippy for Rust

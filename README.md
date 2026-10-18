@@ -183,9 +183,17 @@ pre-commit runs `cargo fmt` and clippy for Rust changes, and pre-push runs
 
 ## Releasing
 
-Releases are published from GitHub Actions using npm trusted publishing (OIDC).
-No long-lived `NPM_TOKEN` is required. See [docs/releasing.md](./docs/releasing.md)
-for the one-time npm setup and the release procedure.
+Releases are driven by [Changesets](https://changesets.dev). Add a changeset to
+each user-facing pull request:
+
+```sh
+just changeset
+```
+
+After merge, CI opens a "Version Packages" pull request; merging it builds and
+publishes the native packages from GitHub Actions using npm trusted publishing
+(OIDC). No long-lived `NPM_TOKEN` is required. See
+[docs/releasing.md](./docs/releasing.md) for the full flow and one-time setup.
 
 ## Tooling
 
