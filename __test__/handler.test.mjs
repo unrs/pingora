@@ -177,6 +177,12 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   proxy.server.setRequestHandler(async () => ({ action: 'respond', status: 600 }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/bad-status`)).status, 500)
 
+  proxy.server.setRequestHandler(async () => ({
+    action: 'respond',
+    headers: { 'bad header': 'value' },
+  }))
+  assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/bad-header`)).status, 500)
+
   proxy.server.setRequestHandler(async () => {
     await delay(500)
     return { action: 'continue' }
