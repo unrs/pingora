@@ -7,7 +7,6 @@ init:
     pnpm install
     cargo binstall --help >/dev/null 2>&1 || cargo install cargo-binstall --locked
     cargo binstall --no-confirm cargo-edit
-    pnpm exec lefthook install
 
 # Build the native binding in release mode.
 build:

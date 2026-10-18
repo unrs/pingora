@@ -13,10 +13,7 @@
   },
   "files": [
     "index.js",
-    "index.d.ts",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "index.d.ts"
   ],
   "license": "MIT",
   "repository": {
