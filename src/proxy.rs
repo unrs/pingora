@@ -68,14 +68,10 @@ impl JsProxy {
                         .insert_header(name, value)
                         .map_err(|error| format!("invalid response header: {error}"))?;
                 }
-                if matches!(status, 204 | 205) {
+                if status == 204 {
                     response.remove_header(&http::header::CONTENT_LENGTH);
                 }
-                if status == 205 {
-                    response
-                        .set_content_length(0)
-                        .map_err(|error| format!("invalid response body: {error}"))?;
-                } else if status != 204 && status != 304 {
+                if status != 204 && status != 304 {
                     response
                         .set_content_length(body.len())
                         .map_err(|error| format!("invalid response body: {error}"))?;
@@ -84,7 +80,8 @@ impl JsProxy {
                     .write_response_header(Box::new(response), false)
                     .await
                     .map_err(|error| format!("failed to write response: {error}"))?;
-                let body = if is_head || matches!(status, 204 | 205 | 304) {
+                // 205 framing is left to Pingora: cloudflare/pingora#1055.
+                let body = if is_head || matches!(status, 204 | 304) {
                     None
                 } else {
                     Some(Bytes::from(body))
