@@ -94,7 +94,11 @@ test('passes WebSocket upgrades through to the upstream', async () => {
       (value) => value.startsWith('HTTP/1.1 101') && value.includes('hello'),
       'upgrade response',
     )
-    assert.ok(received.toString().includes(`Sec-WebSocket-Accept: ${acceptValue(KEY)}`))
+    const handshakeEnd = received.indexOf('\r\n\r\n') + 4
+    const handshake = received.subarray(0, handshakeEnd).toString().toLowerCase()
+    assert.ok(handshake.includes('upgrade: websocket'))
+    assert.ok(handshake.includes('connection: upgrade'))
+    assert.ok(handshake.includes(`sec-websocket-accept: ${acceptValue(KEY).toLowerCase()}`))
 
     socket.write('ping')
     await waitForData(
@@ -102,6 +106,7 @@ test('passes WebSocket upgrades through to the upstream', async () => {
       (value) => value.includes('ping'),
       'echoed payload',
     )
+    assert.equal(received.subarray(handshakeEnd).toString(), 'helloping')
   } finally {
     socket.destroy()
     await proxy.stop()
