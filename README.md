@@ -3,9 +3,10 @@
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 
-> **Status: programmable reverse proxy (M2).** Static routes, load balancing,
-> header mutation, metrics, graceful lifecycle, and an async JavaScript request
-> handler are implemented. TLS and protocol coverage are next; see
+> **Status: programmable reverse proxy (M3 in progress).** Static routes, load
+> balancing, header mutation, metrics, graceful lifecycle, the JavaScript request
+> handler, TLS listeners, and HTTP/2 downstream are implemented. Unix sockets,
+> upstream custom CAs, and WebSocket coverage are next; see
 > [ROADMAP.md](./ROADMAP.md).
 
 ## Install
@@ -49,7 +50,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 
 | Option                       | Type       | Description                                              |
 | ---------------------------- | ---------- | -------------------------------------------------------- |
-| `listeners`                  | `string[]` | `host:port` listeners. Defaults to `127.0.0.1:8080`.      |
+| `listeners`                  | `(string \| ListenerOptions)[]` | Listeners; strings are plain TCP. Defaults to `127.0.0.1:8080`. |
 | `routes`                     | `Route[]`  | Initial routes. More can be added at runtime.            |
 | `threads`                    | `number`   | Worker threads for the proxy service. Defaults to `1`.   |
 | `gracePeriodMs`              | `number`   | Grace period before runtime shutdown. Defaults to `0`.   |
@@ -110,8 +111,30 @@ upstream connection failure receives `502`.
 
 Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
 does not implement DNS discovery; resolve hostnames before adding routes.
-Upstream TLS is verified by default. Unix sockets and listener TLS are not
-implemented yet.
+Upstream TLS is verified by default. Unix sockets and upstream custom CAs are
+not implemented yet.
+
+### TLS listeners
+
+A listener can terminate TLS by passing an object instead of a string:
+
+```js
+new Server({
+  listeners: [
+    '127.0.0.1:8080',
+    {
+      address: '127.0.0.1:8443',
+      tls: { cert: '/etc/pingora/cert.pem', key: '/etc/pingora/key.pem' },
+    },
+  ],
+})
+```
+
+TLS 1.2 and 1.3 are enabled with ALPN preferring HTTP/2 and falling back to
+HTTP/1.1. Certificates and keys are PEM files and are validated by `start()`;
+an invalid path fails startup. Certificate rotation requires a restart. See
+[docs/tls.md](./docs/tls.md) for the certificate layout and operational notes.
+The request handler sees `scheme: 'https'` on TLS listeners.
 
 ### Request handler
 

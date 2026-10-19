@@ -9,12 +9,13 @@ use env_logger::Env;
 use napi::bindgen_prelude::{AsyncTask, Either, Function, Promise};
 use napi::{Error as NapiError, Status, Task};
 use napi_derive::napi;
+use pingora::listeners::tls::TlsSettings;
 use pingora::server::configuration::{Opt, ServerConf};
 use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, ShutdownSignalWatch};
 use tokio::sync::watch;
 
 use crate::handler::{RequestDecision, RequestHandler, RequestView};
-use crate::options::{RouteOptions, ServerOptions};
+use crate::options::{ListenerOptions, RouteOptions, ServerOptions, TlsOptions};
 use crate::proxy::JsProxy;
 use crate::state::{status_text, SharedState};
 
@@ -48,9 +49,21 @@ pub struct ServerMetrics {
     pub uptime_ms: f64,
 }
 
+#[derive(Clone)]
+struct TlsConfig {
+    cert: String,
+    key: String,
+}
+
+#[derive(Clone)]
+struct ListenerConfig {
+    address: String,
+    tls: Option<TlsConfig>,
+}
+
 struct ServerState {
     shared: Arc<SharedState>,
-    listeners: Vec<String>,
+    listeners: Vec<ListenerConfig>,
     threads: usize,
     grace_period: Duration,
     shutdown_timeout: Duration,
@@ -101,12 +114,14 @@ impl JsServer {
             handler_timeout_ms: None,
         });
 
-        let listeners = options
-            .listeners
-            .filter(|listeners| !listeners.is_empty())
-            .unwrap_or_else(|| vec!["127.0.0.1:8080".to_string()]);
-
         let mut init_error = None;
+        let listeners = match parse_listeners(options.listeners) {
+            Ok(listeners) => listeners,
+            Err(error) => {
+                init_error = Some(error);
+                default_listeners()
+            }
+        };
         let shared = match SharedState::new(options.routes.unwrap_or_default()) {
             Ok(shared) => Arc::new(shared),
             Err(error) => {
@@ -259,7 +274,12 @@ impl JsServer {
                 status_text(self.state.status()).to_string()
             },
             error,
-            listeners: self.state.listeners.clone(),
+            listeners: self
+                .state
+                .listeners
+                .iter()
+                .map(|listener| listener.address.clone())
+                .collect(),
             routes: self.state.shared.route_count() as u32,
         }
     }
@@ -385,7 +405,14 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
         JsProxy::new(state.shared.clone()),
     );
     for listener in &state.listeners {
-        service.add_tcp(listener);
+        if let Some(tls) = &listener.tls {
+            let mut settings = TlsSettings::intermediate(&tls.cert, &tls.key)
+                .map_err(|error| format!("failed to load TLS settings: {error}"))?;
+            settings.enable_h2();
+            service.add_tls_with_settings(&listener.address, None, settings);
+        } else {
+            service.add_tcp(&listener.address);
+        }
     }
     server.add_service(service);
 
@@ -408,11 +435,93 @@ fn init_logger(level: &str) {
     });
 }
 
-fn preflight_listeners(listeners: &[String]) -> Result<(), String> {
-    for listener in listeners {
-        std::net::TcpListener::bind(listener)
-            .map_err(|error| format!("failed to bind listener `{listener}`: {error}"))?;
+fn default_listeners() -> Vec<ListenerConfig> {
+    vec![ListenerConfig {
+        address: "127.0.0.1:8080".to_string(),
+        tls: None,
+    }]
+}
+
+fn parse_listeners(
+    listeners: Option<Vec<Either<String, ListenerOptions>>>,
+) -> Result<Vec<ListenerConfig>, String> {
+    let Some(listeners) = listeners else {
+        return Ok(default_listeners());
+    };
+    if listeners.is_empty() {
+        return Ok(default_listeners());
     }
+
+    listeners
+        .into_iter()
+        .map(|listener| match listener {
+            Either::A(address) => {
+                if address.trim().is_empty() {
+                    return Err("listener address cannot be empty".to_string());
+                }
+                Ok(ListenerConfig { address, tls: None })
+            }
+            Either::B(options) => {
+                if options.address.trim().is_empty() {
+                    return Err("listener address cannot be empty".to_string());
+                }
+                let tls = match options.tls {
+                    None => None,
+                    Some(TlsOptions { cert, key }) => {
+                        if cert.trim().is_empty() || key.trim().is_empty() {
+                            return Err(format!(
+                                "TLS listener `{}` requires both cert and key",
+                                options.address
+                            ));
+                        }
+                        Some(TlsConfig { cert, key })
+                    }
+                };
+                Ok(ListenerConfig {
+                    address: options.address,
+                    tls,
+                })
+            }
+        })
+        .collect()
+}
+
+fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
+    for listener in listeners {
+        std::net::TcpListener::bind(&listener.address)
+            .map_err(|error| format!("failed to bind listener `{}`: {error}", listener.address))?;
+        if let Some(tls) = &listener.tls {
+            preflight_tls(listener, tls)?;
+        }
+    }
+    Ok(())
+}
+
+fn preflight_tls(listener: &ListenerConfig, tls: &TlsConfig) -> Result<(), String> {
+    match pingora::tls::load_certs_and_key_files(&tls.cert, &tls.key) {
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            return Err(format!(
+                "TLS listener `{}` has no certificate or private key",
+                listener.address
+            ))
+        }
+        Err(error) => {
+            return Err(format!(
+                "failed to read TLS certificate `{}` or key `{}` for `{}`: {error}",
+                tls.cert, tls.key, listener.address
+            ))
+        }
+    }
+    let mut settings = TlsSettings::intermediate(&tls.cert, &tls.key)
+        .map_err(|error| format!("invalid TLS settings for `{}`: {error}", listener.address))?;
+    settings.enable_h2();
+    catch_unwind(AssertUnwindSafe(|| settings.build())).map_err(|_| {
+        format!(
+            "failed to load TLS certificate `{}` or key `{}` for `{}`",
+            tls.cert, tls.key, listener.address
+        )
+    })?;
     Ok(())
 }
 

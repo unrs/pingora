@@ -1,7 +1,8 @@
 # Pingora for Node.js — Roadmap
 
-> Status: **M1 core reverse proxy implemented** (unreleased). TLS and the
-> programmable JS request handler are the next milestones.
+> Status: **M3 TLS/protocol coverage in progress.** TLS listeners and HTTP/2
+> downstream are implemented. Unix sockets, upstream custom CAs, and WebSocket
+> coverage remain.
 
 ## 1. Vision
 
@@ -321,8 +322,8 @@ singleton guard is held. `stop()` is idempotent.
 | Synthetic responses           | 0.2   | Implemented |
 | Upstream override per request | 0.2   | Implemented |
 | Readiness promise             | 0.2   | Planned     |
-| TLS termination (rustls)      | 0.3   | Planned     |
-| HTTP/2 downstream (ALPN)      | 0.3   | Planned     |
+| TLS termination (rustls)      | 0.3   | Implemented |
+| HTTP/2 downstream (ALPN)      | 0.3   | Implemented |
 | Upstream TLS + SNI + verify   | 0.3   | Planned     |
 | Unix domain sockets           | 0.3   | Planned     |
 | WebSocket / Upgrade passthrough| 0.3  | Planned     |
@@ -414,14 +415,14 @@ running, and shutdown with in-flight requests.
 
 **Goal:** cover the common production edge cases.
 
-- [ ] TLS listeners with cert/key files; per-listener configuration.
-- [ ] HTTP/2 over TLS via ALPN; HTTP/1.1 remains the default fallback.
+- [x] TLS listeners with cert/key files; per-listener configuration.
+- [x] HTTP/2 over TLS via ALPN; HTTP/1.1 remains the default fallback.
 - [ ] Upstream TLS with SNI, hostname verification, and an explicit opt-out.
 - [ ] Optional custom CA support for upstream verification.
 - [ ] Unix domain socket listeners and upstreams.
 - [ ] WebSocket / HTTP Upgrade passthrough tests.
-- [ ] TLS test fixtures and integration tests for h1 and h2 downstream.
-- [ ] Documentation for certificate rotation expectations (restart vs. future
+- [x] TLS test fixtures and integration tests for h1 and h2 downstream.
+- [x] Documentation for certificate rotation expectations (restart vs. future
       dynamic certs).
 
 **Exit criteria:** HTTPS termination, HTTPS upstream, h2, Unix sockets, and
