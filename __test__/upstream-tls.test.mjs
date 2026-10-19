@@ -34,14 +34,17 @@ async function startTlsUpstream(serverCert = cert, serverKey = key) {
 
 async function withTlsProxy(upstreams, run, serverCert, serverKey) {
   const upstream = await startTlsUpstream(serverCert, serverKey)
-  const proxy = await createProxy({
-    routes: [{ pathPrefix: '/', upstreams: upstreams(upstream.port) }],
-  })
   try {
-    await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
-    await run(proxy)
+    const proxy = await createProxy({
+      routes: [{ pathPrefix: '/', upstreams: upstreams(upstream.port) }],
+    })
+    try {
+      await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+      await run(proxy)
+    } finally {
+      await proxy.stop()
+    }
   } finally {
-    await proxy.stop()
     await upstream.close()
   }
 }
@@ -95,6 +98,32 @@ test('rejects an untrusted upstream certificate by default', async () => {
       assert.equal(response.status, 502)
     },
   )
+})
+
+test('loads CA configuration for a handler-selected upstream', async () => {
+  const upstream = await startTlsUpstream()
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
+  })
+  try {
+    await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+    proxy.server.setRequestHandler(async () => ({
+      action: 'upstream',
+      upstream: {
+        address: `https://127.0.0.1:${upstream.port}`,
+        sni: 'localhost',
+        ca: caPath,
+      },
+    }))
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(`http://127.0.0.1:${proxy.port}/`)
+      assert.equal(response.status, 200)
+      assert.equal(await response.text(), 'secure')
+    }
+  } finally {
+    await proxy.stop()
+    await upstream.close()
+  }
 })
 
 test('rejects ca without TLS and invalid CA files', async () => {
