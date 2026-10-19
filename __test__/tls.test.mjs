@@ -11,7 +11,8 @@ import { freePort, startUpstream, waitForProxy } from './helpers.mjs'
 
 const cert = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const key = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
-const ca = readFileSync(cert)
+const caPath = fileURLToPath(new URL('./fixtures/ca.pem', import.meta.url))
+const ca = readFileSync(caPath)
 
 function httpsRequest(port, path = '/') {
   return new Promise((resolve, reject) => {
