@@ -12,6 +12,7 @@ use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
 use pingora::http::RequestHeader;
+use pingora::tls::{CertificateDer, RootCertStore};
 use pingora::upstreams::peer::HttpPeer;
 use pingora::utils::tls::{parse_x509, WrappedX509};
 use x509_parser::prelude::FromDer;
@@ -335,6 +336,7 @@ fn read_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
 
     let mut hasher = DefaultHasher::new();
     let mut certificates = Vec::with_capacity(ders.len());
+    let mut roots = RootCertStore::empty();
     for der in ders {
         if !matches!(
             x509_parser::certificate::X509Certificate::from_der(der.as_ref()),
@@ -342,6 +344,11 @@ fn read_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
         ) {
             return Err(format!("CA file `{path}` contains invalid certificate DER"));
         }
+        roots
+            .add(CertificateDer::from(der.as_ref()))
+            .map_err(|error| {
+                format!("CA file `{path}` contains a certificate rustls cannot use: {error}")
+            })?;
         der.as_ref().hash(&mut hasher);
         certificates.push(WrappedX509::new(der.to_vec(), parse_x509));
     }
