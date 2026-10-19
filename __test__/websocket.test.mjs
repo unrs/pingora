@@ -41,7 +41,11 @@ async function startUpgradeUpstream() {
   })
   return {
     port: server.address().port,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () => {
+      for (const socket of sockets) socket.destroy()
+      server.closeAllConnections?.()
+      return new Promise((resolve) => server.close(resolve))
+    },
   }
 }
 
@@ -101,6 +105,6 @@ test('passes WebSocket upgrades through to the upstream', async () => {
   } finally {
     socket.destroy()
     await proxy.stop()
-    upstream.close()
+    await upstream.close()
   }
 })
