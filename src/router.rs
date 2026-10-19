@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::uri::Authority;
@@ -9,6 +10,7 @@ use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
 use pingora::http::RequestHeader;
 use pingora::upstreams::peer::HttpPeer;
+use pingora::utils::tls::{parse_x509, WrappedX509};
 
 use crate::options::{RouteOptions, UpstreamOptions};
 
@@ -32,6 +34,7 @@ pub struct Upstream {
     pub tls: bool,
     pub sni: String,
     pub verify: bool,
+    pub ca: Option<Arc<[WrappedX509]>>,
 }
 
 #[derive(Debug)]
@@ -120,6 +123,7 @@ impl Upstream {
         let mut peer = HttpPeer::new(self.addr, self.tls, self.sni.clone());
         peer.options.verify_cert = self.verify;
         peer.options.verify_hostname = self.verify;
+        peer.options.ca = self.ca.clone();
         peer
     }
 }
@@ -289,13 +293,14 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
 }
 
 pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
-    let (address, tls_override, sni_override, verify) = match value {
-        Either::A(address) => (address, None, None, true),
+    let (address, tls_override, sni_override, verify, ca_path) = match value {
+        Either::A(address) => (address, None, None, true, None),
         Either::B(options) => (
             options.address,
             options.tls,
             options.sni,
             options.verify.unwrap_or(true),
+            options.ca,
         ),
     };
 
@@ -329,12 +334,28 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
     let tls = tls_override.unwrap_or(scheme_tls);
     let port = authority.port_u16().unwrap_or(if tls { 443 } else { 80 });
     let sni = sni_override.unwrap_or_else(|| host.to_string());
+    let ca = match ca_path {
+        None => None,
+        Some(path) => {
+            if !tls {
+                return Err(format!("upstream `{address}` sets ca without TLS"));
+            }
+            let der = pingora::tls::load_pem_file_ca(&path)
+                .map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
+            if der.is_empty() {
+                return Err(format!("CA file `{path}` contains no certificate"));
+            }
+            let ca: Arc<[WrappedX509]> = Arc::from([WrappedX509::new(der, parse_x509)]);
+            Some(ca)
+        }
+    };
 
     Ok(Upstream {
         addr: SocketAddr::new(ip, port),
         tls,
         sni,
         verify,
+        ca,
     })
 }
 
