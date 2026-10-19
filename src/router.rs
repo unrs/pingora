@@ -3,6 +3,7 @@ use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -305,17 +306,19 @@ struct CachedCa {
     group_key: u64,
 }
 
-static CA_CACHE: OnceLock<Mutex<HashMap<String, CachedCa>>> = OnceLock::new();
+static CA_CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedCa>>> = OnceLock::new();
 
 fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
     let cache = CA_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(cached) = cache.lock().unwrap().get(path) {
+    if let Some(cached) = cache.lock().unwrap().get(&canonical) {
         return Ok((cached.ca.clone(), cached.group_key));
     }
 
-    let (ca, group_key) = read_ca_bundle(path)?;
+    let (ca, group_key) = read_ca_bundle(&canonical)?;
     cache.lock().unwrap().insert(
-        path.to_string(),
+        canonical,
         CachedCa {
             ca: ca.clone(),
             group_key,
@@ -324,14 +327,18 @@ fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
     Ok((ca, group_key))
 }
 
-fn read_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
-    let file = File::open(path).map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
+fn read_ca_bundle(path: &Path) -> Result<(Arc<[WrappedX509]>, u64), String> {
+    let file = File::open(path)
+        .map_err(|error| format!("failed to load CA `{}`: {error}", path.display()))?;
     let mut reader = BufReader::new(file);
     let ders = rustls_pemfile::certs(&mut reader)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("failed to parse CA `{path}`: {error}"))?;
+        .map_err(|error| format!("failed to parse CA `{}`: {error}", path.display()))?;
     if ders.is_empty() {
-        return Err(format!("CA file `{path}` contains no certificate"));
+        return Err(format!(
+            "CA file `{}` contains no certificate",
+            path.display()
+        ));
     }
 
     let mut hasher = DefaultHasher::new();
@@ -342,12 +349,18 @@ fn read_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
             x509_parser::certificate::X509Certificate::from_der(der.as_ref()),
             Ok(([], _))
         ) {
-            return Err(format!("CA file `{path}` contains invalid certificate DER"));
+            return Err(format!(
+                "CA file `{}` contains invalid certificate DER",
+                path.display()
+            ));
         }
         roots
             .add(CertificateDer::from(der.as_ref()))
             .map_err(|error| {
-                format!("CA file `{path}` contains a certificate rustls cannot use: {error}")
+                format!(
+                    "CA file `{}` contains a certificate rustls cannot use: {error}",
+                    path.display()
+                )
             })?;
         der.as_ref().hash(&mut hasher);
         certificates.push(WrappedX509::new(der.to_vec(), parse_x509));
