@@ -5,8 +5,8 @@ built with [napi-rs](https://napi.rs).
 
 > **Status: programmable reverse proxy (M3 in progress).** Static routes, load
 > balancing, header mutation, metrics, graceful lifecycle, the JavaScript request
-> handler, TLS listeners, and HTTP/2 downstream are implemented. Unix sockets,
-> upstream custom CAs, and WebSocket coverage are next; see
+> handler, TLS listeners, HTTP/2 downstream, and WebSocket passthrough are
+> implemented. Unix sockets and upstream custom CAs are next; see
 > [ROADMAP.md](./ROADMAP.md).
 
 ## Install
@@ -135,6 +135,9 @@ HTTP/1.1. Certificates and keys are PEM files and are validated by `start()`;
 an invalid path fails startup. Certificate rotation requires a restart. See
 [docs/tls.md](./docs/tls.md) for the certificate layout and operational notes.
 The request handler sees `scheme: 'https'` on TLS listeners.
+
+HTTP/1.1 `Upgrade` requests, including WebSocket handshakes, are passed through
+to the upstream after the normal route and header filters.
 
 ### Request handler
 

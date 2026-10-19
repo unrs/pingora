@@ -74,6 +74,9 @@ mutations. Synthetic responses use the decision `headers`; route response
 mutations do not apply. Handler errors, invalid decisions, and timeouts produce a
 `500`. Without a handler, requests never cross into JavaScript.
 
+HTTP/1.1 upgrade requests, including WebSocket, follow Pingora's upgraded-body
+path after the route and header filters.
+
 ## Metrics
 
 Metrics are updated from `request_filter` and `logging`:
