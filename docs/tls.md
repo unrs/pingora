@@ -36,7 +36,7 @@ restarting the server; dynamic certificate reload is not implemented yet.
 ## Upstream TLS
 
 `https://` upstreams verify the certificate and hostname by default. A private CA
-can be supplied per upstream:
+bundle (one or more PEM certificates) can be supplied per upstream:
 
 ```js
 upstreams: [

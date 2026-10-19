@@ -113,7 +113,7 @@ upstream connection failure receives `502`.
 Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
 does not implement DNS discovery; resolve hostnames before adding routes.
 Upstream TLS is verified by default, including hostname/SNI verification.
-`verify: false` opts out; `ca` points to a PEM CA file for a private CA. Unix
+`verify: false` opts out; `ca` points to a PEM CA bundle for a private CA. Unix
 sockets are not implemented yet.
 
 ### TLS listeners
