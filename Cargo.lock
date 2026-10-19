@@ -1504,7 +1504,9 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "pingora",
+ "rustls-pemfile",
  "tokio",
+ "x509-parser",
 ]
 
 [[package]]
