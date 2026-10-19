@@ -50,3 +50,6 @@ upstreams: [
 
 `verify: false` disables certificate and hostname verification. Use it only for
 trusted networks or development.
+
+CA bundles are loaded once per path and cached for the process lifetime; restart
+the server to pick up a rotated bundle.
