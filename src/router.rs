@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use http::uri::Authority;
@@ -298,7 +298,32 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
         .collect()
 }
 
+#[derive(Clone)]
+struct CachedCa {
+    ca: Arc<[WrappedX509]>,
+    group_key: u64,
+}
+
+static CA_CACHE: OnceLock<Mutex<HashMap<String, CachedCa>>> = OnceLock::new();
+
 fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
+    let cache = CA_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(cached) = cache.lock().unwrap().get(path) {
+        return Ok((cached.ca.clone(), cached.group_key));
+    }
+
+    let (ca, group_key) = read_ca_bundle(path)?;
+    cache.lock().unwrap().insert(
+        path.to_string(),
+        CachedCa {
+            ca: ca.clone(),
+            group_key,
+        },
+    );
+    Ok((ca, group_key))
+}
+
+fn read_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
     let file = File::open(path).map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
     let mut reader = BufReader::new(file);
     let ders = rustls_pemfile::certs(&mut reader)
@@ -311,7 +336,10 @@ fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
     let mut hasher = DefaultHasher::new();
     let mut certificates = Vec::with_capacity(ders.len());
     for der in ders {
-        if x509_parser::certificate::X509Certificate::from_der(der.as_ref()).is_err() {
+        if !matches!(
+            x509_parser::certificate::X509Certificate::from_der(der.as_ref()),
+            Ok(([], _))
+        ) {
             return Err(format!("CA file `{path}` contains invalid certificate DER"));
         }
         der.as_ref().hash(&mut hasher);
