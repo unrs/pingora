@@ -6,6 +6,19 @@ we have actually observed and are tracking instead of working around locally.
 Add an entry only when there is an upstream issue link; this is not a general
 list of every Pingora limitation.
 
+## #1056 — Per-peer CA is not part of the connection-reuse key
+
+- Status: open
+- Link: https://github.com/cloudflare/pingora/issues/1056
+- Affects: routes that use the same upstream address/SNI with different
+  per-upstream CA bundles
+- Detail: `HttpPeer.group_key` defaults to `0` and `PeerOptions.ca` is not part
+  of the connection-reuse hash, so a connection established under one CA policy
+  can be reused under another.
+- Binding workaround: derive `group_key` from the CA bundle (and reserve a
+  distinct value for the default trust store).
+- Cleanup: remove the `group_key` derivation when the upstream fix lands.
+
 ## #1055 — HTTP/1 body writer does not treat 205 as bodyless
 
 - Status: open
