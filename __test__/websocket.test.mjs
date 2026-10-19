@@ -95,10 +95,12 @@ test('passes WebSocket upgrades through to the upstream', async () => {
       'upgrade response',
     )
     const handshakeEnd = received.indexOf('\r\n\r\n') + 4
-    const handshake = received.subarray(0, handshakeEnd).toString().toLowerCase()
-    assert.ok(handshake.includes('upgrade: websocket'))
-    assert.ok(handshake.includes('connection: upgrade'))
-    assert.ok(handshake.includes(`sec-websocket-accept: ${acceptValue(KEY).toLowerCase()}`))
+    const handshakeLines = received.subarray(0, handshakeEnd).toString().split('\r\n')
+    assert.ok(handshakeLines.some((line) => /^upgrade:\s*websocket$/i.test(line)))
+    assert.ok(handshakeLines.some((line) => /^connection:\s*upgrade$/i.test(line)))
+    const acceptLine = handshakeLines.find((line) => /^sec-websocket-accept:/i.test(line))
+    assert.ok(acceptLine)
+    assert.equal(acceptLine.slice(acceptLine.indexOf(':') + 1).trim(), acceptValue(KEY))
 
     socket.write('ping')
     await waitForData(
