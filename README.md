@@ -159,8 +159,9 @@ new Server({
 
 TLS is not supported on Unix listeners. Socket files are created with mode
 `0o660`; directory permissions control access. A stale socket path is removed at
-startup only when no live listener answers, and owned sockets are unlinked on
-stop.
+startup only when no live listener answers and the path is actually a socket;
+regular files are rejected. The socket path may remain after stop and is
+replaced on the next start.
 
 ### Request handler
 
