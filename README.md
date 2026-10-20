@@ -157,8 +157,10 @@ new Server({
 })
 ```
 
-TLS is not supported on Unix listeners. Socket file permissions follow the
-process umask.
+TLS is not supported on Unix listeners. Socket files are created with mode
+`0o660`; directory permissions control access. A stale socket path is removed at
+startup only when no live listener answers, and owned sockets are unlinked on
+stop.
 
 ### Request handler
 
