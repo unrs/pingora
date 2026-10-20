@@ -3,10 +3,10 @@
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 
-> **Status: programmable reverse proxy (M3 in progress).** Static routes, load
+> **Status: programmable reverse proxy (M3 complete).** Static routes, load
 > balancing, header mutation, metrics, graceful lifecycle, the JavaScript request
-> handler, TLS listeners, HTTP/2 downstream, WebSocket passthrough, and upstream
-> TLS/custom CAs are implemented. Unix sockets remain; see
+> handler, TLS/HTTP2, WebSocket passthrough, upstream TLS/custom CAs, and Unix
+> sockets are implemented. Production-readiness work (M4) is next; see
 > [ROADMAP.md](./ROADMAP.md).
 
 ## Install
@@ -50,7 +50,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 
 | Option                       | Type       | Description                                              |
 | ---------------------------- | ---------- | -------------------------------------------------------- |
-| `listeners`                  | `(string \| ListenerOptions)[]` | Listeners; strings are plain TCP. Defaults to `127.0.0.1:8080`. |
+| `listeners`                  | `(string \| ListenerOptions)[]` | TCP, TLS, or `unix:/path` listeners. Defaults to `127.0.0.1:8080`. |
 | `routes`                     | `Route[]`  | Initial routes. More can be added at runtime.            |
 | `threads`                    | `number`   | Worker threads for the proxy service. Defaults to `1`.   |
 | `gracePeriodMs`              | `number`   | Grace period before runtime shutdown. Defaults to `0`.   |
@@ -98,7 +98,7 @@ interface Route {
 }
 
 interface Upstream {
-  address: string // IP:port, http://IP..., or https://IP...
+  address: string // IP:port, unix:/path, http://IP..., or https://IP...
   tls?: boolean
   sni?: string
   verify?: boolean // defaults to true
@@ -113,8 +113,8 @@ upstream connection failure receives `502`.
 Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
 does not implement DNS discovery; resolve hostnames before adding routes.
 Upstream TLS is verified by default, including hostname/SNI verification.
-`verify: false` opts out; `ca` points to a PEM CA bundle for a private CA. Unix
-sockets are not implemented yet.
+`verify: false` opts out; `ca` points to a PEM CA bundle for a private CA.
+Unix upstreams use `unix:/path`.
 
 ### TLS listeners
 
@@ -140,6 +140,25 @@ The request handler sees `scheme: 'https'` on TLS listeners.
 
 HTTP/1.1 `Upgrade` requests, including WebSocket handshakes, are passed through
 to the upstream after the normal route and header filters.
+
+### Unix domain sockets
+
+Listeners and upstreams can use `unix:/absolute/or/relative/path`:
+
+```js
+new Server({
+  listeners: ['unix:/run/pingora/proxy.sock'],
+  routes: [
+    {
+      pathPrefix: '/',
+      upstreams: ['unix:/run/app/app.sock'],
+    },
+  ],
+})
+```
+
+TLS is not supported on Unix listeners. Socket file permissions follow the
+process umask.
 
 ### Request handler
 

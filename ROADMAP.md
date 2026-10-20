@@ -1,8 +1,8 @@
 # Pingora for Node.js — Roadmap
 
-> Status: **M3 TLS/protocol coverage in progress.** TLS listeners, HTTP/2
-> downstream, WebSocket passthrough, and upstream TLS/custom CAs are implemented.
-> Unix sockets remain.
+> Status: **M3 TLS/protocol coverage complete.** TLS listeners, HTTP/2, WebSocket
+> passthrough, upstream TLS/custom CAs, and Unix sockets are implemented.
+> Production readiness (M4) is next.
 
 ## 1. Vision
 
@@ -325,7 +325,7 @@ singleton guard is held. `stop()` is idempotent.
 | TLS termination (rustls)      | 0.3   | Implemented |
 | HTTP/2 downstream (ALPN)      | 0.3   | Implemented |
 | Upstream TLS + SNI + verify   | 0.3   | Implemented |
-| Unix domain sockets           | 0.3   | Planned     |
+| Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
 | Health checks / weighted LB   | 0.4   | Planned     |
 | Prometheus metrics endpoint   | 0.4   | Planned     |
@@ -419,7 +419,7 @@ running, and shutdown with in-flight requests.
 - [x] HTTP/2 over TLS via ALPN; HTTP/1.1 remains the default fallback.
 - [x] Upstream TLS with SNI, hostname verification, and an explicit opt-out.
 - [x] Optional custom CA support for upstream verification.
-- [ ] Unix domain socket listeners and upstreams.
+- [x] Unix domain socket listeners and upstreams.
 - [x] WebSocket / HTTP Upgrade passthrough tests.
 - [x] TLS test fixtures and integration tests for h1 and h2 downstream.
 - [x] Documentation for certificate rotation expectations (restart vs. future
