@@ -32,3 +32,24 @@ The request handler sees `scheme: 'https'` for TLS listeners.
 
 Certificates are loaded when the server starts. Rotating a certificate requires
 restarting the server; dynamic certificate reload is not implemented yet.
+
+## Upstream TLS
+
+`https://` upstreams verify the certificate and hostname by default. A private CA
+bundle (one or more PEM certificates) can be supplied per upstream:
+
+```js
+upstreams: [
+  {
+    address: 'https://10.0.0.5:8443',
+    sni: 'internal.example',
+    ca: '/etc/pingora/internal-ca.pem',
+  },
+]
+```
+
+`verify: false` disables certificate and hostname verification. Use it only for
+trusted networks or development.
+
+CA bundles are loaded once per path and cached for the process lifetime; restart
+the server to pick up a rotated bundle.

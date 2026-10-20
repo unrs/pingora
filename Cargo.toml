@@ -21,6 +21,8 @@ log = "0.4"
 napi = { version = "3.14", default-features = false, features = ["napi4", "async", "dyn-symbols"] }
 napi-derive = "3.6"
 pingora = { version = "0.9", features = ["proxy", "rustls"] }
+rustls-pemfile = "2"
+x509-parser = "0.16"
 tokio = { version = "1", features = ["sync", "time"] }
 
 [build-dependencies]

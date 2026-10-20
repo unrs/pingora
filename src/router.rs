@@ -1,14 +1,22 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
 use pingora::http::RequestHeader;
+use pingora::tls::{CertificateDer, RootCertStore};
 use pingora::upstreams::peer::HttpPeer;
+use pingora::utils::tls::{parse_x509, WrappedX509};
+use x509_parser::prelude::FromDer;
 
 use crate::options::{RouteOptions, UpstreamOptions};
 
@@ -32,6 +40,8 @@ pub struct Upstream {
     pub tls: bool,
     pub sni: String,
     pub verify: bool,
+    pub ca: Option<Arc<[WrappedX509]>>,
+    pub group_key: u64,
 }
 
 #[derive(Debug)]
@@ -120,6 +130,8 @@ impl Upstream {
         let mut peer = HttpPeer::new(self.addr, self.tls, self.sni.clone());
         peer.options.verify_cert = self.verify;
         peer.options.verify_hostname = self.verify;
+        peer.options.ca = self.ca.clone();
+        peer.group_key = self.group_key;
         peer
     }
 }
@@ -288,14 +300,85 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
         .collect()
 }
 
+#[derive(Clone)]
+struct CachedCa {
+    ca: Arc<[WrappedX509]>,
+    group_key: u64,
+}
+
+static CA_CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedCa>>> = OnceLock::new();
+
+fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
+    let cache = CA_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(cached) = cache.lock().unwrap().get(&canonical) {
+        return Ok((cached.ca.clone(), cached.group_key));
+    }
+
+    let (ca, group_key) = read_ca_bundle(&canonical)?;
+    cache.lock().unwrap().insert(
+        canonical,
+        CachedCa {
+            ca: ca.clone(),
+            group_key,
+        },
+    );
+    Ok((ca, group_key))
+}
+
+fn read_ca_bundle(path: &Path) -> Result<(Arc<[WrappedX509]>, u64), String> {
+    let file = File::open(path)
+        .map_err(|error| format!("failed to load CA `{}`: {error}", path.display()))?;
+    let mut reader = BufReader::new(file);
+    let ders = rustls_pemfile::certs(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to parse CA `{}`: {error}", path.display()))?;
+    if ders.is_empty() {
+        return Err(format!(
+            "CA file `{}` contains no certificate",
+            path.display()
+        ));
+    }
+
+    let mut hasher = DefaultHasher::new();
+    let mut certificates = Vec::with_capacity(ders.len());
+    let mut roots = RootCertStore::empty();
+    for der in ders {
+        if !matches!(
+            x509_parser::certificate::X509Certificate::from_der(der.as_ref()),
+            Ok(([], _))
+        ) {
+            return Err(format!(
+                "CA file `{}` contains invalid certificate DER",
+                path.display()
+            ));
+        }
+        roots
+            .add(CertificateDer::from(der.as_ref()))
+            .map_err(|error| {
+                format!(
+                    "CA file `{}` contains a certificate rustls cannot use: {error}",
+                    path.display()
+                )
+            })?;
+        der.as_ref().hash(&mut hasher);
+        certificates.push(WrappedX509::new(der.to_vec(), parse_x509));
+    }
+
+    let ca: Arc<[WrappedX509]> = Arc::from(certificates);
+    Ok((ca, hasher.finish() | (1 << 63)))
+}
+
 pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
-    let (address, tls_override, sni_override, verify) = match value {
-        Either::A(address) => (address, None, None, true),
+    let (address, tls_override, sni_override, verify, ca_path) = match value {
+        Either::A(address) => (address, None, None, true, None),
         Either::B(options) => (
             options.address,
             options.tls,
             options.sni,
             options.verify.unwrap_or(true),
+            options.ca,
         ),
     };
 
@@ -329,12 +412,24 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
     let tls = tls_override.unwrap_or(scheme_tls);
     let port = authority.port_u16().unwrap_or(if tls { 443 } else { 80 });
     let sni = sni_override.unwrap_or_else(|| host.to_string());
+    let (ca, group_key) = match ca_path {
+        None => (None, 0),
+        Some(path) => {
+            if !tls {
+                return Err(format!("upstream `{address}` sets ca without TLS"));
+            }
+            let (ca, group_key) = load_ca_bundle(&path)?;
+            (Some(ca), group_key)
+        }
+    };
 
     Ok(Upstream {
         addr: SocketAddr::new(ip, port),
         tls,
         sni,
         verify,
+        ca,
+        group_key,
     })
 }
 

@@ -84,4 +84,7 @@ pub struct UpstreamOptions {
     pub sni: Option<String>,
     /// Verify the upstream certificate and hostname. Defaults to true.
     pub verify: Option<bool>,
+    /// PEM CA certificate used to verify the upstream. Defaults to the system
+    /// trust store.
+    pub ca: Option<String>,
 }

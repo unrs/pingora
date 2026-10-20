@@ -5,8 +5,8 @@ built with [napi-rs](https://napi.rs).
 
 > **Status: programmable reverse proxy (M3 in progress).** Static routes, load
 > balancing, header mutation, metrics, graceful lifecycle, the JavaScript request
-> handler, TLS listeners, HTTP/2 downstream, and WebSocket passthrough are
-> implemented. Unix sockets and upstream custom CAs are next; see
+> handler, TLS listeners, HTTP/2 downstream, WebSocket passthrough, and upstream
+> TLS/custom CAs are implemented. Unix sockets remain; see
 > [ROADMAP.md](./ROADMAP.md).
 
 ## Install
@@ -102,6 +102,7 @@ interface Upstream {
   tls?: boolean
   sni?: string
   verify?: boolean // defaults to true
+  ca?: string // PEM CA file for a private upstream CA
 }
 ```
 
@@ -111,8 +112,9 @@ upstream connection failure receives `502`.
 
 Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
 does not implement DNS discovery; resolve hostnames before adding routes.
-Upstream TLS is verified by default. Unix sockets and upstream custom CAs are
-not implemented yet.
+Upstream TLS is verified by default, including hostname/SNI verification.
+`verify: false` opts out; `ca` points to a PEM CA bundle for a private CA. Unix
+sockets are not implemented yet.
 
 ### TLS listeners
 
