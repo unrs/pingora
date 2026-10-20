@@ -427,6 +427,11 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
         }
         let tls = tls_override.unwrap_or(false);
         let sni = sni_override.unwrap_or_default();
+        #[cfg(unix)]
+        HttpPeer::new_uds(path, tls, sni.clone())
+            .map_err(|error| format!("invalid Unix upstream `{address}`: {error}"))?;
+        #[cfg(not(unix))]
+        return Err("Unix upstreams are not supported on this platform".to_string());
         let (ca, group_key) = resolve_ca(tls, ca_path, &address)?;
         return Ok(Upstream {
             address: UpstreamAddress::Unix(PathBuf::from(path)),

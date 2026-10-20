@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
+import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'vitest'
@@ -52,6 +53,7 @@ test('listens on a Unix domain socket', async () => {
     assert.ok(response)
     assert.equal(response.status, 200)
     assert.equal(response.body, 'upstream')
+    assert.equal((await stat(socketPath)).mode & 0o777, 0o660)
   } finally {
     await server.stop()
     await upstream.close()
@@ -79,6 +81,59 @@ test('proxies to a Unix domain socket upstream', async () => {
     await proxy.stop()
     await new Promise((resolve) => upstream.close(resolve))
     await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('removes a Unix listener on stop and replaces stale paths', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  const { directory, socketPath } = await tempSocket()
+  try {
+    const stale = net.createServer()
+    await new Promise((resolve, reject) => {
+      stale.once('error', reject)
+      stale.listen(socketPath, resolve)
+    })
+    await new Promise((resolve) => stale.close(resolve))
+
+    const server = new Server({
+      listeners: [`unix:${socketPath}`],
+      routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+      gracePeriodMs: 0,
+      shutdownTimeoutMs: 0,
+      logLevel: 'off',
+    })
+    server.start()
+    let response
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      try {
+        response = await requestUds(socketPath)
+        break
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+    assert.equal(response?.status, 200)
+    await server.stop()
+    await assert.rejects(stat(socketPath), { code: 'ENOENT' })
+  } finally {
+    await upstream.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('rejects invalid Unix upstream paths at route creation', async () => {
+  const proxy = await createProxy()
+  try {
+    assert.throws(
+      () =>
+        proxy.server.addRoute({
+          pathPrefix: '/bad',
+          upstreams: [`unix:${'x'.repeat(200)}`],
+        }),
+      /invalid Unix upstream/,
+    )
+  } finally {
+    await proxy.stop()
   }
 })
 

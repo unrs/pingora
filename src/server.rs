@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, Once};
@@ -356,6 +358,7 @@ impl Task for StopTask {
                 exited = self.state.exit_cv.wait(exited).unwrap();
             }
         }
+        cleanup_unix_listeners(&self.state.listeners);
         if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
             self.state.set_status(STOPPED);
         }
@@ -407,7 +410,7 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
     for listener in &state.listeners {
         if let Some(path) = unix_path(&listener.address) {
             #[cfg(unix)]
-            service.add_uds(path, None);
+            service.add_uds(path, Some(std::fs::Permissions::from_mode(0o660)));
             #[cfg(not(unix))]
             return Err(format!(
                 "Unix listener `{path}` is not supported on this platform"
@@ -511,12 +514,7 @@ fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
         if let Some(path) = unix_path(&listener.address) {
             #[cfg(unix)]
             {
-                let socket = std::os::unix::net::UnixListener::bind(path)
-                    .map_err(|error| format!("failed to bind Unix listener `{path}`: {error}"))?;
-                drop(socket);
-                std::fs::remove_file(path).map_err(|error| {
-                    format!("failed to clean up Unix listener `{path}`: {error}")
-                })?;
+                preflight_unix_listener(path)?;
                 continue;
             }
             #[cfg(not(unix))]
@@ -531,6 +529,47 @@ fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn preflight_unix_listener(path: &str) -> Result<(), String> {
+    use std::io::ErrorKind;
+    use std::os::unix::net::{UnixListener, UnixStream};
+
+    match UnixListener::bind(path) {
+        Ok(socket) => {
+            drop(socket);
+            std::fs::remove_file(path)
+                .map_err(|error| format!("failed to clean up Unix listener `{path}`: {error}"))?;
+            Ok(())
+        }
+        Err(error) if error.kind() == ErrorKind::AddrInUse => match UnixStream::connect(path) {
+            Ok(_) => Err(format!("Unix listener `{path}` is already in use")),
+            Err(connect_error) if connect_error.kind() == ErrorKind::ConnectionRefused => {
+                std::fs::remove_file(path).map_err(|remove_error| {
+                    format!("failed to remove stale Unix listener `{path}`: {remove_error}")
+                })?;
+                preflight_unix_listener(path)
+            }
+            Err(connect_error) => Err(format!(
+                "failed to probe Unix listener `{path}`: {connect_error}"
+            )),
+        },
+        Err(error) => Err(format!("failed to bind Unix listener `{path}`: {error}")),
+    }
+}
+
+fn cleanup_unix_listeners(listeners: &[ListenerConfig]) {
+    #[cfg(unix)]
+    for listener in listeners {
+        if let Some(path) = unix_path(&listener.address) {
+            if let Err(error) = std::fs::remove_file(path) {
+                if error.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!("failed to remove Unix listener `{path}`: {error}");
+                }
+            }
+        }
+    }
 }
 
 fn preflight_tls(listener: &ListenerConfig, tls: &TlsConfig) -> Result<(), String> {
