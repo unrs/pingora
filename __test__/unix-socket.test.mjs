@@ -122,18 +122,21 @@ test('reuses a Unix listener path after stop', async () => {
       shutdownTimeoutMs: 0,
       logLevel: 'off',
     })
-    restarted.start()
-    let restartedResponse
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      try {
-        restartedResponse = await requestUds(socketPath)
-        break
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 50))
+    try {
+      restarted.start()
+      let restartedResponse
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        try {
+          restartedResponse = await requestUds(socketPath)
+          break
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+        }
       }
+      assert.equal(restartedResponse?.status, 200)
+    } finally {
+      await restarted.stop()
     }
-    assert.equal(restartedResponse?.status, 200)
-    await restarted.stop()
   } finally {
     await upstream.close()
     await rm(directory, { recursive: true, force: true })
