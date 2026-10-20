@@ -405,7 +405,14 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
         JsProxy::new(state.shared.clone()),
     );
     for listener in &state.listeners {
-        if let Some(tls) = &listener.tls {
+        if let Some(path) = unix_path(&listener.address) {
+            #[cfg(unix)]
+            service.add_uds(path, None);
+            #[cfg(not(unix))]
+            return Err(format!(
+                "Unix listener `{path}` is not supported on this platform"
+            ));
+        } else if let Some(tls) = &listener.tls {
             let mut settings = TlsSettings::intermediate(&tls.cert, &tls.key)
                 .map_err(|error| format!("failed to load TLS settings: {error}"))?;
             settings.enable_h2();
@@ -433,6 +440,10 @@ fn init_logger(level: &str) {
     INIT_LOGGER.call_once(|| {
         let _ = env_logger::Builder::from_env(Env::default().default_filter_or(level)).try_init();
     });
+}
+
+fn unix_path(address: &str) -> Option<&str> {
+    address.strip_prefix("unix:")
 }
 
 fn default_listeners() -> Vec<ListenerConfig> {
@@ -465,6 +476,15 @@ fn parse_listeners(
                 if options.address.trim().is_empty() {
                     return Err("listener address cannot be empty".to_string());
                 }
+                if unix_path(&options.address).is_some_and(str::is_empty) {
+                    return Err("Unix listener path cannot be empty".to_string());
+                }
+                if unix_path(&options.address).is_some() && options.tls.is_some() {
+                    return Err(format!(
+                        "Unix listener `{}` does not support TLS",
+                        options.address
+                    ));
+                }
                 let tls = match options.tls {
                     None => None,
                     Some(TlsOptions { cert, key }) => {
@@ -488,6 +508,22 @@ fn parse_listeners(
 
 fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
     for listener in listeners {
+        if let Some(path) = unix_path(&listener.address) {
+            #[cfg(unix)]
+            {
+                let socket = std::os::unix::net::UnixListener::bind(path)
+                    .map_err(|error| format!("failed to bind Unix listener `{path}`: {error}"))?;
+                drop(socket);
+                std::fs::remove_file(path).map_err(|error| {
+                    format!("failed to clean up Unix listener `{path}`: {error}")
+                })?;
+                continue;
+            }
+            #[cfg(not(unix))]
+            return Err(format!(
+                "Unix listener `{path}` is not supported on this platform"
+            ));
+        }
         std::net::TcpListener::bind(&listener.address)
             .map_err(|error| format!("failed to bind listener `{}`: {error}", listener.address))?;
         if let Some(tls) = &listener.tls {

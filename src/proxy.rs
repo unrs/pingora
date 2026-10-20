@@ -190,7 +190,8 @@ impl ProxyHttp for JsProxy {
                 .pick()
                 .ok_or_else(|| Error::explain(ErrorType::InternalError, "route has no upstream"))?;
             upstream.to_peer()
-        };
+        }
+        .map_err(|error| Error::explain(ErrorType::InternalError, error))?;
 
         if let Some(timeout) = ctx.route.as_ref().and_then(|route| route.timeout) {
             peer.options.connection_timeout = Some(timeout);
