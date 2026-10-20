@@ -50,7 +50,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 
 | Option                       | Type       | Description                                              |
 | ---------------------------- | ---------- | -------------------------------------------------------- |
-| `listeners`                  | `(string \| ListenerOptions)[]` | TCP, TLS, or `unix:/path` listeners. Defaults to `127.0.0.1:8080`. |
+| `listeners`                  | `(string \| ListenerOptions)[]` | TCP, TLS, or `unix:/path` (Unix only). Defaults to `127.0.0.1:8080`. |
 | `routes`                     | `Route[]`  | Initial routes. More can be added at runtime.            |
 | `threads`                    | `number`   | Worker threads for the proxy service. Defaults to `1`.   |
 | `gracePeriodMs`              | `number`   | Grace period before runtime shutdown. Defaults to `0`.   |
@@ -110,11 +110,11 @@ Routes are evaluated in registration order; the first match wins. All specified
 matchers must match. A request with no matching route receives `404`; an
 upstream connection failure receives `502`.
 
-Upstream addresses must be IP literals (IPv4 or IPv6). The binding intentionally
-does not implement DNS discovery; resolve hostnames before adding routes.
-Upstream TLS is verified by default, including hostname/SNI verification.
-`verify: false` opts out; `ca` points to a PEM CA bundle for a private CA.
-Unix upstreams use `unix:/path`.
+Internet upstream addresses must be IP literals (IPv4 or IPv6). The binding
+intentionally does not implement DNS discovery; resolve hostnames before adding
+routes. Upstream TLS is verified by default, including hostname/SNI
+verification. `verify: false` opts out; `ca` points to a PEM CA bundle for a
+private CA. Unix upstreams use `unix:/path` on Unix platforms.
 
 ### TLS listeners
 
@@ -143,7 +143,8 @@ to the upstream after the normal route and header filters.
 
 ### Unix domain sockets
 
-Listeners and upstreams can use `unix:/absolute/or/relative/path`:
+Listeners and upstreams can use `unix:/absolute/or/relative/path` on Unix
+platforms. Non-Unix builds reject Unix listener/upstream configuration.
 
 ```js
 new Server({
