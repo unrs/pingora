@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -84,7 +84,7 @@ test('proxies to a Unix domain socket upstream', async () => {
   }
 })
 
-test('removes a Unix listener on stop and replaces stale paths', async () => {
+test('reuses a Unix listener path after stop', async () => {
   const upstream = await startUpstream((_req, res) => res.end('upstream'))
   const { directory, socketPath } = await tempSocket()
   try {
@@ -114,9 +114,43 @@ test('removes a Unix listener on stop and replaces stale paths', async () => {
     }
     assert.equal(response?.status, 200)
     await server.stop()
-    await assert.rejects(stat(socketPath), { code: 'ENOENT' })
+
+    const restarted = new Server({
+      listeners: [`unix:${socketPath}`],
+      routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+      gracePeriodMs: 0,
+      shutdownTimeoutMs: 0,
+      logLevel: 'off',
+    })
+    restarted.start()
+    let restartedResponse
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      try {
+        restartedResponse = await requestUds(socketPath)
+        break
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+    assert.equal(restartedResponse?.status, 200)
+    await restarted.stop()
   } finally {
     await upstream.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('rejects a regular file at the Unix listener path', async () => {
+  const { directory, socketPath } = await tempSocket()
+  try {
+    await writeFile(socketPath, 'not a socket')
+    const server = new Server({
+      listeners: [`unix:${socketPath}`],
+      logLevel: 'off',
+    })
+    assert.throws(() => server.start(), /is not a socket/)
+    assert.equal((await stat(socketPath)).isFile(), true)
+  } finally {
     await rm(directory, { recursive: true, force: true })
   }
 })

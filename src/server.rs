@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, Once};
@@ -358,7 +358,6 @@ impl Task for StopTask {
                 exited = self.state.exit_cv.wait(exited).unwrap();
             }
         }
-        cleanup_unix_listeners(&self.state.listeners);
         if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
             self.state.set_status(STOPPED);
         }
@@ -543,32 +542,36 @@ fn preflight_unix_listener(path: &str) -> Result<(), String> {
                 .map_err(|error| format!("failed to clean up Unix listener `{path}`: {error}"))?;
             Ok(())
         }
-        Err(error) if error.kind() == ErrorKind::AddrInUse => match UnixStream::connect(path) {
-            Ok(_) => Err(format!("Unix listener `{path}` is already in use")),
-            Err(connect_error) if connect_error.kind() == ErrorKind::ConnectionRefused => {
-                std::fs::remove_file(path).map_err(|remove_error| {
-                    format!("failed to remove stale Unix listener `{path}`: {remove_error}")
-                })?;
-                preflight_unix_listener(path)
+        Err(error) if error.kind() == ErrorKind::AddrInUse => {
+            let before = std::fs::symlink_metadata(path).map_err(|metadata_error| {
+                format!("failed to inspect Unix listener `{path}`: {metadata_error}")
+            })?;
+            if !before.file_type().is_socket() {
+                return Err(format!("Unix listener `{path}` exists and is not a socket"));
             }
-            Err(connect_error) => Err(format!(
-                "failed to probe Unix listener `{path}`: {connect_error}"
-            )),
-        },
-        Err(error) => Err(format!("failed to bind Unix listener `{path}`: {error}")),
-    }
-}
-
-fn cleanup_unix_listeners(listeners: &[ListenerConfig]) {
-    #[cfg(unix)]
-    for listener in listeners {
-        if let Some(path) = unix_path(&listener.address) {
-            if let Err(error) = std::fs::remove_file(path) {
-                if error.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("failed to remove Unix listener `{path}`: {error}");
+            match UnixStream::connect(path) {
+                Ok(_) => Err(format!("Unix listener `{path}` is already in use")),
+                Err(connect_error) if connect_error.kind() == ErrorKind::ConnectionRefused => {
+                    let current = std::fs::symlink_metadata(path).map_err(|metadata_error| {
+                        format!("failed to inspect Unix listener `{path}`: {metadata_error}")
+                    })?;
+                    if !current.file_type().is_socket()
+                        || current.dev() != before.dev()
+                        || current.ino() != before.ino()
+                    {
+                        return Err(format!("Unix listener `{path}` changed during preflight"));
+                    }
+                    std::fs::remove_file(path).map_err(|remove_error| {
+                        format!("failed to remove stale Unix listener `{path}`: {remove_error}")
+                    })?;
+                    preflight_unix_listener(path)
                 }
+                Err(connect_error) => Err(format!(
+                    "failed to probe Unix listener `{path}`: {connect_error}"
+                )),
             }
         }
+        Err(error) => Err(format!("failed to bind Unix listener `{path}`: {error}")),
     }
 }
 
