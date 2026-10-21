@@ -235,14 +235,23 @@ against this binding.
 ### Metrics endpoint
 
 `metricsPrometheus()` returns Prometheus text; serve it from the request handler
-if you want an HTTP endpoint:
+if you want an HTTP endpoint. Do not expose it on a public listener without
+authorization; route ids and traffic counts are visible in the output.
 
 ```js
+const metricsToken = process.env.METRICS_TOKEN
+
 server.setRequestHandler(async (request) => {
   if (request.path === '/healthz') {
     return { action: 'respond', status: 200, body: server.status().state }
   }
   if (request.path === '/metrics') {
+    if (
+      !metricsToken ||
+      request.headers.authorization !== `Bearer ${metricsToken}`
+    ) {
+      return { action: 'respond', status: 401, body: 'unauthorized' }
+    }
     return {
       action: 'respond',
       status: 200,
