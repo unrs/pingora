@@ -328,6 +328,7 @@ singleton guard is held. `stop()` is idempotent.
 | Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
 | Health checks / weighted LB   | 0.4   | Planned     |
+| Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Planned     |
 | Config file + schema          | 0.4   | Planned     |
 | Structured log bridge to JS   | 0.4   | Exploring   |
@@ -436,7 +437,8 @@ macOS.
 - [ ] Health checks and/or Pingora load-balancer integration.
 - [ ] Weighted and least-connection strategies (if they fit the facade).
 - [ ] Listener and route limits; request body size and header limits surfaced.
-- [ ] Per-route metrics and a Prometheus-compatible endpoint.
+- [x] Per-route metrics and Prometheus text output (`metricsPrometheus()`);
+      an endpoint can be served through the request handler.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
 - [ ] Config file loader (JSON/TOML) with validation and a JSON Schema.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,

@@ -3,11 +3,11 @@
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 
-> **Status: programmable reverse proxy (M3 complete).** Static routes, load
-> balancing, header mutation, metrics, graceful lifecycle, the JavaScript request
-> handler, TLS/HTTP2, WebSocket passthrough, upstream TLS/custom CAs, and Unix
-> sockets are implemented. Production-readiness work (M4) is next; see
-> [ROADMAP.md](./ROADMAP.md).
+> **Status: programmable reverse proxy (M3 complete; M4 in progress).** Static
+> routes, load balancing, header mutation, metrics, graceful lifecycle, the
+> JavaScript request handler, TLS/HTTP2, WebSocket passthrough, upstream
+> TLS/custom CAs, and Unix sockets are implemented. Production-readiness work is
+> ongoing; see [ROADMAP.md](./ROADMAP.md).
 
 ## Install
 
@@ -70,6 +70,9 @@ Invalid options are reported by `start()` and in `status().error`.
 - `status(): ServerStatus` — `{ state, error?, listeners, routes }`.
 - `metrics(): ServerMetrics` — request/active/error/status-class counters and
   uptime.
+- `routeMetrics(id): RouteMetrics | null` — counters for one route.
+- `metricsPrometheus(): string` — Prometheus text exposition of aggregate and
+  per-route counters.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
@@ -228,6 +231,43 @@ Handlers are optional: requests take the all-Rust path when none is installed.
 
 See [docs/upstream-issues.md](./docs/upstream-issues.md) for Pingora issues tracked
 against this binding.
+
+### Metrics endpoint
+
+`metricsPrometheus()` returns Prometheus text; serve it from the request handler
+if you want an HTTP endpoint:
+
+```js
+server.setRequestHandler(async (request) => {
+  if (request.path === '/healthz') {
+    return { action: 'respond', status: 200, body: server.status().state }
+  }
+  if (request.path === '/metrics') {
+    return {
+      action: 'respond',
+      status: 200,
+      headers: { 'content-type': 'text/plain; version=0.0.4' },
+      body: server.metricsPrometheus(),
+    }
+  }
+  return { action: 'continue' }
+})
+```
+
+The metrics include aggregate request/active/error/status-class counters, uptime,
+and `pingora_route_*` counters labelled by route id.
+
+```ts
+interface RouteMetrics {
+  requests: number
+  active: number
+  upstreamErrors: number
+  responsesOk: number
+  responsesRedirect: number
+  responsesClientError: number
+  responsesServerError: number
+}
+```
 
 ## Benchmarks
 
