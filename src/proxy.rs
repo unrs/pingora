@@ -24,14 +24,8 @@ impl JsProxy {
         &self,
         session: &mut Session,
         ctx: &mut ProxyCtx,
-        route: Option<Arc<Route>>,
         decision: RequestDecision,
     ) -> Result<bool, String> {
-        if let Some(route) = route.as_ref() {
-            route.metrics.request_started();
-        }
-        ctx.route = route;
-
         let action = decision
             .action
             .as_deref()
@@ -142,12 +136,16 @@ impl ProxyHttp for JsProxy {
         let path = req.uri.path().to_string();
         let host = normalize_host(&request_host(req));
         let route = self.state.match_route(req, &host, &path);
+        if let Some(route) = route.as_ref() {
+            route.metrics.request_started();
+            ctx.route = Some(route.clone());
+        }
 
         if let Some(handler) = self.state.handler() {
             let view =
                 RequestView::from_session(session, route.as_ref().map(|route| route.id.as_str()));
             match handler.call(view).await {
-                Ok(decision) => match self.apply_decision(session, ctx, route, decision).await {
+                Ok(decision) => match self.apply_decision(session, ctx, decision).await {
                     Ok(true) => return Ok(true),
                     Ok(false) if ctx.route.is_none() && ctx.upstream.is_none() => {
                         session
@@ -167,15 +165,13 @@ impl ProxyHttp for JsProxy {
             }
         }
 
-        let Some(route) = route else {
+        if ctx.route.is_none() {
             session
                 .respond_error_with_body(404, Bytes::from_static(b"no route matched"))
                 .await?;
             return Ok(true);
-        };
+        }
 
-        route.metrics.request_started();
-        ctx.route = Some(route);
         Ok(false)
     }
 
