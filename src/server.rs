@@ -40,6 +40,24 @@ pub struct ServerStatus {
 }
 
 #[napi(object)]
+pub struct RouteMetrics {
+    /// Requests that matched this route.
+    pub requests: f64,
+    /// Requests currently in flight for this route.
+    pub active: f64,
+    /// Responses that failed at the upstream.
+    pub upstream_errors: f64,
+    /// Responses with a 2xx status.
+    pub responses_ok: f64,
+    /// Responses with a 3xx status.
+    pub responses_redirect: f64,
+    /// Responses with a 4xx status.
+    pub responses_client_error: f64,
+    /// Responses with a 5xx status.
+    pub responses_server_error: f64,
+}
+
+#[napi(object)]
 pub struct ServerMetrics {
     pub requests: f64,
     pub active: f64,
@@ -299,6 +317,27 @@ impl JsServer {
             responses_server_error: metrics.responses_5xx as f64,
             uptime_ms: metrics.uptime_ms as f64,
         }
+    }
+
+    #[napi]
+    pub fn route_metrics(&self, id: String) -> Option<RouteMetrics> {
+        self.state
+            .shared
+            .route_metrics(&id)
+            .map(|metrics| RouteMetrics {
+                requests: metrics.requests as f64,
+                active: metrics.active as f64,
+                upstream_errors: metrics.upstream_errors as f64,
+                responses_ok: metrics.responses_2xx as f64,
+                responses_redirect: metrics.responses_3xx as f64,
+                responses_client_error: metrics.responses_4xx as f64,
+                responses_server_error: metrics.responses_5xx as f64,
+            })
+    }
+
+    #[napi]
+    pub fn metrics_prometheus(&self) -> String {
+        self.state.shared.metrics_prometheus()
     }
 
     #[napi]

@@ -27,6 +27,9 @@ impl JsProxy {
         route: Option<Arc<Route>>,
         decision: RequestDecision,
     ) -> Result<bool, String> {
+        if let Some(route) = route.as_ref() {
+            route.metrics.request_started();
+        }
         ctx.route = route;
 
         let action = decision
@@ -171,6 +174,7 @@ impl ProxyHttp for JsProxy {
             return Ok(true);
         };
 
+        route.metrics.request_started();
         ctx.route = Some(route);
         Ok(false)
     }
@@ -271,6 +275,9 @@ impl ProxyHttp for JsProxy {
             .map(|response| response.status.as_u16());
         let upstream_error =
             error.is_some_and(|error| matches!(error.esource(), ErrorSource::Upstream));
+        if let Some(route) = ctx.route.as_ref() {
+            route.metrics.request_finished(status, upstream_error);
+        }
         self.state.request_finished(status, upstream_error);
     }
 }

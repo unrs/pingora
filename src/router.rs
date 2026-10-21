@@ -67,6 +67,7 @@ pub struct Route {
     pub response_headers: Vec<(String, String)>,
     pub remove_response_headers: Vec<String>,
     pub timeout: Option<Duration>,
+    pub metrics: crate::state::Metrics,
     counter: AtomicUsize,
 }
 
@@ -215,6 +216,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
         response_headers,
         remove_response_headers,
         timeout,
+        metrics: crate::state::Metrics::default(),
         counter: AtomicUsize::new(0),
     })
 }

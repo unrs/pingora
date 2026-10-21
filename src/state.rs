@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -32,6 +33,19 @@ pub struct MetricSnapshot {
 }
 
 impl Metrics {
+    fn snapshot(&self) -> MetricSnapshot {
+        MetricSnapshot {
+            requests: self.requests.load(Ordering::Relaxed),
+            active: self.active.load(Ordering::Relaxed),
+            upstream_errors: self.upstream_errors.load(Ordering::Relaxed),
+            responses_2xx: self.responses_2xx.load(Ordering::Relaxed),
+            responses_3xx: self.responses_3xx.load(Ordering::Relaxed),
+            responses_4xx: self.responses_4xx.load(Ordering::Relaxed),
+            responses_5xx: self.responses_5xx.load(Ordering::Relaxed),
+            uptime_ms: 0,
+        }
+    }
+
     pub fn request_started(&self) {
         self.requests.fetch_add(1, Ordering::Relaxed);
         self.active.fetch_add(1, Ordering::Relaxed);
@@ -127,16 +141,87 @@ impl SharedState {
     }
 
     pub fn metrics(&self) -> MetricSnapshot {
-        MetricSnapshot {
-            requests: self.metrics.requests.load(Ordering::Relaxed),
-            active: self.metrics.active.load(Ordering::Relaxed),
-            upstream_errors: self.metrics.upstream_errors.load(Ordering::Relaxed),
-            responses_2xx: self.metrics.responses_2xx.load(Ordering::Relaxed),
-            responses_3xx: self.metrics.responses_3xx.load(Ordering::Relaxed),
-            responses_4xx: self.metrics.responses_4xx.load(Ordering::Relaxed),
-            responses_5xx: self.metrics.responses_5xx.load(Ordering::Relaxed),
-            uptime_ms: self.started_at.elapsed().as_millis() as u64,
+        let mut snapshot = self.metrics.snapshot();
+        snapshot.uptime_ms = self.started_at.elapsed().as_millis() as u64;
+        snapshot
+    }
+
+    pub fn route_metrics(&self, id: &str) -> Option<MetricSnapshot> {
+        self.routes
+            .read()
+            .unwrap()
+            .iter()
+            .find(|route| route.id == id)
+            .map(|route| route.metrics.snapshot())
+    }
+
+    pub fn metrics_prometheus(&self) -> String {
+        let metrics = self.metrics();
+        let routes = self
+            .routes
+            .read()
+            .unwrap()
+            .iter()
+            .map(|route| (route.id.clone(), route.metrics.snapshot()))
+            .collect::<Vec<_>>();
+
+        let mut output = String::new();
+        writeln!(output, "# HELP pingora_requests_total Total requests").unwrap();
+        writeln!(output, "# TYPE pingora_requests_total counter").unwrap();
+        writeln!(output, "pingora_requests_total {}", metrics.requests).unwrap();
+        writeln!(output, "# TYPE pingora_active_requests gauge").unwrap();
+        writeln!(output, "pingora_active_requests {}", metrics.active).unwrap();
+        writeln!(output, "# TYPE pingora_upstream_errors_total counter").unwrap();
+        writeln!(
+            output,
+            "pingora_upstream_errors_total {}",
+            metrics.upstream_errors
+        )
+        .unwrap();
+        writeln!(output, "# TYPE pingora_responses_total counter").unwrap();
+        for (class, value) in [
+            ("2xx", metrics.responses_2xx),
+            ("3xx", metrics.responses_3xx),
+            ("4xx", metrics.responses_4xx),
+            ("5xx", metrics.responses_5xx),
+        ] {
+            writeln!(
+                output,
+                "pingora_responses_total{{class=\"{class}\"}} {value}"
+            )
+            .unwrap();
         }
+        writeln!(output, "# TYPE pingora_uptime_seconds gauge").unwrap();
+        writeln!(
+            output,
+            "pingora_uptime_seconds {}",
+            metrics.uptime_ms as f64 / 1000.0
+        )
+        .unwrap();
+
+        for (id, route) in routes {
+            let id = prometheus_escape(&id);
+            writeln!(
+                output,
+                "pingora_route_requests_total{{route=\"{id}\"}} {}",
+                route.requests
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "pingora_route_active_requests{{route=\"{id}\"}} {}",
+                route.active
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "pingora_route_upstream_errors_total{{route=\"{id}\"}} {}",
+                route.upstream_errors
+            )
+            .unwrap();
+        }
+
+        output
     }
 
     pub fn request_started(&self) {
@@ -146,6 +231,13 @@ impl SharedState {
     pub fn request_finished(&self, status: Option<u16>, upstream_error: bool) {
         self.metrics.request_finished(status, upstream_error);
     }
+}
+
+fn prometheus_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 pub fn request_host(req: &RequestHeader) -> String {
