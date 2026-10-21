@@ -144,7 +144,10 @@ to the upstream after the normal route and header filters.
 ### Unix domain sockets
 
 Listeners and upstreams can use `unix:/absolute/or/relative/path` on Unix
-platforms. Non-Unix builds reject Unix listener/upstream configuration.
+platforms. Non-Unix builds reject Unix listener/upstream configuration. Each
+Unix socket path must be exclusively owned by one process; concurrent binds to
+the same path are not supported because Pingora's path-based bind unlinks an
+existing socket.
 
 ```js
 new Server({
