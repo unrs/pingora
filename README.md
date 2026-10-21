@@ -235,8 +235,9 @@ against this binding.
 ### Metrics endpoint
 
 `metricsPrometheus()` returns Prometheus text; serve it from the request handler
-if you want an HTTP endpoint. Do not expose it on a public listener without
-authorization; route ids and traffic counts are visible in the output.
+if you want an HTTP endpoint. On a public listener, require authorization and
+HTTPS or equivalent transport security. Otherwise, keep the endpoint private;
+route ids and traffic counts are visible in the output.
 
 ```js
 const metricsToken = process.env.METRICS_TOKEN
