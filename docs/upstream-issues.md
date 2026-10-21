@@ -6,6 +6,20 @@ we have actually observed and are tracking instead of working around locally.
 Add an entry only when there is an upstream issue link; this is not a general
 list of every Pingora limitation.
 
+## #374 — Prebound listener / Unix-socket bind ownership
+
+- Status: open
+- Link: https://github.com/cloudflare/pingora/issues/374
+- Comment: https://github.com/cloudflare/pingora/issues/374#issuecomment-6308263444
+- Affects: Unix listeners that share a socket path across processes
+- Detail: `add_uds(path)` unlinks an existing path before binding. Preflighting the
+  path narrows but cannot eliminate the window where another process binds it
+  first; Pingora then removes that live socket pathname.
+- Binding workaround: preflight checks that the path is a socket, verifies
+  `dev/ino`, and treats the path as exclusively owned by one process.
+- Cleanup: switch to a prebound listener/FD API, or a bind mode that fails on an
+  existing path without unlinking, when upstream provides one.
+
 ## #1056 — Per-peer CA is not part of the connection-reuse key
 
 - Status: open

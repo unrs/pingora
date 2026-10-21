@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, Once};
@@ -405,7 +407,14 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
         JsProxy::new(state.shared.clone()),
     );
     for listener in &state.listeners {
-        if let Some(tls) = &listener.tls {
+        if let Some(path) = unix_path(&listener.address) {
+            #[cfg(unix)]
+            service.add_uds(path, Some(std::fs::Permissions::from_mode(0o660)));
+            #[cfg(not(unix))]
+            return Err(format!(
+                "Unix listener `{path}` is not supported on this platform"
+            ));
+        } else if let Some(tls) = &listener.tls {
             let mut settings = TlsSettings::intermediate(&tls.cert, &tls.key)
                 .map_err(|error| format!("failed to load TLS settings: {error}"))?;
             settings.enable_h2();
@@ -433,6 +442,10 @@ fn init_logger(level: &str) {
     INIT_LOGGER.call_once(|| {
         let _ = env_logger::Builder::from_env(Env::default().default_filter_or(level)).try_init();
     });
+}
+
+fn unix_path(address: &str) -> Option<&str> {
+    address.strip_prefix("unix:")
 }
 
 fn default_listeners() -> Vec<ListenerConfig> {
@@ -465,6 +478,15 @@ fn parse_listeners(
                 if options.address.trim().is_empty() {
                     return Err("listener address cannot be empty".to_string());
                 }
+                if unix_path(&options.address).is_some_and(str::is_empty) {
+                    return Err("Unix listener path cannot be empty".to_string());
+                }
+                if unix_path(&options.address).is_some() && options.tls.is_some() {
+                    return Err(format!(
+                        "Unix listener `{}` does not support TLS",
+                        options.address
+                    ));
+                }
                 let tls = match options.tls {
                     None => None,
                     Some(TlsOptions { cert, key }) => {
@@ -488,6 +510,17 @@ fn parse_listeners(
 
 fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
     for listener in listeners {
+        if let Some(path) = unix_path(&listener.address) {
+            #[cfg(unix)]
+            {
+                preflight_unix_listener(path)?;
+                continue;
+            }
+            #[cfg(not(unix))]
+            return Err(format!(
+                "Unix listener `{path}` is not supported on this platform"
+            ));
+        }
         std::net::TcpListener::bind(&listener.address)
             .map_err(|error| format!("failed to bind listener `{}`: {error}", listener.address))?;
         if let Some(tls) = &listener.tls {
@@ -495,6 +528,51 @@ fn preflight_listeners(listeners: &[ListenerConfig]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn preflight_unix_listener(path: &str) -> Result<(), String> {
+    use std::io::ErrorKind;
+    use std::os::unix::net::{UnixListener, UnixStream};
+
+    match UnixListener::bind(path) {
+        Ok(socket) => {
+            drop(socket);
+            std::fs::remove_file(path)
+                .map_err(|error| format!("failed to clean up Unix listener `{path}`: {error}"))?;
+            Ok(())
+        }
+        Err(error) if error.kind() == ErrorKind::AddrInUse => {
+            let before = std::fs::symlink_metadata(path).map_err(|metadata_error| {
+                format!("failed to inspect Unix listener `{path}`: {metadata_error}")
+            })?;
+            if !before.file_type().is_socket() {
+                return Err(format!("Unix listener `{path}` exists and is not a socket"));
+            }
+            match UnixStream::connect(path) {
+                Ok(_) => Err(format!("Unix listener `{path}` is already in use")),
+                Err(connect_error) if connect_error.kind() == ErrorKind::ConnectionRefused => {
+                    let current = std::fs::symlink_metadata(path).map_err(|metadata_error| {
+                        format!("failed to inspect Unix listener `{path}`: {metadata_error}")
+                    })?;
+                    if !current.file_type().is_socket()
+                        || current.dev() != before.dev()
+                        || current.ino() != before.ino()
+                    {
+                        return Err(format!("Unix listener `{path}` changed during preflight"));
+                    }
+                    std::fs::remove_file(path).map_err(|remove_error| {
+                        format!("failed to remove stale Unix listener `{path}`: {remove_error}")
+                    })?;
+                    preflight_unix_listener(path)
+                }
+                Err(connect_error) => Err(format!(
+                    "failed to probe Unix listener `{path}`: {connect_error}"
+                )),
+            }
+        }
+        Err(error) => Err(format!("failed to bind Unix listener `{path}`: {error}")),
+    }
 }
 
 fn preflight_tls(listener: &ListenerConfig, tls: &TlsConfig) -> Result<(), String> {

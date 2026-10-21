@@ -5,8 +5,8 @@ use napi_derive::napi;
 
 #[napi(object)]
 pub struct ServerOptions {
-    /// Listener addresses or per-listener TLS settings. Defaults to
-    /// `127.0.0.1:8080`.
+    /// Listener addresses or per-listener TLS settings. Strings are TCP
+    /// `host:port` or `unix:/path`. Defaults to `127.0.0.1:8080`.
     pub listeners: Option<Vec<Either<String, ListenerOptions>>>,
     /// Initial routes. More can be added at runtime.
     pub routes: Option<Vec<RouteOptions>>,
@@ -60,7 +60,7 @@ pub struct RouteOptions {
 
 #[napi(object)]
 pub struct ListenerOptions {
-    /// `host:port` to listen on.
+    /// `host:port` or `unix:/path` to listen on.
     pub address: String,
     /// Terminate TLS on this listener.
     pub tls: Option<TlsOptions>,
@@ -76,7 +76,7 @@ pub struct TlsOptions {
 
 #[napi(object)]
 pub struct UpstreamOptions {
-    /// `IP:port`, `http://IP[:port]`, or `https://IP[:port]`.
+    /// `IP:port`, `unix:/path`, `http://IP[:port]`, or `https://IP[:port]`.
     pub address: String,
     /// Override the scheme-derived TLS setting.
     pub tls: Option<bool>,

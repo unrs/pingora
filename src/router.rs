@@ -34,13 +34,21 @@ pub enum HostPattern {
     Wildcard(String),
 }
 
+type CaBundle = Arc<[WrappedX509]>;
+
+#[derive(Debug, Clone)]
+pub enum UpstreamAddress {
+    Inet(SocketAddr),
+    Unix(PathBuf),
+}
+
 #[derive(Debug, Clone)]
 pub struct Upstream {
-    pub addr: SocketAddr,
+    pub address: UpstreamAddress,
     pub tls: bool,
     pub sni: String,
     pub verify: bool,
-    pub ca: Option<Arc<[WrappedX509]>>,
+    pub ca: Option<CaBundle>,
     pub group_key: u64,
 }
 
@@ -126,13 +134,27 @@ impl HostPattern {
 }
 
 impl Upstream {
-    pub fn to_peer(&self) -> HttpPeer {
-        let mut peer = HttpPeer::new(self.addr, self.tls, self.sni.clone());
+    pub fn to_peer(&self) -> Result<HttpPeer, String> {
+        let mut peer = match &self.address {
+            UpstreamAddress::Inet(addr) => HttpPeer::new(*addr, self.tls, self.sni.clone()),
+            UpstreamAddress::Unix(path) => {
+                #[cfg(unix)]
+                {
+                    let path = path
+                        .to_str()
+                        .ok_or_else(|| "Unix upstream path is not UTF-8".to_string())?;
+                    HttpPeer::new_uds(path, self.tls, self.sni.clone())
+                        .map_err(|error| format!("invalid Unix upstream: {error}"))?
+                }
+                #[cfg(not(unix))]
+                return Err("Unix upstreams are not supported on this platform".to_string());
+            }
+        };
         peer.options.verify_cert = self.verify;
         peer.options.verify_hostname = self.verify;
         peer.options.ca = self.ca.clone();
         peer.group_key = self.group_key;
-        peer
+        Ok(peer)
     }
 }
 
@@ -302,13 +324,13 @@ fn parse_header_names(names: Option<Vec<String>>, field: &str) -> Result<Vec<Str
 
 #[derive(Clone)]
 struct CachedCa {
-    ca: Arc<[WrappedX509]>,
+    ca: CaBundle,
     group_key: u64,
 }
 
 static CA_CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedCa>>> = OnceLock::new();
 
-fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
+fn load_ca_bundle(path: &str) -> Result<(CaBundle, u64), String> {
     let canonical = std::fs::canonicalize(path)
         .map_err(|error| format!("failed to load CA `{path}`: {error}"))?;
     let cache = CA_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -327,7 +349,7 @@ fn load_ca_bundle(path: &str) -> Result<(Arc<[WrappedX509]>, u64), String> {
     Ok((ca, group_key))
 }
 
-fn read_ca_bundle(path: &Path) -> Result<(Arc<[WrappedX509]>, u64), String> {
+fn read_ca_bundle(path: &Path) -> Result<(CaBundle, u64), String> {
     let file = File::open(path)
         .map_err(|error| format!("failed to load CA `{}`: {error}", path.display()))?;
     let mut reader = BufReader::new(file);
@@ -366,8 +388,25 @@ fn read_ca_bundle(path: &Path) -> Result<(Arc<[WrappedX509]>, u64), String> {
         certificates.push(WrappedX509::new(der.to_vec(), parse_x509));
     }
 
-    let ca: Arc<[WrappedX509]> = Arc::from(certificates);
+    let ca: CaBundle = Arc::from(certificates);
     Ok((ca, hasher.finish() | (1 << 63)))
+}
+
+fn resolve_ca(
+    tls: bool,
+    ca_path: Option<String>,
+    address: &str,
+) -> Result<(Option<CaBundle>, u64), String> {
+    match ca_path {
+        None => Ok((None, 0)),
+        Some(path) => {
+            if !tls {
+                return Err(format!("upstream `{address}` sets ca without TLS"));
+            }
+            let (ca, group_key) = load_ca_bundle(&path)?;
+            Ok((Some(ca), group_key))
+        }
+    }
 }
 
 pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
@@ -382,8 +421,26 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
         ),
     };
 
-    if address.starts_with("unix:") {
-        return Err("unix upstreams are not supported yet".to_string());
+    if let Some(path) = address.strip_prefix("unix:") {
+        if path.is_empty() {
+            return Err("Unix upstream path cannot be empty".to_string());
+        }
+        let tls = tls_override.unwrap_or(false);
+        let sni = sni_override.unwrap_or_default();
+        #[cfg(unix)]
+        HttpPeer::new_uds(path, tls, sni.clone())
+            .map_err(|error| format!("invalid Unix upstream `{address}`: {error}"))?;
+        #[cfg(not(unix))]
+        return Err("Unix upstreams are not supported on this platform".to_string());
+        let (ca, group_key) = resolve_ca(tls, ca_path, &address)?;
+        return Ok(Upstream {
+            address: UpstreamAddress::Unix(PathBuf::from(path)),
+            tls,
+            sni,
+            verify,
+            ca,
+            group_key,
+        });
     }
 
     let (scheme_tls, rest) = if let Some(rest) = address.strip_prefix("https://") {
@@ -412,19 +469,10 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
     let tls = tls_override.unwrap_or(scheme_tls);
     let port = authority.port_u16().unwrap_or(if tls { 443 } else { 80 });
     let sni = sni_override.unwrap_or_else(|| host.to_string());
-    let (ca, group_key) = match ca_path {
-        None => (None, 0),
-        Some(path) => {
-            if !tls {
-                return Err(format!("upstream `{address}` sets ca without TLS"));
-            }
-            let (ca, group_key) = load_ca_bundle(&path)?;
-            (Some(ca), group_key)
-        }
-    };
+    let (ca, group_key) = resolve_ca(tls, ca_path, &address)?;
 
     Ok(Upstream {
-        addr: SocketAddr::new(ip, port),
+        address: UpstreamAddress::Inet(SocketAddr::new(ip, port)),
         tls,
         sni,
         verify,
@@ -455,6 +503,13 @@ mod tests {
 
     fn route() -> Route {
         route_with_upstreams(vec!["127.0.0.1:9000".to_string()])
+    }
+
+    fn in_addr(upstream: &Upstream) -> SocketAddr {
+        match &upstream.address {
+            UpstreamAddress::Inet(addr) => *addr,
+            UpstreamAddress::Unix(_) => panic!("expected an inet upstream"),
+        }
     }
 
     fn route_with_upstreams(upstreams: Vec<String>) -> Route {
@@ -491,7 +546,7 @@ mod tests {
     fn relative_upstream_parses_tls_and_port_defaults() {
         let upstream = parse_upstream(Either::A("https://127.0.0.1".to_string())).unwrap();
         assert!(upstream.tls);
-        assert_eq!(upstream.addr.port(), 443);
+        assert_eq!(in_addr(&upstream).port(), 443);
         assert_eq!(upstream.sni, "127.0.0.1");
     }
 
@@ -510,8 +565,8 @@ mod tests {
     #[test]
     fn parses_ipv6_literal_without_brackets() {
         let upstream = parse_upstream(Either::A("[::1]:9000".to_string())).unwrap();
-        assert!(upstream.addr.is_ipv6());
-        assert_eq!(upstream.addr.port(), 9000);
+        assert!(in_addr(&upstream).is_ipv6());
+        assert_eq!(in_addr(&upstream).port(), 9000);
         assert_eq!(upstream.sni, "::1");
     }
 
@@ -521,9 +576,9 @@ mod tests {
             "127.0.0.1:9000".to_string(),
             "127.0.0.1:9001".to_string(),
         ]);
-        let first = route.pick().unwrap().addr.port();
-        let second = route.pick().unwrap().addr.port();
-        let third = route.pick().unwrap().addr.port();
+        let first = in_addr(route.pick().unwrap()).port();
+        let second = in_addr(route.pick().unwrap()).port();
+        let third = in_addr(route.pick().unwrap()).port();
         assert_ne!(first, second);
         assert_eq!(first, third);
     }
