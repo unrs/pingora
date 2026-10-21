@@ -160,6 +160,12 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
     return { action: 'continue' }
   })
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/slow`)).status, 500)
+
+  const route = await eventually(() => {
+    const route = proxy.server.routeMetrics('route-1')
+    return route?.active === 0 && route.responsesServerError === 6 ? route : null
+  }, 'handler failure route metrics did not settle')
+  assert.equal(route.requests, 7)
 })
 
 test('replaces and clears handlers while running', async () => {
