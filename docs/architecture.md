@@ -79,6 +79,9 @@ path after the route and header filters.
 
 ## Metrics
 
+Per-route counters live on each route; `metricsPrometheus` renders aggregate and
+per-route counters in Prometheus text format.
+
 Metrics are updated from `request_filter` and `logging`:
 
 - `requests` and `active` at request start;

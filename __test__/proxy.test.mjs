@@ -48,6 +48,17 @@ test('proxies requests, applies headers, and reports metrics', async () => {
   }, 'metrics did not settle')
   assert.equal(metrics.requests, 1)
   assert.equal(metrics.upstreamErrors, 0)
+
+  const route = await eventually(() => {
+    const route = proxy.server.routeMetrics('api')
+    return route?.active === 0 && route.responsesOk === 1 ? route : null
+  }, 'route metrics did not settle')
+  assert.equal(route.requests, 1)
+
+  const prometheus = proxy.server.metricsPrometheus()
+  assert.match(prometheus, /pingora_requests_total 1/)
+  assert.match(prometheus, /pingora_route_requests_total\{route="api"\} 1/)
+  assert.match(prometheus, /pingora_responses_total\{class="2xx"\} 1/)
 })
 
 test('returns 404 for unmatched routes', async () => {
