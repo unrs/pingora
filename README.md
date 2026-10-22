@@ -58,6 +58,15 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `upstreamKeepalivePoolSize`  | `number`   | Upstream connection pool size. Defaults to `128`.        |
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
+| `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
+| `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
+| `maxRequestBodyBytes`       | `number`   | Maximum request body size, including chunked bodies; excess gets `413`. |
+| `maxRoutes`                 | `number`   | Maximum number of routes.                                |
+| `maxListeners`              | `number`   | Maximum number of listeners.                             |
+
+For chunked requests, `maxRequestBodyBytes` is enforced while streaming. If the
+upstream responds before the body is complete, the client may receive that
+response instead of `413`; the oversized body is still not forwarded further.
 
 Invalid options are reported by `start()` and in `status().error`.
 

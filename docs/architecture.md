@@ -77,6 +77,12 @@ mutations do not apply. Handler errors, invalid decisions, and timeouts produce 
 HTTP/1.1 upgrade requests, including WebSocket, follow Pingora's upgraded-body
 path after the route and header filters.
 
+## Limits
+
+Limits are checked in `request_filter` before route selection and the handler;
+streamed request bodies are counted in `request_body_filter` and rejected with
+413 once they exceed `maxRequestBodyBytes`.
+
 ## Metrics
 
 Per-route counters live on each route; `metricsPrometheus` renders aggregate and

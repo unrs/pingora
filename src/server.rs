@@ -11,6 +11,7 @@ use env_logger::Env;
 use napi::bindgen_prelude::{AsyncTask, Either, Function, Promise};
 use napi::{Error as NapiError, Status, Task};
 use napi_derive::napi;
+use pingora::http::RequestHeader;
 use pingora::listeners::tls::TlsSettings;
 use pingora::server::configuration::{Opt, ServerConf};
 use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, ShutdownSignalWatch};
@@ -81,8 +82,49 @@ struct ListenerConfig {
     tls: Option<TlsConfig>,
 }
 
+#[derive(Clone, Default)]
+pub(crate) struct Limits {
+    max_request_headers: Option<usize>,
+    max_request_header_bytes: Option<usize>,
+    pub(crate) max_request_body_bytes: Option<u64>,
+}
+
+impl Limits {
+    pub(crate) fn request_limit_error(&self, req: &RequestHeader) -> Option<(u16, &'static str)> {
+        if let Some(limit) = self.max_request_headers {
+            if req.headers.len() > limit {
+                return Some((431, "request headers too large"));
+            }
+        }
+        if let Some(limit) = self.max_request_header_bytes {
+            let bytes: usize = req
+                .headers
+                .iter()
+                .map(|(name, value)| name.as_str().len() + value.as_bytes().len())
+                .sum();
+            if bytes > limit {
+                return Some((431, "request headers too large"));
+            }
+        }
+        if let Some(limit) = self.max_request_body_bytes {
+            if let Some(length) = req
+                .headers
+                .get(http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<u64>().ok())
+            {
+                if length > limit {
+                    return Some((413, "request body too large"));
+                }
+            }
+        }
+        None
+    }
+}
+
 struct ServerState {
     shared: Arc<SharedState>,
+    limits: Limits,
     listeners: Vec<ListenerConfig>,
     threads: usize,
     grace_period: Duration,
@@ -132,7 +174,20 @@ impl JsServer {
             upstream_keepalive_pool_size: None,
             log_level: None,
             handler_timeout_ms: None,
+            max_request_headers: None,
+            max_request_header_bytes: None,
+            max_request_body_bytes: None,
+            max_routes: None,
+            max_listeners: None,
         });
+
+        let limits = Limits {
+            max_request_headers: options.max_request_headers.map(|value| value as usize),
+            max_request_header_bytes: options.max_request_header_bytes.map(|value| value as usize),
+            max_request_body_bytes: options.max_request_body_bytes.map(u64::from),
+        };
+        let max_routes = options.max_routes.map(|value| value as usize);
+        let max_listeners = options.max_listeners.map(|value| value as usize);
 
         let mut init_error = None;
         let listeners = match parse_listeners(options.listeners) {
@@ -142,11 +197,19 @@ impl JsServer {
                 default_listeners()
             }
         };
-        let shared = match SharedState::new(options.routes.unwrap_or_default()) {
+        if let Some(limit) = max_listeners {
+            if listeners.len() > limit {
+                init_error.get_or_insert(format!(
+                    "listener count {} exceeds maxListeners {limit}",
+                    listeners.len()
+                ));
+            }
+        }
+        let shared = match SharedState::new(options.routes.unwrap_or_default(), max_routes) {
             Ok(shared) => Arc::new(shared),
             Err(error) => {
                 init_error.get_or_insert(error);
-                Arc::new(SharedState::new(Vec::new()).expect("empty route table"))
+                Arc::new(SharedState::new(Vec::new(), None).expect("empty route table"))
             }
         };
         let (shutdown_tx, _) = watch::channel(false);
@@ -154,6 +217,7 @@ impl JsServer {
         Self {
             state: Arc::new(ServerState {
                 shared,
+                limits,
                 listeners,
                 threads: options.threads.unwrap_or(1).max(1) as usize,
                 grace_period: Duration::from_millis(options.grace_period_ms.unwrap_or(0).into()),
@@ -443,7 +507,7 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
 
     let mut service = pingora::proxy::http_proxy_service(
         &server.configuration,
-        JsProxy::new(state.shared.clone()),
+        JsProxy::new(state.shared.clone(), state.limits.clone()),
     );
     for listener in &state.listeners {
         if let Some(path) = unix_path(&listener.address) {

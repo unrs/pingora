@@ -9,15 +9,17 @@ use pingora::{Error, ErrorSource, ErrorType};
 
 use crate::handler::{HandlerError, RequestDecision, RequestView};
 use crate::router::{normalize_host, parse_upstream, Route, Upstream};
+use crate::server::Limits;
 use crate::state::{request_host, SharedState};
 
 pub struct JsProxy {
     state: Arc<SharedState>,
+    limits: Limits,
 }
 
 impl JsProxy {
-    pub fn new(state: Arc<SharedState>) -> Self {
-        Self { state }
+    pub fn new(state: Arc<SharedState>, limits: Limits) -> Self {
+        Self { state, limits }
     }
 
     async fn apply_decision(
@@ -111,6 +113,7 @@ pub struct ProxyCtx {
     response_headers: Vec<(String, String)>,
     remove_response_headers: Vec<String>,
     active: bool,
+    body_bytes: u64,
 }
 
 #[async_trait]
@@ -131,6 +134,13 @@ impl ProxyHttp for JsProxy {
     {
         self.state.request_started();
         ctx.active = true;
+
+        if let Some((status, message)) = self.limits.request_limit_error(session.req_header()) {
+            session
+                .respond_error_with_body(status, Bytes::from_static(message.as_bytes()))
+                .await?;
+            return Ok(true);
+        }
 
         let req = session.req_header();
         let path = req.uri.path().to_string();
@@ -175,11 +185,41 @@ impl ProxyHttp for JsProxy {
         Ok(false)
     }
 
+    async fn request_body_filter(
+        &self,
+        session: &mut Session,
+        body: &mut Option<Bytes>,
+        _end_of_stream: bool,
+        ctx: &mut Self::CTX,
+    ) -> pingora::Result<()>
+    where
+        Self::CTX: Send + Sync,
+    {
+        if session.was_upgraded() {
+            return Ok(());
+        }
+        if let Some(limit) = self.limits.max_request_body_bytes {
+            if let Some(chunk) = body {
+                ctx.body_bytes += chunk.len() as u64;
+                if ctx.body_bytes > limit {
+                    return Err(Error::explain(
+                        ErrorType::HTTPStatus(413),
+                        "request body too large",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn upstream_peer(
         &self,
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
+        // A retry re-sends the buffered body through request_body_filter; reset the
+        // per-attempt counter so replay does not double-count the same bytes.
+        ctx.body_bytes = 0;
         let mut peer = if let Some(upstream) = ctx.upstream.as_ref() {
             upstream.to_peer()
         } else {

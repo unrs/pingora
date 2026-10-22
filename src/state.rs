@@ -70,6 +70,7 @@ impl Metrics {
 
 pub struct SharedState {
     routes: RwLock<Vec<Arc<Route>>>,
+    max_routes: Option<usize>,
     next_route_id: AtomicU64,
     metrics: Metrics,
     started_at: Instant,
@@ -77,9 +78,10 @@ pub struct SharedState {
 }
 
 impl SharedState {
-    pub fn new(routes: Vec<RouteOptions>) -> Result<Self, String> {
+    pub fn new(routes: Vec<RouteOptions>, max_routes: Option<usize>) -> Result<Self, String> {
         let state = Self {
             routes: RwLock::new(Vec::new()),
+            max_routes,
             next_route_id: AtomicU64::new(1),
             metrics: Metrics::default(),
             started_at: Instant::now(),
@@ -105,6 +107,11 @@ impl SharedState {
         if let Some(existing) = routes.iter_mut().find(|existing| existing.id == id) {
             *existing = route;
         } else {
+            if let Some(limit) = self.max_routes {
+                if routes.len() >= limit {
+                    return Err(format!("route count exceeds maxRoutes {limit}"));
+                }
+            }
             routes.push(route);
         }
 
