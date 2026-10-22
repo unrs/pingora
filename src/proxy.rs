@@ -217,6 +217,9 @@ impl ProxyHttp for JsProxy {
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
+        // A retry re-sends the buffered body through request_body_filter; reset the
+        // per-attempt counter so replay does not double-count the same bytes.
+        ctx.body_bytes = 0;
         let mut peer = if let Some(upstream) = ctx.upstream.as_ref() {
             upstream.to_peer()
         } else {
