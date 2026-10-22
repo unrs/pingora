@@ -1,6 +1,6 @@
 {
   "name": "pingora",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node.js binding for Cloudflare Pingora, built with napi-rs",
   "main": "index.js",
   "types": "index.d.ts",
