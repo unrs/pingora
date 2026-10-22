@@ -64,6 +64,10 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `maxRoutes`                 | `number`   | Maximum number of routes.                                |
 | `maxListeners`              | `number`   | Maximum number of listeners.                             |
 
+For chunked requests, `maxRequestBodyBytes` is enforced while streaming. If the
+upstream responds before the body is complete, the client may receive that
+response instead of `413`; the oversized body is still not forwarded further.
+
 Invalid options are reported by `start()` and in `status().error`.
 
 ### Server methods

@@ -28,8 +28,9 @@ pub struct ServerOptions {
     pub max_request_headers: Option<u32>,
     /// Maximum total request header name+value bytes; larger requests get 431.
     pub max_request_header_bytes: Option<u32>,
-    /// Maximum request body size; larger requests get 413. Both declared
-    /// Content-Length and streamed/chunked bodies are limited.
+    /// Maximum request body size; larger requests get 413. Declared
+    /// Content-Length is rejected before proxying; chunked bodies are limited
+    /// while streaming (an early upstream response can win the status code).
     pub max_request_body_bytes: Option<u32>,
     /// Maximum number of routes.
     pub max_routes: Option<u32>,
