@@ -24,6 +24,17 @@ pub struct ServerOptions {
     pub log_level: Option<String>,
     /// Request handler timeout, in milliseconds. Defaults to 1000.
     pub handler_timeout_ms: Option<u32>,
+    /// Maximum number of request headers; larger requests get 431.
+    pub max_request_headers: Option<u32>,
+    /// Maximum total request header name+value bytes; larger requests get 431.
+    pub max_request_header_bytes: Option<u32>,
+    /// Maximum request body size; larger requests get 413. Both declared
+    /// Content-Length and streamed/chunked bodies are limited.
+    pub max_request_body_bytes: Option<u32>,
+    /// Maximum number of routes.
+    pub max_routes: Option<u32>,
+    /// Maximum number of listeners.
+    pub max_listeners: Option<u32>,
 }
 
 #[napi(object)]
