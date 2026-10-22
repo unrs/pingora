@@ -79,14 +79,6 @@ pub struct SharedState {
 
 impl SharedState {
     pub fn new(routes: Vec<RouteOptions>, max_routes: Option<usize>) -> Result<Self, String> {
-        if let Some(limit) = max_routes {
-            if routes.len() > limit {
-                return Err(format!(
-                    "route count {} exceeds maxRoutes {limit}",
-                    routes.len()
-                ));
-            }
-        }
         let state = Self {
             routes: RwLock::new(Vec::new()),
             max_routes,

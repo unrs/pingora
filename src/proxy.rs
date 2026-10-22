@@ -187,7 +187,7 @@ impl ProxyHttp for JsProxy {
 
     async fn request_body_filter(
         &self,
-        _session: &mut Session,
+        session: &mut Session,
         body: &mut Option<Bytes>,
         _end_of_stream: bool,
         ctx: &mut Self::CTX,
@@ -195,6 +195,9 @@ impl ProxyHttp for JsProxy {
     where
         Self::CTX: Send + Sync,
     {
+        if session.was_upgraded() {
+            return Ok(());
+        }
         if let Some(limit) = self.limits.max_request_body_bytes {
             if let Some(chunk) = body {
                 ctx.body_bytes += chunk.len() as u64;
