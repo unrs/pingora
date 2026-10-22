@@ -61,6 +61,7 @@ test('passes WebSocket upgrades through to the upstream', async () => {
   const upstream = await startUpgradeUpstream()
   const proxy = await createProxy({
     shutdownTimeoutMs: 100,
+    maxRequestBodyBytes: 1,
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
   })
 

@@ -106,6 +106,24 @@ test('enforces maxRoutes', async () => {
   }
 })
 
+test('counts replacement routes correctly against maxRoutes', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('ok'))
+  const proxy = await createProxy({
+    maxRoutes: 1,
+    routes: [
+      { id: 'same', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] },
+      { id: 'same', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] },
+    ],
+  })
+  try {
+    await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+    assert.equal(proxy.server.status().routes, 1)
+  } finally {
+    await proxy.stop()
+    await upstream.close()
+  }
+})
+
 test('enforces maxListeners', async () => {
   const server = new Server({
     listeners: ['127.0.0.1:0', '127.0.0.1:0'],
