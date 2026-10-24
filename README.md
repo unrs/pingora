@@ -63,6 +63,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `maxRequestBodyBytes`       | `number`   | Maximum request body size, including chunked bodies; excess gets `413`. |
 | `maxRoutes`                 | `number`   | Maximum number of routes.                                |
 | `maxListeners`              | `number`   | Maximum number of listeners.                             |
+| `metricsAddress`            | `string`   | Optional TCP address for a dedicated `/metrics` and `/healthz` service. |
 
 For chunked requests, `maxRequestBodyBytes` is enforced while streaming. If the
 upstream responds before the body is complete, the client may receive that
@@ -243,10 +244,20 @@ against this binding.
 
 ### Metrics endpoint
 
-`metricsPrometheus()` returns Prometheus text; serve it from the request handler
-if you want an HTTP endpoint. On a public listener, require authorization and
-HTTPS or equivalent transport security. Otherwise, keep the endpoint private;
-route ids and traffic counts are visible in the output.
+`metricsPrometheus()` returns Prometheus text. For an HTTP endpoint, set
+`metricsAddress` to a dedicated TCP listener:
+
+```js
+new Server({
+  listeners: ['127.0.0.1:8080'],
+  metricsAddress: '127.0.0.1:9090',
+  // ...
+})
+```
+
+That listener serves `GET /metrics` and `GET /healthz`. Bind it to loopback or a
+private interface; it has no authentication or TLS. Route ids and traffic counts
+are visible in the output. Alternatively, serve the text from the handler:
 
 ```js
 const metricsToken = process.env.METRICS_TOKEN
