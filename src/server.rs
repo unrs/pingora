@@ -18,6 +18,7 @@ use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, Shutdown
 use tokio::sync::watch;
 
 use crate::handler::{RequestDecision, RequestHandler, RequestView};
+use crate::metrics::MetricsProxy;
 use crate::options::{ListenerOptions, RouteOptions, ServerOptions, TlsOptions};
 use crate::proxy::JsProxy;
 use crate::state::{status_text, SharedState};
@@ -126,6 +127,7 @@ struct ServerState {
     shared: Arc<SharedState>,
     limits: Limits,
     listeners: Vec<ListenerConfig>,
+    metrics_listener: Option<String>,
     threads: usize,
     grace_period: Duration,
     shutdown_timeout: Duration,
@@ -179,6 +181,7 @@ impl JsServer {
             max_request_body_bytes: None,
             max_routes: None,
             max_listeners: None,
+            metrics_address: None,
         });
 
         let limits = Limits {
@@ -190,6 +193,20 @@ impl JsServer {
         let max_listeners = options.max_listeners.map(|value| value as usize);
 
         let mut init_error = None;
+        let metrics_listener = match options.metrics_address {
+            Some(address) if address.trim().is_empty() => {
+                init_error.get_or_insert("metrics address cannot be empty".to_string());
+                None
+            }
+            Some(address) if address.starts_with("unix:") => {
+                init_error.get_or_insert(
+                    "metrics address must be a TCP address, not a Unix socket".to_string(),
+                );
+                None
+            }
+            address => address,
+        };
+
         let listeners = match parse_listeners(options.listeners) {
             Ok(listeners) => listeners,
             Err(error) => {
@@ -197,11 +214,21 @@ impl JsServer {
                 default_listeners()
             }
         };
-        if let Some(limit) = max_listeners {
-            if listeners.len() > limit {
+        if let Some(metrics) = &metrics_listener {
+            if listeners
+                .iter()
+                .any(|listener| listener_addresses_overlap(&listener.address, metrics))
+            {
                 init_error.get_or_insert(format!(
-                    "listener count {} exceeds maxListeners {limit}",
-                    listeners.len()
+                    "metrics address `{metrics}` overlaps a proxy listener"
+                ));
+            }
+        }
+        if let Some(limit) = max_listeners {
+            let count = listeners.len() + usize::from(metrics_listener.is_some());
+            if count > limit {
+                init_error.get_or_insert(format!(
+                    "listener count {count} exceeds maxListeners {limit}"
                 ));
             }
         }
@@ -219,6 +246,7 @@ impl JsServer {
                 shared,
                 limits,
                 listeners,
+                metrics_listener,
                 threads: options.threads.unwrap_or(1).max(1) as usize,
                 grace_period: Duration::from_millis(options.grace_period_ms.unwrap_or(0).into()),
                 shutdown_timeout: Duration::from_millis(
@@ -272,6 +300,19 @@ impl JsServer {
             self.state.set_status(FAILED);
             self.state.set_error(&error);
             return Err(invalid_arg(error));
+        }
+        if let Some(address) = &self.state.metrics_listener {
+            if let Err(error) = std::net::TcpListener::bind(address) {
+                ACTIVE_SERVER.store(false, Ordering::Release);
+                self.started.store(false, Ordering::Release);
+                self.state.set_status(FAILED);
+                self.state.set_error(format!(
+                    "failed to bind metrics listener `{address}`: {error}"
+                ));
+                return Err(invalid_arg(format!(
+                    "failed to bind metrics listener `{address}`: {error}"
+                )));
+            }
         }
 
         self.state.set_status(STARTING);
@@ -358,12 +399,18 @@ impl JsServer {
                 status_text(self.state.status()).to_string()
             },
             error,
-            listeners: self
-                .state
-                .listeners
-                .iter()
-                .map(|listener| listener.address.clone())
-                .collect(),
+            listeners: {
+                let mut listeners = self
+                    .state
+                    .listeners
+                    .iter()
+                    .map(|listener| listener.address.clone())
+                    .collect::<Vec<_>>();
+                if let Some(metrics) = &self.state.metrics_listener {
+                    listeners.push(metrics.clone());
+                }
+                listeners
+            },
             routes: self.state.shared.route_count() as u32,
         }
     }
@@ -528,6 +575,15 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
     }
     server.add_service(service);
 
+    if let Some(address) = &state.metrics_listener {
+        let mut metrics = pingora::proxy::http_proxy_service(
+            &server.configuration,
+            MetricsProxy::new(state.shared.clone()),
+        );
+        metrics.add_tcp(address);
+        server.add_service(metrics);
+    }
+
     server.run(RunArgs {
         shutdown_signal: Box::new(WatchSignal {
             rx: state.shutdown_tx.subscribe(),
@@ -549,6 +605,20 @@ fn init_logger(level: &str) {
 
 fn unix_path(address: &str) -> Option<&str> {
     address.strip_prefix("unix:")
+}
+
+fn listener_addresses_overlap(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let (Ok(left), Ok(right)) = (
+        left.parse::<std::net::SocketAddr>(),
+        right.parse::<std::net::SocketAddr>(),
+    ) else {
+        return false;
+    };
+    left.port() == right.port()
+        && (left.ip() == right.ip() || left.ip().is_unspecified() || right.ip().is_unspecified())
 }
 
 fn default_listeners() -> Vec<ListenerConfig> {

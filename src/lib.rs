@@ -1,4 +1,5 @@
 mod handler;
+mod metrics;
 mod options;
 mod proxy;
 mod router;
