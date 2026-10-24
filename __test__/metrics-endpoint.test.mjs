@@ -53,3 +53,22 @@ test('rejects a Unix metrics address', async () => {
   const server = new Server({ metricsAddress: 'unix:/tmp/metrics.sock', logLevel: 'off' })
   assert.throws(() => server.start(), /metrics address must be a TCP address/)
 })
+
+test('rejects a metrics address overlapping the proxy listener', async () => {
+  const { Server } = await import('../index.js')
+  const port = await freePort()
+  const address = `127.0.0.1:${port}`
+  const server = new Server({ listeners: [address], metricsAddress: address, logLevel: 'off' })
+  assert.throws(() => server.start(), /overlaps a proxy listener/)
+})
+
+test('counts the metrics listener against maxListeners', async () => {
+  const { Server } = await import('../index.js')
+  const server = new Server({
+    listeners: [`127.0.0.1:${await freePort()}`],
+    metricsAddress: `127.0.0.1:${await freePort()}`,
+    maxListeners: 1,
+    logLevel: 'off',
+  })
+  assert.throws(() => server.start(), /maxListeners/)
+})

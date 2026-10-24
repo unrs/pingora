@@ -214,11 +214,21 @@ impl JsServer {
                 default_listeners()
             }
         };
-        if let Some(limit) = max_listeners {
-            if listeners.len() > limit {
+        if let Some(metrics) = &metrics_listener {
+            if listeners
+                .iter()
+                .any(|listener| listener_addresses_overlap(&listener.address, metrics))
+            {
                 init_error.get_or_insert(format!(
-                    "listener count {} exceeds maxListeners {limit}",
-                    listeners.len()
+                    "metrics address `{metrics}` overlaps a proxy listener"
+                ));
+            }
+        }
+        if let Some(limit) = max_listeners {
+            let count = listeners.len() + usize::from(metrics_listener.is_some());
+            if count > limit {
+                init_error.get_or_insert(format!(
+                    "listener count {count} exceeds maxListeners {limit}"
                 ));
             }
         }
@@ -595,6 +605,20 @@ fn init_logger(level: &str) {
 
 fn unix_path(address: &str) -> Option<&str> {
     address.strip_prefix("unix:")
+}
+
+fn listener_addresses_overlap(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let (Ok(left), Ok(right)) = (
+        left.parse::<std::net::SocketAddr>(),
+        right.parse::<std::net::SocketAddr>(),
+    ) else {
+        return false;
+    };
+    left.port() == right.port()
+        && (left.ip() == right.ip() || left.ip().is_unspecified() || right.ip().is_unspecified())
 }
 
 fn default_listeners() -> Vec<ListenerConfig> {
