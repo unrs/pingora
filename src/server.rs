@@ -508,6 +508,7 @@ impl JsServer {
         let tsfn = handler
             .build_threadsafe_function::<AccessLog>()
             .weak::<true>()
+            .max_queue_size::<1024>()
             .build()?;
         self.state
             .shared

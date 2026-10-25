@@ -75,8 +75,8 @@ Invalid options are reported by `start()` and in `status().error`.
 ### Access logs
 
 `setAccessLogHandler` receives one record per completed request. The callback is
-invoked through a non-blocking TSFN; a full queue drops records rather than
-blocking proxy threads.
+invoked through a non-blocking TSFN with a bounded 1024-record queue; a full
+queue drops records rather than blocking proxy threads.
 
 ```js
 server.setAccessLogHandler((record) => {

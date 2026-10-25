@@ -333,7 +333,7 @@ singleton guard is held. `stop()` is idempotent.
 | Prometheus metrics endpoint   | 0.4   | Implemented |
 | Config file + schema          | 0.4   | Deferred    |
 | Structured JSON logs          | 0.4   | Implemented |
-| Structured log bridge to JS   | 0.4   | Implemented |
+| JS access-log callback        | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
 | Native proxy benchmarks       | 0.4      | Planned     |
 | Server framework package       | post-1.0 | Exploring   |

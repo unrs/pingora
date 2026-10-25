@@ -69,7 +69,7 @@ pub struct AccessLog {
     pub duration_ms: f64,
 }
 
-pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true>;
+pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true, 1024>;
 
 pub struct AccessLogger {
     tsfn: AccessLogTsfn,
