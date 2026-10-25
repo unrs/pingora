@@ -41,6 +41,10 @@ test('serves metrics and health on a dedicated listener', async () => {
     const missing = await fetch(`http://127.0.0.1:${metricsPort}/missing`)
     assert.equal(missing.status, 404)
 
+    const post = await fetch(`http://127.0.0.1:${metricsPort}/metrics`, { method: 'POST' })
+    assert.equal(post.status, 405)
+    assert.equal(post.headers.get('allow'), 'GET, HEAD')
+
     assert.ok(proxy.server.status().listeners.includes(`127.0.0.1:${metricsPort}`))
   } finally {
     await proxy.stop()

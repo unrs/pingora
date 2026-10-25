@@ -255,7 +255,8 @@ new Server({
 })
 ```
 
-That listener serves `GET /metrics` and `GET /healthz`. Bind it to loopback or a
+That listener serves `GET /metrics` and `GET /healthz`; other methods get `405`.
+Bind it to loopback or a
 private interface; it has no authentication or TLS. Route ids and traffic counts
 are visible in the output. Alternatively, serve the text from the handler:
 

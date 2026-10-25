@@ -42,21 +42,32 @@ impl ProxyHttp for MetricsProxy {
     where
         Self::CTX: Send + Sync,
     {
+        let method = session.req_header().method.clone();
         let path = session.req_header().uri.path();
-        let (status, content_type, body) = match path {
-            "/metrics" => (
-                200,
-                "text/plain; version=0.0.4",
-                self.state.metrics_prometheus(),
-            ),
-            "/healthz" => (200, "text/plain", "ok".to_string()),
-            _ => (404, "text/plain", "not found".to_string()),
-        };
+        let (status, content_type, body) =
+            if method != http::Method::GET && method != http::Method::HEAD {
+                (405, "text/plain", "method not allowed".to_string())
+            } else {
+                match path {
+                    "/metrics" => (
+                        200,
+                        "text/plain; version=0.0.4",
+                        self.state.metrics_prometheus(),
+                    ),
+                    "/healthz" => (200, "text/plain", "ok".to_string()),
+                    _ => (404, "text/plain", "not found".to_string()),
+                }
+            };
         let mut response = ResponseHeader::build(status, None)
             .map_err(|error| Error::explain(ErrorType::InternalError, error.to_string()))?;
         response
             .insert_header("content-type", content_type)
             .map_err(|error| Error::explain(ErrorType::InternalError, error.to_string()))?;
+        if status == 405 {
+            response
+                .insert_header("allow", "GET, HEAD")
+                .map_err(|error| Error::explain(ErrorType::InternalError, error.to_string()))?;
+        }
         response
             .set_content_length(body.len())
             .map_err(|error| Error::explain(ErrorType::InternalError, error.to_string()))?;
