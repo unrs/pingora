@@ -63,7 +63,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `maxRequestBodyBytes`       | `number`   | Maximum request body size, including chunked bodies; excess gets `413`. |
 | `maxRoutes`                 | `number`   | Maximum number of routes.                                |
 | `maxListeners`              | `number`   | Maximum number of listeners, including `metricsAddress`. |
-| `metricsAddress`            | `string`   | Optional TCP address for a dedicated `/metrics` and `/healthz` service. |
+| `metricsAddress`            | `string`   | Optional numeric `IP:port` for a dedicated `/metrics` and `/healthz` service. |
 
 For chunked requests, `maxRequestBodyBytes` is enforced while streaming. If the
 upstream responds before the body is complete, the client may receive that

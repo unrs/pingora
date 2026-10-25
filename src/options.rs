@@ -36,7 +36,7 @@ pub struct ServerOptions {
     pub max_routes: Option<u32>,
     /// Maximum number of listeners.
     pub max_listeners: Option<u32>,
-    /// Optional TCP address for a read-only /metrics and /healthz service.
+    /// Optional numeric IP:port for a read-only /metrics and /healthz service.
     pub metrics_address: Option<String>,
 }
 

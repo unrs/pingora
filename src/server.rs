@@ -204,6 +204,10 @@ impl JsServer {
                 );
                 None
             }
+            Some(address) if address.parse::<std::net::SocketAddr>().is_err() => {
+                init_error.get_or_insert("metrics address must be an IP:port address".to_string());
+                None
+            }
             address => address,
         };
 

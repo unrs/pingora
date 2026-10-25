@@ -48,6 +48,12 @@ test('serves metrics and health on a dedicated listener', async () => {
   }
 })
 
+test('rejects a hostname metrics address', async () => {
+  const { Server } = await import('../index.js')
+  const server = new Server({ metricsAddress: 'localhost:9090', logLevel: 'off' })
+  assert.throws(() => server.start(), /IP:port/)
+})
+
 test('rejects a Unix metrics address', async () => {
   const { Server } = await import('../index.js')
   const server = new Server({ metricsAddress: 'unix:/tmp/metrics.sock', logLevel: 'off' })
