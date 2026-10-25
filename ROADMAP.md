@@ -442,7 +442,7 @@ macOS.
       `metricsAddress` endpoint for `/metrics` and `/healthz`.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
 - [x] Defer a custom config-file parser for now. Users import JSON directly
-      (`import config from './pingora.config.json' with { type: 'json' }`) or build
+      (`const config = require('./pingora.config.json')`) or build
       an options object in JS; no extra parser/schema layer until a real custom
       format is needed.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
