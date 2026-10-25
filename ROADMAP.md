@@ -327,7 +327,7 @@ singleton guard is held. `stop()` is idempotent.
 | Upstream TLS + SNI + verify   | 0.3   | Implemented |
 | Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
-| Health checks / least-connection | 0.4 | Planned     |
+| Health checks                 | 0.4   | Planned     |
 | Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Request/header/route/listener limits | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Implemented |
@@ -438,7 +438,7 @@ macOS.
 
 - [ ] Health checks and/or Pingora load-balancer integration.
 - [x] Weighted round-robin strategy (binding-level; Pingora LB integration is still open).
-- [ ] Least-connection strategy.
+- [x] Least-connection strategy (binding-level).
 - [x] Listener and route limits; request body size and header limits surfaced.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.

@@ -48,7 +48,8 @@ Pingora thread
 ## Routing
 
 `weighted_round_robin` uses smooth weighted round-robin with per-route current
-weights protected by a mutex. All route selection is binding-level; Pingora's
+weights protected by a mutex. `least_connections` tracks per-upstream active
+requests and releases them from `logging`. All route selection is binding-level; Pingora's
 `pingora-load-balancing` crate is not linked yet. It still has UDS gaps and its
 health-check/discovery model has not been mapped onto the route facade.
 
