@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -8,7 +9,7 @@ use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
 use pingora::{Error, ErrorSource, ErrorType};
 
-use crate::handler::{HandlerError, RequestDecision, RequestView};
+use crate::handler::{AccessLog, HandlerError, RequestDecision, RequestView};
 use crate::router::{normalize_host, parse_upstream, Route, Strategy, Upstream};
 use crate::server::Limits;
 use crate::state::{request_host, SharedState};
@@ -130,6 +131,7 @@ pub struct ProxyCtx {
     active: bool,
     body_bytes: u64,
     active_upstream: Option<Arc<AtomicUsize>>,
+    started_at: Option<Instant>,
 }
 
 #[async_trait]
@@ -150,6 +152,7 @@ impl ProxyHttp for JsProxy {
     {
         self.state.request_started();
         ctx.active = true;
+        ctx.started_at = Some(Instant::now());
 
         if let Some((status, message)) = self.limits.request_limit_error(session.req_header()) {
             session
@@ -334,6 +337,20 @@ impl ProxyHttp for JsProxy {
             error.is_some_and(|error| matches!(error.esource(), ErrorSource::Upstream));
         if let Some(route) = ctx.route.as_ref() {
             route.metrics.request_finished(status, upstream_error);
+        }
+        if let Some(logger) = self.state.access_logger() {
+            let request = session.req_header();
+            logger.log(AccessLog {
+                method: request.method.as_str().to_string(),
+                path: request.uri.path().to_string(),
+                status,
+                route_id: ctx.route.as_ref().map(|route| route.id.clone()),
+                upstream_error,
+                duration_ms: ctx
+                    .started_at
+                    .map(|started| started.elapsed().as_secs_f64() * 1000.0)
+                    .unwrap_or(0.0),
+            });
         }
         self.state.request_finished(status, upstream_error);
     }

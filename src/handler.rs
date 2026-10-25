@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use napi::bindgen_prelude::{Either, Promise};
-use napi::threadsafe_function::ThreadsafeFunction;
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::Status;
 use napi_derive::napi;
 use pingora::proxy::Session;
@@ -51,6 +51,40 @@ pub struct RequestDecision {
     pub response_headers: Option<HashMap<String, String>>,
     /// Response headers removed from a proxied response.
     pub remove_response_headers: Option<Vec<String>>,
+}
+
+#[napi(object)]
+pub struct AccessLog {
+    /// Request method, e.g. `GET`.
+    pub method: String,
+    /// Raw, percent-encoded request path.
+    pub path: String,
+    /// Response status, if a response was written.
+    pub status: Option<u16>,
+    /// Matched route id, or `None` when no route matched.
+    pub route_id: Option<String>,
+    /// Whether the failure came from the upstream.
+    pub upstream_error: bool,
+    /// Request duration in milliseconds.
+    pub duration_ms: f64,
+}
+
+pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true>;
+
+pub struct AccessLogger {
+    tsfn: AccessLogTsfn,
+}
+
+impl AccessLogger {
+    pub fn new(tsfn: AccessLogTsfn) -> Self {
+        Self { tsfn }
+    }
+
+    pub fn log(&self, record: AccessLog) {
+        let _ = self
+            .tsfn
+            .call(record, ThreadsafeFunctionCallMode::NonBlocking);
+    }
 }
 
 pub type HandlerReturn = Either<Promise<RequestDecision>, RequestDecision>;

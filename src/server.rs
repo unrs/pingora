@@ -19,7 +19,7 @@ use pingora::server::configuration::{Opt, ServerConf};
 use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, ShutdownSignalWatch};
 use tokio::sync::watch;
 
-use crate::handler::{RequestDecision, RequestHandler, RequestView};
+use crate::handler::{AccessLog, AccessLogger, RequestDecision, RequestHandler, RequestView};
 use crate::metrics::MetricsProxy;
 use crate::options::{ListenerOptions, RouteOptions, ServerOptions, TlsOptions};
 use crate::proxy::JsProxy;
@@ -501,6 +501,23 @@ impl JsServer {
                 self.state.handler_timeout,
             ))));
         Ok(())
+    }
+
+    #[napi]
+    pub fn set_access_log_handler(&self, handler: Function<AccessLog, ()>) -> napi::Result<()> {
+        let tsfn = handler
+            .build_threadsafe_function::<AccessLog>()
+            .weak::<true>()
+            .build()?;
+        self.state
+            .shared
+            .set_access_logger(Some(Arc::new(AccessLogger::new(tsfn))));
+        Ok(())
+    }
+
+    #[napi]
+    pub fn clear_access_log_handler(&self) {
+        self.state.shared.set_access_logger(None);
     }
 
     #[napi]
