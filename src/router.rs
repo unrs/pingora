@@ -24,6 +24,7 @@ use crate::options::{RouteOptions, UpstreamOptions};
 pub enum Strategy {
     RoundRobin,
     WeightedRoundRobin,
+    LeastConnections,
     Random,
     First,
 }
@@ -52,6 +53,7 @@ pub struct Upstream {
     pub ca: Option<CaBundle>,
     pub group_key: u64,
     pub weight: u32,
+    pub active: Arc<AtomicUsize>,
 }
 
 #[derive(Debug)]
@@ -122,6 +124,17 @@ impl Route {
             Strategy::First => 0,
             Strategy::RoundRobin => self.counter.fetch_add(1, Ordering::Relaxed) % len,
             Strategy::Random => random_index(len),
+            Strategy::LeastConnections => {
+                let index = self
+                    .upstreams
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, upstream)| upstream.active.load(Ordering::Relaxed))
+                    .map(|(index, _)| index)
+                    .unwrap_or(0);
+                self.upstreams[index].active.fetch_add(1, Ordering::Relaxed);
+                index
+            }
             Strategy::WeightedRoundRobin => {
                 let mut current = self.weighted.lock().unwrap();
                 if current.len() != len {
@@ -213,11 +226,12 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
     let strategy = match options.strategy.as_deref().unwrap_or("round_robin") {
         "round_robin" => Strategy::RoundRobin,
         "weighted_round_robin" => Strategy::WeightedRoundRobin,
+        "least_connections" => Strategy::LeastConnections,
         "random" => Strategy::Random,
         "first" => Strategy::First,
         other => {
             return Err(format!(
-            "route `{id}` has invalid strategy `{other}` (expected round_robin, weighted_round_robin, random, or first)"
+            "route `{id}` has invalid strategy `{other}` (expected round_robin, weighted_round_robin, least_connections, random, or first)"
         ))
         }
     };
@@ -478,6 +492,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
             ca,
             group_key,
             weight,
+            active: Arc::new(AtomicUsize::new(0)),
         });
     }
 
@@ -517,6 +532,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
         ca,
         group_key,
         weight,
+        active: Arc::new(AtomicUsize::new(0)),
     })
 }
 
@@ -552,6 +568,10 @@ mod tests {
     }
 
     fn route_with_upstreams(upstreams: Vec<String>) -> Route {
+        route_with_strategy("round_robin", upstreams)
+    }
+
+    fn route_with_strategy(strategy: &str, upstreams: Vec<String>) -> Route {
         parse_route(
             RouteOptions {
                 id: Some("test".to_string()),
@@ -561,7 +581,7 @@ mod tests {
                 methods: Some(vec!["get".to_string()]),
                 match_headers: None,
                 upstreams: upstreams.into_iter().map(Either::A).collect(),
-                strategy: None,
+                strategy: Some(strategy.to_string()),
                 request_headers: None,
                 remove_request_headers: None,
                 response_headers: None,
@@ -607,6 +627,16 @@ mod tests {
         assert!(in_addr(&upstream).is_ipv6());
         assert_eq!(in_addr(&upstream).port(), 9000);
         assert_eq!(upstream.sni, "::1");
+    }
+
+    #[test]
+    fn least_connections_skips_active_upstreams() {
+        let route = route_with_strategy(
+            "least_connections",
+            vec!["127.0.0.1:9000".to_string(), "127.0.0.1:9001".to_string()],
+        );
+        assert_eq!(in_addr(route.pick().unwrap()).port(), 9000);
+        assert_eq!(in_addr(route.pick().unwrap()).port(), 9001);
     }
 
     #[test]

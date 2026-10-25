@@ -8,13 +8,21 @@ use pingora::upstreams::peer::HttpPeer;
 use pingora::{Error, ErrorSource, ErrorType};
 
 use crate::handler::{HandlerError, RequestDecision, RequestView};
-use crate::router::{normalize_host, parse_upstream, Route, Upstream};
+use crate::router::{normalize_host, parse_upstream, Route, Strategy, Upstream};
 use crate::server::Limits;
 use crate::state::{request_host, SharedState};
 
 pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
+}
+
+impl ProxyCtx {
+    fn release_active_upstream(&mut self) {
+        if let Some(active) = self.active_upstream.take() {
+            active.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 impl JsProxy {
@@ -114,6 +122,7 @@ pub struct ProxyCtx {
     remove_response_headers: Vec<String>,
     active: bool,
     body_bytes: u64,
+    active_upstream: Option<Arc<std::sync::atomic::AtomicUsize>>,
 }
 
 #[async_trait]
@@ -220,8 +229,9 @@ impl ProxyHttp for JsProxy {
         // A retry re-sends the buffered body through request_body_filter; reset the
         // per-attempt counter so replay does not double-count the same bytes.
         ctx.body_bytes = 0;
-        let mut peer = if let Some(upstream) = ctx.upstream.as_ref() {
-            upstream.to_peer()
+        ctx.release_active_upstream();
+        let (peer, active) = if let Some(upstream) = ctx.upstream.as_ref() {
+            (upstream.to_peer(), None)
         } else {
             let route = ctx.route.as_ref().ok_or_else(|| {
                 Error::explain(ErrorType::InternalError, "no route selected for upstream")
@@ -229,9 +239,12 @@ impl ProxyHttp for JsProxy {
             let upstream = route
                 .pick()
                 .ok_or_else(|| Error::explain(ErrorType::InternalError, "route has no upstream"))?;
-            upstream.to_peer()
-        }
-        .map_err(|error| Error::explain(ErrorType::InternalError, error))?;
+            let active =
+                (route.strategy == Strategy::LeastConnections).then(|| upstream.active.clone());
+            (upstream.to_peer(), active)
+        };
+        ctx.active_upstream = active;
+        let mut peer = peer.map_err(|error| Error::explain(ErrorType::InternalError, error))?;
 
         if let Some(timeout) = ctx.route.as_ref().and_then(|route| route.timeout) {
             peer.options.connection_timeout = Some(timeout);
@@ -305,6 +318,7 @@ impl ProxyHttp for JsProxy {
             return;
         }
         ctx.active = false;
+        ctx.release_active_upstream();
 
         let status = session
             .response_written()

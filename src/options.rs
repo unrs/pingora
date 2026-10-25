@@ -60,7 +60,8 @@ pub struct RouteOptions {
     /// Upstreams; strings accept `IP:port`, `http://IP[:port]`, or
     /// `https://IP[:port]`. Hostnames must be resolved by the caller.
     pub upstreams: Vec<Either<String, UpstreamOptions>>,
-    /// `round_robin` (default), `weighted_round_robin`, `random`, or `first`.
+    /// `round_robin` (default), `weighted_round_robin`, `least_connections`,
+    /// `random`, or `first`.
     pub strategy: Option<String>,
     /// Request headers applied before proxying.
     pub request_headers: Option<HashMap<String, String>>,
