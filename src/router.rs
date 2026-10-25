@@ -23,6 +23,7 @@ use crate::options::{RouteOptions, UpstreamOptions};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Strategy {
     RoundRobin,
+    WeightedRoundRobin,
     Random,
     First,
 }
@@ -50,6 +51,7 @@ pub struct Upstream {
     pub verify: bool,
     pub ca: Option<CaBundle>,
     pub group_key: u64,
+    pub weight: u32,
 }
 
 #[derive(Debug)]
@@ -69,6 +71,7 @@ pub struct Route {
     pub timeout: Option<Duration>,
     pub metrics: crate::state::Metrics,
     counter: AtomicUsize,
+    weighted: Mutex<Vec<i64>>,
 }
 
 impl Route {
@@ -119,6 +122,28 @@ impl Route {
             Strategy::First => 0,
             Strategy::RoundRobin => self.counter.fetch_add(1, Ordering::Relaxed) % len,
             Strategy::Random => random_index(len),
+            Strategy::WeightedRoundRobin => {
+                let mut current = self.weighted.lock().unwrap();
+                if current.len() != len {
+                    *current = vec![0; len];
+                }
+                let total: i64 = self
+                    .upstreams
+                    .iter()
+                    .map(|upstream| upstream.weight as i64)
+                    .sum();
+                for (value, upstream) in current.iter_mut().zip(&self.upstreams) {
+                    *value += upstream.weight as i64;
+                }
+                let index = current
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, value)| **value)
+                    .map(|(index, _)| index)
+                    .unwrap_or(0);
+                current[index] -= total;
+                index
+            }
         };
         self.upstreams.get(index)
     }
@@ -187,15 +212,17 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
 
     let strategy = match options.strategy.as_deref().unwrap_or("round_robin") {
         "round_robin" => Strategy::RoundRobin,
+        "weighted_round_robin" => Strategy::WeightedRoundRobin,
         "random" => Strategy::Random,
         "first" => Strategy::First,
         other => {
             return Err(format!(
-            "route `{id}` has invalid strategy `{other}` (expected round_robin, random, or first)"
+            "route `{id}` has invalid strategy `{other}` (expected round_robin, weighted_round_robin, random, or first)"
         ))
         }
     };
 
+    let upstream_count = upstreams.len();
     let timeout = match options.timeout_ms {
         Some(0) => return Err(format!("route `{id}` timeoutMs must be greater than 0")),
         Some(ms) => Some(Duration::from_millis(ms.into())),
@@ -218,6 +245,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
         timeout,
         metrics: crate::state::Metrics::default(),
         counter: AtomicUsize::new(0),
+        weighted: Mutex::new(vec![0; upstream_count]),
     })
 }
 
@@ -412,16 +440,22 @@ fn resolve_ca(
 }
 
 pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
-    let (address, tls_override, sni_override, verify, ca_path) = match value {
-        Either::A(address) => (address, None, None, true, None),
+    let (address, tls_override, sni_override, verify, ca_path, weight) = match value {
+        Either::A(address) => (address, None, None, true, None, 1),
         Either::B(options) => (
             options.address,
             options.tls,
             options.sni,
             options.verify.unwrap_or(true),
             options.ca,
+            options.weight.unwrap_or(1),
         ),
     };
+    if weight == 0 {
+        return Err(format!(
+            "upstream `{address}` weight must be greater than 0"
+        ));
+    }
 
     if let Some(path) = address.strip_prefix("unix:") {
         if path.is_empty() {
@@ -442,6 +476,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
             verify,
             ca,
             group_key,
+            weight,
         });
     }
 
@@ -480,6 +515,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
         verify,
         ca,
         group_key,
+        weight,
     })
 }
 
