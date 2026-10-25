@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -20,8 +21,14 @@ pub struct JsProxy {
 impl ProxyCtx {
     fn release_active_upstream(&mut self) {
         if let Some(active) = self.active_upstream.take() {
-            active.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            active.fetch_sub(1, Ordering::Relaxed);
         }
+    }
+}
+
+impl Drop for ProxyCtx {
+    fn drop(&mut self) {
+        self.release_active_upstream();
     }
 }
 
@@ -122,7 +129,7 @@ pub struct ProxyCtx {
     remove_response_headers: Vec<String>,
     active: bool,
     body_bytes: u64,
-    active_upstream: Option<Arc<std::sync::atomic::AtomicUsize>>,
+    active_upstream: Option<Arc<AtomicUsize>>,
 }
 
 #[async_trait]

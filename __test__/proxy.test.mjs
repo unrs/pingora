@@ -145,9 +145,12 @@ test('least-connections prefers the idle upstream', async () => {
 
   const slowRequest = fetch(`http://127.0.0.1:${proxy.port}/lb/slow`)
   await slowStarted
-  const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/lb/fast`)
-  assert.equal(await fastResponse.text(), 'fast')
-  releaseSlow()
+  try {
+    const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/lb/fast`)
+    assert.equal(await fastResponse.text(), 'fast')
+  } finally {
+    releaseSlow()
+  }
   assert.equal(await (await slowRequest).text(), 'slow')
 })
 
