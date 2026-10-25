@@ -105,21 +105,34 @@ test('round-robins across upstreams', async () => {
 
 test('least-connections prefers the idle upstream', async () => {
   let markSlowStarted
+  let releaseSlow
   const slowStarted = new Promise((resolve) => {
     markSlowStarted = resolve
   })
-  const slow = await startUpstream((req, res) => {
-    if (req.url === '/slow') markSlowStarted()
-    setTimeout(() => res.end('slow'), 200)
+  const slowRelease = new Promise((resolve) => {
+    releaseSlow = resolve
+  })
+  const slow = await startUpstream(async (req, res) => {
+    if (req.url === '/lb/slow') {
+      markSlowStarted()
+      await slowRelease
+    }
+    res.end('slow')
   })
   const fast = await startUpstream((_req, res) => res.end('fast'))
+  const ready = await startUpstream((_req, res) => res.end('ready'))
   onTestFinished(() => slow.close())
   onTestFinished(() => fast.close())
+  onTestFinished(() => ready.close())
 
   const proxy = await createProxy({
     routes: [
       {
-        pathPrefix: '/',
+        path: '/ready',
+        upstreams: [`127.0.0.1:${ready.port}`],
+      },
+      {
+        pathPrefix: '/lb',
         strategy: 'least_connections',
         upstreams: [`127.0.0.1:${slow.port}`, `127.0.0.1:${fast.port}`],
       },
@@ -127,11 +140,14 @@ test('least-connections prefers the idle upstream', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
-  const slowRequest = fetch(`http://127.0.0.1:${proxy.port}/slow`)
+  const readyResponse = await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  await readyResponse.text()
+
+  const slowRequest = fetch(`http://127.0.0.1:${proxy.port}/lb/slow`)
   await slowStarted
-  const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/fast`)
+  const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/lb/fast`)
   assert.equal(await fastResponse.text(), 'fast')
+  releaseSlow()
   assert.equal(await (await slowRequest).text(), 'slow')
 })
 
