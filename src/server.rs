@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+use std::io::Write as _;
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -83,6 +85,12 @@ struct ListenerConfig {
     tls: Option<TlsConfig>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LogFormat {
+    Text,
+    Json,
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct Limits {
     max_request_headers: Option<usize>,
@@ -134,6 +142,7 @@ struct ServerState {
     upstream_keepalive_pool_size: usize,
     handler_timeout: Duration,
     log_level: String,
+    log_format: LogFormat,
     init_error: Option<String>,
     shutdown_tx: watch::Sender<bool>,
     status: AtomicU8,
@@ -175,6 +184,7 @@ impl JsServer {
             shutdown_timeout_ms: None,
             upstream_keepalive_pool_size: None,
             log_level: None,
+            log_format: None,
             handler_timeout_ms: None,
             max_request_headers: None,
             max_request_header_bytes: None,
@@ -193,6 +203,15 @@ impl JsServer {
         let max_listeners = options.max_listeners.map(|value| value as usize);
 
         let mut init_error = None;
+        let log_format = match options.log_format.as_deref().unwrap_or("text") {
+            "text" => LogFormat::Text,
+            "json" => LogFormat::Json,
+            other => {
+                init_error
+                    .get_or_insert(format!("logFormat must be `text` or `json`, got `{other}`"));
+                LogFormat::Text
+            }
+        };
         let metrics_listener = match options.metrics_address {
             Some(address) if address.trim().is_empty() => {
                 init_error.get_or_insert("metrics address cannot be empty".to_string());
@@ -263,6 +282,7 @@ impl JsServer {
                 log_level: options
                     .log_level
                     .unwrap_or_else(|| "pingora=warn".to_string()),
+                log_format,
                 handler_timeout: Duration::from_millis(
                     options.handler_timeout_ms.unwrap_or(1_000).max(1).into(),
                 ),
@@ -540,7 +560,7 @@ impl ShutdownSignalWatch for WatchSignal {
 }
 
 fn run_server(state: Arc<ServerState>) -> Result<(), String> {
-    init_logger(&state.log_level);
+    init_logger(&state.log_level, state.log_format);
 
     let mut conf = ServerConf {
         version: 1,
@@ -601,10 +621,41 @@ fn ceil_secs(duration: Duration) -> u64 {
     duration.as_millis().div_ceil(1000) as u64
 }
 
-fn init_logger(level: &str) {
+fn init_logger(level: &str, format: LogFormat) {
     INIT_LOGGER.call_once(|| {
-        let _ = env_logger::Builder::from_env(Env::default().default_filter_or(level)).try_init();
+        let mut builder = env_logger::Builder::from_env(Env::default().default_filter_or(level));
+        if format == LogFormat::Json {
+            builder.format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{{\"timestamp\":\"{}\",\"level\":\"{}\",\"target\":\"{}\",\"message\":\"{}\"}}",
+                    escape_json(&buf.timestamp().to_string()),
+                    record.level(),
+                    escape_json(record.target()),
+                    escape_json(&record.args().to_string())
+                )
+            });
+        }
+        let _ = builder.try_init();
     });
+}
+
+fn escape_json(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character < ' ' => {
+                write!(&mut output, "\\u{:04x}", character as u32).unwrap();
+            }
+            character => output.push(character),
+        }
+    }
+    output
 }
 
 fn unix_path(address: &str) -> Option<&str> {
@@ -786,7 +837,7 @@ fn invalid_arg(message: impl Into<String>) -> NapiError {
 
 #[cfg(test)]
 mod tests {
-    use super::ceil_secs;
+    use super::{ceil_secs, escape_json};
     use std::time::Duration;
 
     #[test]
@@ -794,5 +845,13 @@ mod tests {
         assert_eq!(ceil_secs(Duration::ZERO), 0);
         assert_eq!(ceil_secs(Duration::from_millis(1)), 1);
         assert_eq!(ceil_secs(Duration::from_millis(1_500)), 2);
+    }
+
+    #[test]
+    fn escapes_json_log_fields() {
+        assert_eq!(
+            escape_json("a\"b\\c\nd\te\u{1}"),
+            "a\\\"b\\\\c\\nd\\te\\u0001"
+        );
     }
 }

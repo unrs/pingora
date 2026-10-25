@@ -321,3 +321,8 @@ test('concurrent stop calls both wait for the server thread', async () => {
   next.start()
   await next.stop()
 })
+
+test('rejects an invalid log format', () => {
+  const server = new Server({ logFormat: 'xml' })
+  assert.throws(() => server.start(), /logFormat/)
+})

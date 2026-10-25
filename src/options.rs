@@ -22,6 +22,8 @@ pub struct ServerOptions {
     pub upstream_keepalive_pool_size: Option<u32>,
     /// Default log filter, e.g. `pingora=info`. `RUST_LOG` takes precedence.
     pub log_level: Option<String>,
+    /// Log format: `text` (default) or `json`.
+    pub log_format: Option<String>,
     /// Request handler timeout, in milliseconds. Defaults to 1000.
     pub handler_timeout_ms: Option<u32>,
     /// Maximum number of request headers; larger requests get 431.

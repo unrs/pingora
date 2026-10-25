@@ -57,6 +57,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `shutdownTimeoutMs`          | `number`   | Runtime shutdown timeout. Defaults to `5000`.            |
 | `upstreamKeepalivePoolSize`  | `number`   | Upstream connection pool size. Defaults to `128`.        |
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
+| `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
@@ -70,6 +71,17 @@ upstream responds before the body is complete, the client may receive that
 response instead of `413`; the oversized body is still not forwarded further.
 
 Invalid options are reported by `start()` and in `status().error`.
+
+### Logging
+
+`logFormat: 'json'` emits one JSON object per log line:
+
+```json
+{"timestamp":"2026-10-25T10:24:37Z","level":"INFO","target":"pingora::server","message":"..."}
+```
+
+`RUST_LOG` still takes precedence over `logLevel`. Logger initialization is
+process-wide and happens on the first server start.
 
 ### Server methods
 

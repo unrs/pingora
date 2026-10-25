@@ -88,6 +88,11 @@ Limits are checked in `request_filter` before route selection and the handler;
 streamed request bodies are counted in `request_body_filter` and rejected with
 413 once they exceed `maxRequestBodyBytes`.
 
+## Logging
+
+`logFormat: 'json'` installs an env_logger formatter that emits one JSON object
+per line. Logger initialization remains process-wide.
+
 ## Metrics service
 
 When `metricsAddress` is set, a second Pingora service serves `/metrics` and
