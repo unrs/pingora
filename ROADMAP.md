@@ -331,7 +331,7 @@ singleton guard is held. `stop()` is idempotent.
 | Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Request/header/route/listener limits | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Implemented |
-| Config file + schema          | 0.4   | Planned     |
+| Config file + schema          | 0.4   | Deferred    |
 | Structured log bridge to JS   | 0.4   | Exploring   |
 | Prebuilt platform binaries     | 1.0      | Planned     |
 | Native proxy benchmarks       | 0.4      | Planned     |
@@ -441,7 +441,10 @@ macOS.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
-- [ ] Config file loader (JSON/TOML) with validation and a JSON Schema.
+- [x] Defer a custom config-file parser for now. Users can load JSON directly
+      with CommonJS (`const config = require('./pingora.config.json')`) or, on
+      modern Node ESM, `import config from './pingora.config.json' with { type: 'json' }`;
+      or build an options object in JS. Revisit only if a real custom format is needed.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
       `http-proxy`, and `http-proxy-middleware`.
 - [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
