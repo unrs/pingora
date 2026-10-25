@@ -103,6 +103,31 @@ test('round-robins across upstreams', async () => {
   assert.equal(bodies.filter((body) => body === 'second').length, 2)
 })
 
+test('least-connections prefers the idle upstream', async () => {
+  const slow = await startUpstream((_req, res) => setTimeout(() => res.end('slow'), 200))
+  const fast = await startUpstream((_req, res) => res.end('fast'))
+  onTestFinished(() => slow.close())
+  onTestFinished(() => fast.close())
+
+  const proxy = await createProxy({
+    routes: [
+      {
+        pathPrefix: '/',
+        strategy: 'least_connections',
+        upstreams: [`127.0.0.1:${slow.port}`, `127.0.0.1:${fast.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  const slowRequest = fetch(`http://127.0.0.1:${proxy.port}/slow`)
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/fast`)
+  assert.equal(await fastResponse.text(), 'fast')
+  assert.equal(await (await slowRequest).text(), 'slow')
+})
+
 test('weighted round-robin follows upstream weights', async () => {
   const first = await startUpstream((_req, res) => res.end('first'))
   const second = await startUpstream((_req, res) => res.end('second'))
