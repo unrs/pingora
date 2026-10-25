@@ -436,7 +436,7 @@ macOS.
 **Goal:** make the binding operationally credible.
 
 - [ ] Health checks and/or Pingora load-balancer integration.
-- [x] Weighted round-robin strategy.
+- [x] Weighted round-robin strategy (binding-level; Pingora LB integration is still open).
 - [ ] Least-connection strategy.
 - [x] Listener and route limits; request body size and header limits surfaced.
 - [x] Per-route metrics, Prometheus text output, and a dedicated

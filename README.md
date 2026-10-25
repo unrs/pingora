@@ -121,7 +121,10 @@ interface Upstream {
 ```
 
 `weighted_round_robin` uses smooth weighted round-robin; weights must be
-positive. Routes are evaluated in registration order; the first match wins. All specified
+positive. Route selection is implemented by the binding in `src/router.rs`, not
+by Pingora's `pingora-load-balancing` crate. That crate still has UDS gaps, so
+the binding keeps its own picker until the Pingora load-balancer integration
+lands. Routes are evaluated in registration order; the first match wins. All specified
 matchers must match. A request with no matching route receives `404`; an
 upstream connection failure receives `502`.
 
