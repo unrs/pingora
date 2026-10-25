@@ -47,6 +47,9 @@ Pingora thread
 
 ## Routing
 
+`weighted_round_robin` uses smooth weighted round-robin with per-route current
+weights protected by a mutex.
+
 Routes are checked in registration order. All specified matchers must match.
 `addRoute` replaces the route with the same id in place. The route table is
 behind an `RwLock`; requests clone an `Arc<Route>` snapshot for the duration of

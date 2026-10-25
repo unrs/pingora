@@ -313,7 +313,7 @@ singleton guard is held. `stop()` is idempotent.
 | TCP listeners                 | 0.1   | Implemented     |
 | Host/path/method/header match | 0.1   | Implemented     |
 | Route CRUD while running      | 0.1   | Implemented     |
-| RR / random / first upstream  | 0.1   | Implemented     |
+| RR / weighted RR / random / first | 0.1 | Implemented     |
 | Request/response header rules | 0.1   | Implemented     |
 | Per-route connect/read timeout| 0.1   | Implemented     |
 | Graceful start/stop/status    | 0.1   | Implemented     |
@@ -327,7 +327,7 @@ singleton guard is held. `stop()` is idempotent.
 | Upstream TLS + SNI + verify   | 0.3   | Implemented |
 | Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
-| Health checks / weighted LB   | 0.4   | Planned     |
+| Health checks / least-connection | 0.4 | Planned     |
 | Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Request/header/route/listener limits | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Implemented |
@@ -436,7 +436,8 @@ macOS.
 **Goal:** make the binding operationally credible.
 
 - [ ] Health checks and/or Pingora load-balancer integration.
-- [ ] Weighted and least-connection strategies (if they fit the facade).
+- [x] Weighted round-robin strategy.
+- [ ] Least-connection strategy.
 - [x] Listener and route limits; request body size and header limits surfaced.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.

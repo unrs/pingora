@@ -102,7 +102,7 @@ interface Route {
   methods?: string[]
   matchHeaders?: Record<string, string>
   upstreams: Array<string | Upstream>
-  strategy?: 'round_robin' | 'random' | 'first'
+  strategy?: 'round_robin' | 'weighted_round_robin' | 'random' | 'first'
   requestHeaders?: Record<string, string>
   removeRequestHeaders?: string[]
   responseHeaders?: Record<string, string>
@@ -116,10 +116,12 @@ interface Upstream {
   sni?: string
   verify?: boolean // defaults to true
   ca?: string // PEM CA file for a private upstream CA
+  weight?: number // relative weight for weighted_round_robin, default 1
 }
 ```
 
-Routes are evaluated in registration order; the first match wins. All specified
+`weighted_round_robin` uses smooth weighted round-robin; weights must be
+positive. Routes are evaluated in registration order; the first match wins. All specified
 matchers must match. A request with no matching route receives `404`; an
 upstream connection failure receives `502`.
 
