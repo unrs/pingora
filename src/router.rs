@@ -441,17 +441,17 @@ fn resolve_ca(
 
 pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<Upstream, String> {
     let (address, tls_override, sni_override, verify, ca_path, weight) = match value {
-        Either::A(address) => (address, None, None, true, None, 1),
+        Either::A(address) => (address, None, None, true, None, 1.0),
         Either::B(options) => (
             options.address,
             options.tls,
             options.sni,
             options.verify.unwrap_or(true),
             options.ca,
-            options.weight.unwrap_or(1),
+            options.weight.unwrap_or(1.0),
         ),
     };
-    if weight <= 0 || weight > u32::MAX as i64 {
+    if !weight.is_finite() || weight.fract() != 0.0 || weight <= 0.0 || weight > u32::MAX as f64 {
         return Err(format!(
             "upstream `{address}` weight must be a positive u32 integer"
         ));

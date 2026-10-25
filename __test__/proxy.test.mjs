@@ -132,7 +132,7 @@ test('weighted round-robin follows upstream weights', async () => {
   assert.equal(bodies.filter((body) => body === 'first').length, 6)
   assert.equal(bodies.filter((body) => body === 'second').length, 2)
 
-  for (const weight of [0, -1, 4294967296]) {
+  for (const weight of [0, -1, 1.5, 4294967296, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(
       () =>
         proxy.server.addRoute({
