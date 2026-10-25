@@ -441,10 +441,10 @@ macOS.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.
 - [ ] Structured logging; evaluate a JS log callback without blocking.
-- [x] Defer a custom config-file parser for now. Users import JSON directly
-      (`const config = require('./pingora.config.json')`) or build
-      an options object in JS; no extra parser/schema layer until a real custom
-      format is needed.
+- [x] Defer a custom config-file parser for now. Users can load JSON directly
+      with CommonJS (`const config = require('./pingora.config.json')`) or, on
+      modern Node ESM, `import config from './pingora.config.json' with { type: 'json' }`;
+      or build an options object in JS. Revisit only if a real custom format is needed.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
       `http-proxy`, and `http-proxy-middleware`.
 - [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
