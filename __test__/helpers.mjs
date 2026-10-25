@@ -40,7 +40,7 @@ export async function waitForProxy(url) {
 
 export async function eventually(predicate, message) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    const value = predicate()
+    const value = await predicate()
     if (value) return value
     await delay(10)
   }
