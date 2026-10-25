@@ -89,6 +89,11 @@ Limits are checked in `request_filter` before route selection and the handler;
 streamed request bodies are counted in `request_body_filter` and rejected with
 413 once they exceed `maxRequestBodyBytes`.
 
+## Access logs
+
+`setAccessLogHandler` sends one `AccessLog` record per request from `logging`
+through a non-blocking TSFN. System logs remain on the env_logger path.
+
 ## Logging
 
 `logFormat: 'json'` installs an env_logger formatter that emits one JSON object

@@ -72,6 +72,29 @@ response instead of `413`; the oversized body is still not forwarded further.
 
 Invalid options are reported by `start()` and in `status().error`.
 
+### Access logs
+
+`setAccessLogHandler` receives one record per completed request. The callback is
+invoked through a non-blocking TSFN; a full queue drops records rather than
+blocking proxy threads.
+
+```js
+server.setAccessLogHandler((record) => {
+  console.log(record.method, record.path, record.status, record.durationMs)
+})
+```
+
+```ts
+interface AccessLog {
+  method: string
+  path: string
+  status?: number
+  routeId?: string
+  upstreamError: boolean
+  durationMs: number
+}
+```
+
 ### Logging
 
 `logFormat: 'json'` emits one JSON object per log line:
@@ -98,6 +121,8 @@ process-wide and happens on the first server start.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
+- `setAccessLogHandler(fn): void` — receives a non-blocking record for each completed request.
+- `clearAccessLogHandler(): void` — removes the access log handler.
 - `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.
 
 `state` is one of `idle`, `starting`, `running`, `stopping`, `stopped`, or

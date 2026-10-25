@@ -333,7 +333,7 @@ singleton guard is held. `stop()` is idempotent.
 | Prometheus metrics endpoint   | 0.4   | Implemented |
 | Config file + schema          | 0.4   | Deferred    |
 | Structured JSON logs          | 0.4   | Implemented |
-| Structured log bridge to JS   | 0.4   | Exploring   |
+| Structured log bridge to JS   | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
 | Native proxy benchmarks       | 0.4      | Planned     |
 | Server framework package       | post-1.0 | Exploring   |
@@ -443,7 +443,7 @@ macOS.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.
 - [x] Structured JSON logging via `logFormat: 'json'`.
-- [ ] JS log callback (avoid blocking proxy threads).
+- [x] JS access-log callback via a non-blocking TSFN.
 - [x] Defer a custom config-file parser for now. Users can load JSON directly
       with CommonJS (`const config = require('./pingora.config.json')`) or, on
       modern Node ESM, `import config from './pingora.config.json' with { type: 'json' }`;
