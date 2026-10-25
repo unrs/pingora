@@ -58,7 +58,7 @@ pub struct RouteOptions {
     /// Upstreams; strings accept `IP:port`, `http://IP[:port]`, or
     /// `https://IP[:port]`. Hostnames must be resolved by the caller.
     pub upstreams: Vec<Either<String, UpstreamOptions>>,
-    /// `round_robin` (default), `random`, or `first`.
+    /// `round_robin` (default), `weighted_round_robin`, `random`, or `first`.
     pub strategy: Option<String>,
     /// Request headers applied before proxying.
     pub request_headers: Option<HashMap<String, String>>,
@@ -92,6 +92,8 @@ pub struct TlsOptions {
 pub struct UpstreamOptions {
     /// `IP:port`, `unix:/path`, `http://IP[:port]`, or `https://IP[:port]`.
     pub address: String,
+    /// Relative weight for `weighted_round_robin`; defaults to 1.
+    pub weight: Option<f64>,
     /// Override the scheme-derived TLS setting.
     pub tls: Option<bool>,
     /// Override the SNI hostname.

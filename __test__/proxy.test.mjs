@@ -103,6 +103,47 @@ test('round-robins across upstreams', async () => {
   assert.equal(bodies.filter((body) => body === 'second').length, 2)
 })
 
+test('weighted round-robin follows upstream weights', async () => {
+  const first = await startUpstream((_req, res) => res.end('first'))
+  const second = await startUpstream((_req, res) => res.end('second'))
+  onTestFinished(() => first.close())
+  onTestFinished(() => second.close())
+
+  const proxy = await createProxy({
+    routes: [
+      {
+        pathPrefix: '/',
+        strategy: 'weighted_round_robin',
+        upstreams: [
+          { address: `127.0.0.1:${first.port}`, weight: 3 },
+          { address: `127.0.0.1:${second.port}`, weight: 1 },
+        ],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  const bodies = []
+  for (let index = 0; index < 8; index += 1) {
+    const response = await fetch(`http://127.0.0.1:${proxy.port}/weighted`)
+    bodies.push(await response.text())
+  }
+  assert.equal(bodies.filter((body) => body === 'first').length, 6)
+  assert.equal(bodies.filter((body) => body === 'second').length, 2)
+
+  for (const weight of [0, -1, 1.5, 4294967296, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () =>
+        proxy.server.addRoute({
+          pathPrefix: '/bad-weight',
+          upstreams: [{ address: `127.0.0.1:${first.port}`, weight }],
+        }),
+      /positive u32 integer/,
+    )
+  }
+})
+
 test('matches host, path, method, and headers', async () => {
   const upstream = await startUpstream((_req, res) => res.end('matched'))
   onTestFinished(() => upstream.close())

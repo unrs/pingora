@@ -47,6 +47,11 @@ Pingora thread
 
 ## Routing
 
+`weighted_round_robin` uses smooth weighted round-robin with per-route current
+weights protected by a mutex. All route selection is binding-level; Pingora's
+`pingora-load-balancing` crate is not linked yet. It still has UDS gaps and its
+health-check/discovery model has not been mapped onto the route facade.
+
 Routes are checked in registration order. All specified matchers must match.
 `addRoute` replaces the route with the same id in place. The route table is
 behind an `RwLock`; requests clone an `Arc<Route>` snapshot for the duration of
