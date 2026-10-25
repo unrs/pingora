@@ -124,17 +124,22 @@ impl Route {
             Strategy::First => 0,
             Strategy::RoundRobin => self.counter.fetch_add(1, Ordering::Relaxed) % len,
             Strategy::Random => random_index(len),
-            Strategy::LeastConnections => {
-                let index = self
+            Strategy::LeastConnections => loop {
+                let (index, current) = self
                     .upstreams
                     .iter()
                     .enumerate()
-                    .min_by_key(|(_, upstream)| upstream.active.load(Ordering::Relaxed))
-                    .map(|(index, _)| index)
-                    .unwrap_or(0);
-                self.upstreams[index].active.fetch_add(1, Ordering::Relaxed);
-                index
-            }
+                    .map(|(index, upstream)| (index, upstream.active.load(Ordering::Relaxed)))
+                    .min_by_key(|(_, count)| *count)
+                    .unwrap_or((0, 0));
+                if self.upstreams[index]
+                    .active
+                    .compare_exchange(current, current + 1, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+                {
+                    break index;
+                }
+            },
             Strategy::WeightedRoundRobin => {
                 let mut current = self.weighted.lock().unwrap();
                 if current.len() != len {

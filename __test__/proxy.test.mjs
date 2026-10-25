@@ -104,7 +104,14 @@ test('round-robins across upstreams', async () => {
 })
 
 test('least-connections prefers the idle upstream', async () => {
-  const slow = await startUpstream((_req, res) => setTimeout(() => res.end('slow'), 200))
+  let markSlowStarted
+  const slowStarted = new Promise((resolve) => {
+    markSlowStarted = resolve
+  })
+  const slow = await startUpstream((req, res) => {
+    if (req.url === '/slow') markSlowStarted()
+    setTimeout(() => res.end('slow'), 200)
+  })
   const fast = await startUpstream((_req, res) => res.end('fast'))
   onTestFinished(() => slow.close())
   onTestFinished(() => fast.close())
@@ -122,7 +129,7 @@ test('least-connections prefers the idle upstream', async () => {
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
   const slowRequest = fetch(`http://127.0.0.1:${proxy.port}/slow`)
-  await new Promise((resolve) => setTimeout(resolve, 20))
+  await slowStarted
   const fastResponse = await fetch(`http://127.0.0.1:${proxy.port}/fast`)
   assert.equal(await fastResponse.text(), 'fast')
   assert.equal(await (await slowRequest).text(), 'slow')
