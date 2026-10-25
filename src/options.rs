@@ -93,7 +93,7 @@ pub struct UpstreamOptions {
     /// `IP:port`, `unix:/path`, `http://IP[:port]`, or `https://IP[:port]`.
     pub address: String,
     /// Relative weight for `weighted_round_robin`; defaults to 1.
-    pub weight: Option<u32>,
+    pub weight: Option<i64>,
     /// Override the scheme-derived TLS setting.
     pub tls: Option<bool>,
     /// Override the SNI hostname.

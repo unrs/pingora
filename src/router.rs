@@ -451,11 +451,12 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
             options.weight.unwrap_or(1),
         ),
     };
-    if weight == 0 {
+    if weight <= 0 || weight > u32::MAX as i64 {
         return Err(format!(
-            "upstream `{address}` weight must be greater than 0"
+            "upstream `{address}` weight must be a positive u32 integer"
         ));
     }
+    let weight = weight as u32;
 
     if let Some(path) = address.strip_prefix("unix:") {
         if path.is_empty() {

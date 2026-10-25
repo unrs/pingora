@@ -132,14 +132,16 @@ test('weighted round-robin follows upstream weights', async () => {
   assert.equal(bodies.filter((body) => body === 'first').length, 6)
   assert.equal(bodies.filter((body) => body === 'second').length, 2)
 
-  assert.throws(
-    () =>
-      proxy.server.addRoute({
-        pathPrefix: '/bad-weight',
-        upstreams: [{ address: `127.0.0.1:${first.port}`, weight: 0 }],
-      }),
-    /weight must be greater than 0/,
-  )
+  for (const weight of [0, -1, 4294967296]) {
+    assert.throws(
+      () =>
+        proxy.server.addRoute({
+          pathPrefix: '/bad-weight',
+          upstreams: [{ address: `127.0.0.1:${first.port}`, weight }],
+        }),
+      /positive u32 integer/,
+    )
+  }
 })
 
 test('matches host, path, method, and headers', async () => {
