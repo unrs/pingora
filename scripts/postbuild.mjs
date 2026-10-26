@@ -1,18 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { patch } from 'napi-postinstall/patch'
 
-const require = createRequire(import.meta.url)
-const { patch } = require('napi-postinstall/patch')
-
-const entry = 'index.js'
-const marker = '/* pingora async access-log wrapper */'
-
-patch({ entry, name: 'pingora' })
-
-let code = readFileSync(entry, 'utf8')
-if (!code.includes(marker)) {
-  code += `
-${marker}
+patch({
+  entry: 'index.js',
+  name: 'pingora',
+  append: `
+/* pingora async access-log wrapper */
 {
   const serverPrototype = module.exports.Server.prototype
   const nativeSetAccessLogHandler = serverPrototype.setAccessLogHandler
@@ -30,6 +22,5 @@ ${marker}
     })
   }
 }
-`
-  writeFileSync(entry, code)
-}
+`,
+})
