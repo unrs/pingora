@@ -71,3 +71,29 @@ test('does not crash when the access log handler throws', async () => {
     await upstream.close()
   }
 })
+
+test('supports async access log handlers', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('ok'))
+  const proxy = await createProxy({
+    routes: [{ id: 'app', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  let resolveRecord
+  const recordSeen = new Promise((resolve) => {
+    resolveRecord = resolve
+  })
+  try {
+    proxy.server.setAccessLogHandler(async (record) => {
+      await Promise.resolve()
+      resolveRecord(record)
+      throw new Error('async access log boom')
+    })
+    const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/async`)
+    await response.text()
+    const record = await recordSeen
+    assert.equal(record.path, '/async')
+    assert.equal(record.status, 200)
+  } finally {
+    await proxy.stop()
+    await upstream.close()
+  }
+})
