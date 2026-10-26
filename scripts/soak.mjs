@@ -98,9 +98,11 @@ async function runCycle(origin, cycle) {
     server.start()
     await waitForProxy(port)
     const deadline = Date.now() + cycleDurationMs
+    let cycleRequests = 0
 
     const workers = Array.from({ length: concurrency }, async () => {
       while (Date.now() < deadline) {
+        cycleRequests += 1
         const path = requests % 5 === 0 ? '/no-route' : '/ok'
         try {
           const status = await request(port, path)
@@ -147,6 +149,9 @@ async function runCycle(origin, cycle) {
     })()
 
     await Promise.all([...workers, churn])
+    if (cycleRequests === 0) {
+      recordFailure(`cycle ${cycle} produced no requests`)
+    }
   } finally {
     server.clearRequestHandler()
     await server.stop()
