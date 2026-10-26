@@ -293,10 +293,15 @@ Handler errors and timeouts return `500`; malformed header mutations are left
 to Pingora's validation. A timeout is controlled by `handlerTimeoutMs`.
 Handlers are optional: requests take the all-Rust path when none is installed.
 
+## Security
+
+See [docs/security.md](./docs/security.md) for the security checklist and current
+posture.
+
 ## Known upstream issues
 
-See [docs/upstream-issues.md](./docs/upstream-issues.md) for Pingora issues tracked
-against this binding.
+See [docs/upstream-issues.md](./docs/upstream-issues.md) for upstream issues
+tracked against this binding.
 
 ### Metrics endpoint
 
