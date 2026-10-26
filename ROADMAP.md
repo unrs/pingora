@@ -327,7 +327,8 @@ singleton guard is held. `stop()` is idempotent.
 | Upstream TLS + SNI + verify   | 0.3   | Implemented |
 | Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
-| Health checks                 | 0.4   | Planned     |
+| Passive health checks         | 0.4   | Implemented |
+| Active health checks          | 0.4   | Planned     |
 | Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Request/header/route/listener limits | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Implemented |
@@ -436,7 +437,8 @@ macOS.
 
 **Goal:** make the binding operationally credible.
 
-- [ ] Health checks and/or Pingora load-balancer integration.
+- [x] Passive upstream health: connection failures cool down for 5 seconds.
+- [ ] Active health checks / Pingora load-balancer integration.
 - [x] Weighted round-robin strategy (binding-level; Pingora LB integration is still open).
 - [x] Least-connection strategy (binding-level).
 - [x] Listener and route limits; request body size and header limits surfaced.

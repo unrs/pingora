@@ -39,6 +39,7 @@ substitute for reviewing a specific deployment.
 - `maxRequestHeaders`, `maxRequestHeaderBytes`, and `maxRequestBodyBytes`
 - `maxRoutes` and `maxListeners`
 - `threads` and upstream keepalive pool size are explicit options
+- Failed upstream connections are skipped for five seconds (passive health).
 - Access-log delivery is best effort: at most 1024 records in flight, excess
   records are dropped
 
