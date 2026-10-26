@@ -49,7 +49,10 @@ See [upstream-issues.md](./upstream-issues.md):
 - `cloudflare/pingora#1056`: per-peer CA is not part of the reuse key; the
   binding isolates pools with `group_key`.
 - `cloudflare/pingora#374`: path-based Unix bind can unlink a competing live
-  socket; the binding requires exclusive socket paths.
+  socket. Preflight only narrows the race; it does not make `add_uds` exclusive.
+  Requiring exclusive paths is an operational mitigation, not a guarantee. A
+  full fix needs a prebound listener/FD or a bind mode that fails without
+  unlinking.
 - `napi-rs/napi-rs#3655`: TSFN queue-full allocation leak; the binding caps
   access-log in-flight records and is tracked upstream.
 
