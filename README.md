@@ -364,8 +364,8 @@ interface RouteMetrics {
 ## Soak test
 
 `pnpm soak` runs the proxy under sustained traffic with route and handler churn.
-It defaults to 10 seconds; override with `SOAK_DURATION_MS` and
-`SOAK_CONCURRENCY`.
+It defaults to 10 seconds; override with `SOAK_DURATION_MS`,
+`SOAK_CONCURRENCY`, and `SOAK_CYCLES`.
 
 ```sh
 SOAK_DURATION_MS=300000 SOAK_CONCURRENCY=16 pnpm soak
