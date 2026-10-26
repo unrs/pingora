@@ -371,7 +371,7 @@ These are end-to-end Node numbers, not Pingora's raw ceiling. See
 
 ## Requirements
 
-- **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)
+- **Runtime:** `^12.20.0 || ^14.18.0 || >=16.0.0` (CommonJS entry; `import` interop works on Node 12.22+)
 - Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)
 - Prebuilt binaries are installed through npm; source builds are documented in
   [docs/development.md](./docs/development.md).
