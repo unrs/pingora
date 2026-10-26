@@ -56,7 +56,8 @@
     "test:watch": "pnpm run build:debug && vitest",
     "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
     "postbuild": "node scripts/postbuild.mjs",
-    "postbuild:debug": "node scripts/postbuild.mjs"
+    "postbuild:debug": "node scripts/postbuild.mjs",
+    "soak": "pnpm run build:debug && node scripts/soak.mjs"
   },
   "publishConfig": {
     "access": "public",
