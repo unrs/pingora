@@ -10,7 +10,9 @@ test('reports completed requests to an access log handler', async () => {
   })
   const records = []
   try {
-    proxy.server.setAccessLogHandler((record) => records.push(record))
+    proxy.server.setAccessLogHandler((error, record) => {
+      records.push(record)
+    })
     const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/hello?x=1`)
     assert.equal(response.status, 200)
 
@@ -41,7 +43,10 @@ test('marks upstream failures in the access log', async () => {
   })
   const records = []
   try {
-    proxy.server.setAccessLogHandler((record) => records.push(record))
+    proxy.server.setAccessLogHandler((error, record) => {
+      assert.equal(error, null)
+      records.push(record)
+    })
     const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
     assert.equal(response.status, 502)
 
@@ -51,5 +56,23 @@ test('marks upstream failures in the access log', async () => {
     assert.equal(record.upstreamError, true)
   } finally {
     await proxy.stop()
+  }
+})
+
+test('does not crash when the access log handler throws', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('ok'))
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  try {
+    proxy.server.setAccessLogHandler((_error, _record) => {
+      throw new Error('access log boom')
+    })
+    const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+    assert.equal(response.status, 200)
+    await response.text()
+  } finally {
+    await proxy.stop()
+    await upstream.close()
   }
 })

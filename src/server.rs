@@ -503,10 +503,11 @@ impl JsServer {
         Ok(())
     }
 
-    #[napi]
+    #[napi(ts_args_type = "handler: (error: Error | null, record: AccessLog) => void")]
     pub fn set_access_log_handler(&self, handler: Function<AccessLog, ()>) -> napi::Result<()> {
         let tsfn = handler
             .build_threadsafe_function::<AccessLog>()
+            .callee_handled::<true>()
             .weak::<true>()
             .max_queue_size::<1024>()
             .build()?;
