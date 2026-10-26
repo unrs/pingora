@@ -77,8 +77,8 @@ Invalid options are reported by `start()` and in `status().error`.
 
 ### Access logs
 
-`setAccessLogHandler` submits up to one record per completed request. Delivery
-is best effort; a full queue drops records. The callback
+The server submits up to one record per completed request to the registered
+handler. Delivery is best effort; a full queue drops records. The callback
 may be async; returned promises are fire-and-forget and rejections are
 swallowed. Records are submitted through a non-blocking TSFN with a bounded
 1024-record queue; a full queue drops records rather than blocking proxy
@@ -132,7 +132,7 @@ process-wide and happens on the first server start.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
-- `setAccessLogHandler(fn): void` — receives up to one record per completed request.
+- `setAccessLogHandler(fn): void` — installs a handler that receives up to one record per completed request.
 - `clearAccessLogHandler(): void` — detaches the access log handler. Records already
   submitted or queued may still be delivered.
 - `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.
