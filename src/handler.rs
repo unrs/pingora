@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use napi::bindgen_prelude::{Either, Promise};
@@ -69,23 +71,53 @@ pub struct AccessLog {
     pub duration_ms: f64,
 }
 
-pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true, 1024>;
+pub const ACCESS_LOG_QUEUE: usize = 1024;
+
+pub type AccessLogTsfn =
+    ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true, ACCESS_LOG_QUEUE>;
 
 pub struct AccessLogger {
     tsfn: AccessLogTsfn,
+    in_flight: Arc<AtomicUsize>,
 }
 
 impl AccessLogger {
     pub fn new(tsfn: AccessLogTsfn) -> Self {
-        Self { tsfn }
+        Self {
+            tsfn,
+            in_flight: Arc::new(AtomicUsize::new(0)),
+        }
     }
 
     pub fn log(&self, record: AccessLog) {
-        let _ = self.tsfn.call_with_return_value(
+        let mut in_flight = self.in_flight.load(Ordering::Relaxed);
+        loop {
+            if in_flight >= ACCESS_LOG_QUEUE {
+                return;
+            }
+            match self.in_flight.compare_exchange_weak(
+                in_flight,
+                in_flight + 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(current) => in_flight = current,
+            }
+        }
+
+        let in_flight = self.in_flight.clone();
+        let status = self.tsfn.call_with_return_value(
             record,
             ThreadsafeFunctionCallMode::NonBlocking,
-            |_result, _env| Ok(()),
+            move |_result, _env| {
+                in_flight.fetch_sub(1, Ordering::Relaxed);
+                Ok(())
+            },
         );
+        if status != Status::Ok {
+            self.in_flight.fetch_sub(1, Ordering::Relaxed);
+        }
     }
 }
 

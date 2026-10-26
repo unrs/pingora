@@ -19,7 +19,9 @@ use pingora::server::configuration::{Opt, ServerConf};
 use pingora::server::{RunArgs, Server as PingoraServer, ShutdownSignal, ShutdownSignalWatch};
 use tokio::sync::watch;
 
-use crate::handler::{AccessLog, AccessLogger, RequestDecision, RequestHandler, RequestView};
+use crate::handler::{
+    AccessLog, AccessLogger, RequestDecision, RequestHandler, RequestView, ACCESS_LOG_QUEUE,
+};
 use crate::metrics::MetricsProxy;
 use crate::options::{ListenerOptions, RouteOptions, ServerOptions, TlsOptions};
 use crate::proxy::JsProxy;
@@ -508,7 +510,7 @@ impl JsServer {
         let tsfn = handler
             .build_threadsafe_function::<AccessLog>()
             .weak::<true>()
-            .max_queue_size::<1024>()
+            .max_queue_size::<ACCESS_LOG_QUEUE>()
             .build()?;
         self.state
             .shared

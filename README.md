@@ -78,7 +78,8 @@ Invalid options are reported by `start()` and in `status().error`.
 ### Access logs
 
 The server submits up to one record per completed request to the registered
-handler. Delivery is best effort; a full queue drops records. The callback
+handler. Delivery is best effort; at most 1024 records may be in flight, and
+excess records are dropped. The callback
 may be async; returned promises are fire-and-forget and rejections are
 swallowed. Records are submitted through a non-blocking TSFN with a bounded
 1024-record queue; a full queue drops records rather than blocking proxy
