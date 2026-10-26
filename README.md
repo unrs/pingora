@@ -74,16 +74,14 @@ Invalid options are reported by `start()` and in `status().error`.
 
 ### Access logs
 
-`setAccessLogHandler` uses Node-style `(error, record)` delivery. It receives one
-record per completed request. The callback is
+`setAccessLogHandler` receives one record per completed request. The callback is
 invoked through a non-blocking TSFN with a bounded 1024-record queue; a full
 queue drops records rather than blocking proxy threads. Callback exceptions are
 swallowed so access logging cannot crash the proxy. Clearing the handler
 detaches it; records already submitted or queued may still be delivered.
 
 ```js
-server.setAccessLogHandler((error, record) => {
-  if (error) return
+server.setAccessLogHandler((record) => {
   console.log(record.method, record.path, record.status, record.durationMs)
 })
 ```
@@ -125,7 +123,7 @@ process-wide and happens on the first server start.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
-- `setAccessLogHandler(fn): void` — Node-style `(error, record)` callback for each completed request.
+- `setAccessLogHandler(fn): void` — receives a record for each completed request.
 - `clearAccessLogHandler(): void` — detaches the access log handler. Records already
   submitted or queued may still be delivered.
 - `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.

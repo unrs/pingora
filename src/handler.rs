@@ -69,7 +69,7 @@ pub struct AccessLog {
     pub duration_ms: f64,
 }
 
-pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, true, true, 1024>;
+pub type AccessLogTsfn = ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true, 1024>;
 
 pub struct AccessLogger {
     tsfn: AccessLogTsfn,
@@ -82,7 +82,7 @@ impl AccessLogger {
 
     pub fn log(&self, record: AccessLog) {
         let _ = self.tsfn.call_with_return_value(
-            Ok(record),
+            record,
             ThreadsafeFunctionCallMode::NonBlocking,
             |_result, _env| Ok(()),
         );
