@@ -682,6 +682,40 @@ mod tests {
     }
 
     #[test]
+    fn unhealthy_peers_are_filtered_for_all_strategies() {
+        for strategy in [
+            "round_robin",
+            "random",
+            "least_connections",
+            "weighted_round_robin",
+        ] {
+            let route = route_with_strategy(
+                strategy,
+                vec!["127.0.0.1:9000".to_string(), "127.0.0.1:9001".to_string()],
+            );
+            route.upstreams[0].health.mark_unhealthy();
+            for _ in 0..50 {
+                assert_ne!(in_addr(route.pick().unwrap()).port(), 9000);
+            }
+        }
+    }
+
+    #[test]
+    fn all_unhealthy_peers_fall_back() {
+        let route = route_with_strategy(
+            "round_robin",
+            vec!["127.0.0.1:9000".to_string(), "127.0.0.1:9001".to_string()],
+        );
+        for upstream in &route.upstreams {
+            upstream.health.mark_unhealthy();
+        }
+        for _ in 0..4 {
+            let port = in_addr(route.pick().unwrap()).port();
+            assert!(port == 9000 || port == 9001);
+        }
+    }
+
+    #[test]
     fn strategy_round_robins() {
         let route = route_with_upstreams(vec![
             "127.0.0.1:9000".to_string(),
