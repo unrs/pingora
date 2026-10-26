@@ -16,6 +16,9 @@ npm install pingora
 # or: pnpm add pingora
 ```
 
+The package uses `napi-postinstall` as a runtime fallback when npm fails to
+install the matching optional platform binding.
+
 ## Quick start
 
 ```js
@@ -72,6 +75,38 @@ response instead of `413`; the oversized body is still not forwarded further.
 
 Invalid options are reported by `start()` and in `status().error`.
 
+### Access logs
+
+The server submits up to one record per completed request to the registered
+handler. Delivery is best effort; at most 1024 records may be in flight, and
+excess records are dropped. The callback
+may be async; returned promises are fire-and-forget and rejections are
+swallowed. Records are submitted through a non-blocking TSFN with a bounded
+1024-record queue; a full queue drops records rather than blocking proxy
+threads. Callback exceptions are swallowed so access logging cannot crash the
+proxy. Clearing the handler detaches it; records already submitted or queued
+may still be delivered.
+
+```js
+server.setAccessLogHandler(async (record) => {
+  await sendToCollector(record)
+})
+```
+
+```ts
+interface AccessLog {
+  method: string
+  path: string
+  status?: number
+  routeId?: string
+  upstreamError: boolean
+  durationMs: number
+}
+
+// async handlers are allowed
+setAccessLogHandler(handler: (record: AccessLog) => void | Promise<void>): void
+```
+
 ### Logging
 
 `logFormat: 'json'` emits one JSON object per log line:
@@ -98,6 +133,9 @@ process-wide and happens on the first server start.
 - `addRoute(route): string` — adds or replaces a route by id and returns the id.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
+- `setAccessLogHandler(fn): void` — installs a handler that receives up to one record per completed request.
+- `clearAccessLogHandler(): void` — detaches the access log handler. Records already
+  submitted or queued may still be delivered.
 - `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.
 
 `state` is one of `idle`, `starting`, `running`, `stopping`, `stopped`, or
@@ -335,7 +373,7 @@ These are end-to-end Node numbers, not Pingora's raw ceiling. See
 
 ## Requirements
 
-- **Runtime:** Node.js 10.16+ (CommonJS entry; `import` interop works on Node 12.22+)
+- **Runtime:** `^12.20.0 || ^14.18.0 || >=16.0.0` (CommonJS entry; `import` interop works on Node 12.22+)
 - Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)
 - Prebuilt binaries are installed through npm; source builds are documented in
   [docs/development.md](./docs/development.md).

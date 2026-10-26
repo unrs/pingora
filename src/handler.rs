@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use napi::bindgen_prelude::{Either, Promise};
-use napi::threadsafe_function::ThreadsafeFunction;
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::Status;
 use napi_derive::napi;
 use pingora::proxy::Session;
@@ -51,6 +53,72 @@ pub struct RequestDecision {
     pub response_headers: Option<HashMap<String, String>>,
     /// Response headers removed from a proxied response.
     pub remove_response_headers: Option<Vec<String>>,
+}
+
+#[napi(object)]
+pub struct AccessLog {
+    /// Request method, e.g. `GET`.
+    pub method: String,
+    /// Raw, percent-encoded request path.
+    pub path: String,
+    /// Response status, if a response was written.
+    pub status: Option<u16>,
+    /// Matched route id, or `None` when no route matched.
+    pub route_id: Option<String>,
+    /// Whether the failure came from the upstream.
+    pub upstream_error: bool,
+    /// Request duration in milliseconds.
+    pub duration_ms: f64,
+}
+
+pub const ACCESS_LOG_QUEUE: usize = 1024;
+
+pub type AccessLogTsfn =
+    ThreadsafeFunction<AccessLog, (), AccessLog, Status, false, true, ACCESS_LOG_QUEUE>;
+
+pub struct AccessLogger {
+    tsfn: AccessLogTsfn,
+    in_flight: Arc<AtomicUsize>,
+}
+
+impl AccessLogger {
+    pub fn new(tsfn: AccessLogTsfn) -> Self {
+        Self {
+            tsfn,
+            in_flight: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    pub fn log(&self, record: AccessLog) {
+        let mut in_flight = self.in_flight.load(Ordering::Relaxed);
+        loop {
+            if in_flight >= ACCESS_LOG_QUEUE {
+                return;
+            }
+            match self.in_flight.compare_exchange_weak(
+                in_flight,
+                in_flight + 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(current) => in_flight = current,
+            }
+        }
+
+        let in_flight = self.in_flight.clone();
+        let status = self.tsfn.call_with_return_value(
+            record,
+            ThreadsafeFunctionCallMode::NonBlocking,
+            move |_result, _env| {
+                in_flight.fetch_sub(1, Ordering::Relaxed);
+                Ok(())
+            },
+        );
+        if status != Status::Ok {
+            self.in_flight.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
 }
 
 pub type HandlerReturn = Either<Promise<RequestDecision>, RequestDecision>;

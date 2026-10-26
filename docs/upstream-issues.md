@@ -1,10 +1,12 @@
 # Upstream issues
 
-Known issues in [`cloudflare/pingora`](https://github.com/cloudflare/pingora) that
-we have actually observed and are tracking instead of working around locally.
+Known issues in upstream dependencies that we have actually observed and are
+tracking instead of silently working around. Most are in
+[`cloudflare/pingora`](https://github.com/cloudflare/pingora); the access-log
+queue leak is in [`napi-rs`](https://github.com/napi-rs/napi-rs).
 
 Add an entry only when there is an upstream issue link; this is not a general
-list of every Pingora limitation.
+list of every limitation.
 
 ## #374 — Prebound listener / Unix-socket bind ownership
 
@@ -45,3 +47,17 @@ list of every Pingora limitation.
   status `205` are left to Pingora until the issue is fixed.
 - Cleanup: remove this entry and the related handler caveat when the upstream
   fix lands.
+
+## napi-rs #3655 — ThreadsafeFunction leaks boxed call data when the queue is full
+
+- Status: open
+- Link: https://github.com/napi-rs/napi-rs/issues/3655
+- Affects: any bounded `ThreadsafeFunction` used with
+  `ThreadsafeFunctionCallMode::NonBlocking`, including the access-log bridge
+- Detail: napi-rs boxes `ThreadsafeFunctionCallJsBackData` before
+  `napi_call_threadsafe_function`; when the call returns `napi_queue_full`,
+  Node-API does not consume the pointer and napi-rs does not free it.
+- Binding workaround: cap access-log submissions at 1024 in flight before calling
+  the TSFN, so the queue is not allowed to overflow.
+- Cleanup: once #3655 is fixed, the in-flight guard is no longer needed for leak
+  avoidance; keep it only if the explicit best-effort/drop policy is still wanted.

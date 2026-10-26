@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use pingora::http::RequestHeader;
 
-use crate::handler::RequestHandler;
+use crate::handler::{AccessLogger, RequestHandler};
 use crate::options::RouteOptions;
 use crate::router::{normalize_host, parse_route, Route};
 
@@ -75,6 +75,7 @@ pub struct SharedState {
     metrics: Metrics,
     started_at: Instant,
     handler: RwLock<Option<Arc<RequestHandler>>>,
+    access_logger: RwLock<Option<Arc<AccessLogger>>>,
 }
 
 impl SharedState {
@@ -86,6 +87,7 @@ impl SharedState {
             metrics: Metrics::default(),
             started_at: Instant::now(),
             handler: RwLock::new(None),
+            access_logger: RwLock::new(None),
         };
 
         for route in routes {
@@ -135,6 +137,14 @@ impl SharedState {
 
     pub fn handler(&self) -> Option<Arc<RequestHandler>> {
         self.handler.read().unwrap().clone()
+    }
+
+    pub fn set_access_logger(&self, logger: Option<Arc<AccessLogger>>) {
+        *self.access_logger.write().unwrap() = logger;
+    }
+
+    pub fn access_logger(&self) -> Option<Arc<AccessLogger>> {
+        self.access_logger.read().unwrap().clone()
     }
 
     pub fn match_route(&self, req: &RequestHeader, host: &str, path: &str) -> Option<Arc<Route>> {

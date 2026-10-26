@@ -77,7 +77,7 @@ These are deliberately out of scope for the first stable release:
 | D4  | The JS handler is async, receives request metadata, and returns a decision (`continue` or `respond`).                           | Header-level programmability covers auth gates, canary routing, redirects, and synthetic responses without body streaming.      | Proposed |
 | D5  | TLS uses **rustls** for both listeners and upstream connections.                                                               | Pure-Rust build, no BoringSSL/OpenSSL toolchain, predictable cross-compilation.                                                  | Proposed |
 | D6  | Programmatic graceful shutdown via a custom Pingora `ShutdownSignalWatch`; `stop()` joins the thread off the JS thread.        | Pingora's built-in watcher only listens for OS signals; a watch channel lets Node request shutdown without killing the process.  | Proposed |
-| D7  | Ship the napi-rs-generated CommonJS loader; rely on Node's ESM interop for `import` consumers.                                 | One generated entry keeps the runtime floor at Node 10.16 (N-API 4) and still supports named ESM imports on modern Node.       | Proposed |
+| D7  | Ship the napi-rs-generated CommonJS loader; rely on Node's ESM interop for `import` consumers.                                 | One generated entry keeps the runtime floor at Node 12.20 because napi-postinstall requires it, and still supports named ESM imports on modern Node.       | Proposed |
 | D8  | Tier 1 platforms: Linux x64/arm64 (glibc), macOS x64/arm64. Tier 2: Linux musl. Windows later.                                  | Matches Pingora's practical deployment target and keeps the prebuild matrix manageable.                                           | Proposed |
 | D9  | Grow into a package family: `pingora` for the proxy and `@pingora/http-server` for the later server framework.                | Both packages share one native integration; keeping the proxy API stable first lets the framework build on a proven core.        | Proposed |
 
@@ -333,7 +333,7 @@ singleton guard is held. `stop()` is idempotent.
 | Prometheus metrics endpoint   | 0.4   | Implemented |
 | Config file + schema          | 0.4   | Deferred    |
 | Structured JSON logs          | 0.4   | Implemented |
-| Structured log bridge to JS   | 0.4   | Exploring   |
+| JS access-log callback        | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
 | Native proxy benchmarks       | 0.4      | Planned     |
 | Server framework package       | post-1.0 | Exploring   |
@@ -443,7 +443,7 @@ macOS.
 - [x] Per-route metrics, Prometheus text output, and a dedicated
       `metricsAddress` endpoint for `/metrics` and `/healthz`.
 - [x] Structured JSON logging via `logFormat: 'json'`.
-- [ ] JS log callback (avoid blocking proxy threads).
+- [x] JS access-log callback via a non-blocking TSFN.
 - [x] Defer a custom config-file parser for now. Users can load JSON directly
       with CommonJS (`const config = require('./pingora.config.json')`) or, on
       modern Node ESM, `import config from './pingora.config.json' with { type: 'json' }`;
@@ -554,7 +554,7 @@ large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 
 ## 9. Distribution and compatibility
 
-- **Runtime compatibility floor:** Node.js 10.16+ via the CommonJS loader
+- **Runtime compatibility floor:** Node.js `^12.20.0 || ^14.18.0 || >=16.0.0` via the CommonJS loader
   (N-API 4). ESM `import` interop requires Node.js 12.22+ (named exports are
   detected by Node's CJS lexer). This floor is separate from the supported
   Node.js release lines. Building from source needs Node.js 20.17+ for the
