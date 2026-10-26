@@ -10,7 +10,7 @@ use pingora::upstreams::peer::HttpPeer;
 use pingora::{Error, ErrorSource, ErrorType};
 
 use crate::handler::{AccessLog, HandlerError, RequestDecision, RequestView};
-use crate::router::{normalize_host, parse_upstream, Route, Strategy, Upstream};
+use crate::router::{normalize_host, parse_upstream, Route, Strategy, Upstream, UpstreamHealth};
 use crate::server::Limits;
 use crate::state::{request_host, SharedState};
 
@@ -131,6 +131,7 @@ pub struct ProxyCtx {
     active: bool,
     body_bytes: u64,
     active_upstream: Option<Arc<AtomicUsize>>,
+    selected_health: Option<Arc<UpstreamHealth>>,
     started_at: Option<Instant>,
 }
 
@@ -240,8 +241,8 @@ impl ProxyHttp for JsProxy {
         // per-attempt counter so replay does not double-count the same bytes.
         ctx.body_bytes = 0;
         ctx.release_active_upstream();
-        let (peer, active) = if let Some(upstream) = ctx.upstream.as_ref() {
-            (upstream.to_peer(), None)
+        let (peer, active, health) = if let Some(upstream) = ctx.upstream.as_ref() {
+            (upstream.to_peer(), None, Some(upstream.health.clone()))
         } else {
             let route = ctx.route.as_ref().ok_or_else(|| {
                 Error::explain(ErrorType::InternalError, "no route selected for upstream")
@@ -251,9 +252,10 @@ impl ProxyHttp for JsProxy {
                 .ok_or_else(|| Error::explain(ErrorType::InternalError, "route has no upstream"))?;
             let active =
                 (route.strategy == Strategy::LeastConnections).then(|| upstream.active.clone());
-            (upstream.to_peer(), active)
+            (upstream.to_peer(), active, Some(upstream.health.clone()))
         };
         ctx.active_upstream = active;
+        ctx.selected_health = health;
         let mut peer = peer.map_err(|error| Error::explain(ErrorType::InternalError, error))?;
 
         if let Some(timeout) = ctx.route.as_ref().and_then(|route| route.timeout) {
@@ -264,6 +266,19 @@ impl ProxyHttp for JsProxy {
         }
 
         Ok(Box::new(peer))
+    }
+
+    fn fail_to_connect(
+        &self,
+        _session: &mut Session,
+        _peer: &HttpPeer,
+        ctx: &mut Self::CTX,
+        error: Box<Error>,
+    ) -> Box<Error> {
+        if let Some(health) = ctx.selected_health.as_ref() {
+            health.mark_unhealthy();
+        }
+        error
     }
 
     async fn upstream_request_filter(

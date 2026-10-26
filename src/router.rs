@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
@@ -38,6 +38,33 @@ pub enum HostPattern {
 
 type CaBundle = Arc<[WrappedX509]>;
 
+const HEALTH_COOLDOWN: Duration = Duration::from_secs(5);
+
+#[derive(Debug, Default)]
+pub struct UpstreamHealth {
+    blocked_until_ms: AtomicU64,
+}
+
+impl UpstreamHealth {
+    fn is_healthy(&self) -> bool {
+        self.blocked_until_ms.load(Ordering::Relaxed) <= now_ms()
+    }
+
+    pub(crate) fn mark_unhealthy(&self) {
+        self.blocked_until_ms.store(
+            now_ms() + HEALTH_COOLDOWN.as_millis() as u64,
+            Ordering::Relaxed,
+        );
+    }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
 #[derive(Debug, Clone)]
 pub enum UpstreamAddress {
     Inet(SocketAddr),
@@ -54,6 +81,7 @@ pub struct Upstream {
     pub group_key: u64,
     pub weight: u32,
     pub active: Arc<AtomicUsize>,
+    pub health: Arc<UpstreamHealth>,
 }
 
 #[derive(Debug)]
@@ -116,22 +144,32 @@ impl Route {
     }
 
     pub fn pick(&self) -> Option<&Upstream> {
-        let len = self.upstreams.len();
-        if len == 0 {
+        if self.upstreams.is_empty() {
             return None;
         }
+        let mut candidates = self
+            .upstreams
+            .iter()
+            .enumerate()
+            .filter(|(_, upstream)| upstream.health.is_healthy())
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            candidates.extend(0..self.upstreams.len());
+        }
         let index = match self.strategy {
-            Strategy::First => 0,
-            Strategy::RoundRobin => self.counter.fetch_add(1, Ordering::Relaxed) % len,
-            Strategy::Random => random_index(len),
+            Strategy::First => candidates[0],
+            Strategy::RoundRobin => {
+                let position = self.counter.fetch_add(1, Ordering::Relaxed) % candidates.len();
+                candidates[position]
+            }
+            Strategy::Random => candidates[random_index(candidates.len())],
             Strategy::LeastConnections => loop {
-                let (index, current) = self
-                    .upstreams
+                let (index, current) = candidates
                     .iter()
-                    .enumerate()
-                    .map(|(index, upstream)| (index, upstream.active.load(Ordering::Relaxed)))
+                    .map(|&index| (index, self.upstreams[index].active.load(Ordering::Relaxed)))
                     .min_by_key(|(_, count)| *count)
-                    .unwrap_or((0, 0));
+                    .unwrap_or((candidates[0], 0));
                 if self.upstreams[index]
                     .active
                     .compare_exchange(current, current + 1, Ordering::Relaxed, Ordering::Relaxed)
@@ -142,23 +180,20 @@ impl Route {
             },
             Strategy::WeightedRoundRobin => {
                 let mut current = self.weighted.lock().unwrap();
-                if current.len() != len {
-                    *current = vec![0; len];
+                if current.len() != self.upstreams.len() {
+                    *current = vec![0; self.upstreams.len()];
                 }
-                let total: i64 = self
-                    .upstreams
-                    .iter()
-                    .map(|upstream| upstream.weight as i64)
-                    .sum();
-                for (value, upstream) in current.iter_mut().zip(&self.upstreams) {
-                    *value += upstream.weight as i64;
+                let mut total = 0i64;
+                for &index in &candidates {
+                    let weight = self.upstreams[index].weight as i64;
+                    current[index] += weight;
+                    total += weight;
                 }
-                let index = current
+                let index = candidates
                     .iter()
-                    .enumerate()
-                    .max_by_key(|(_, value)| **value)
-                    .map(|(index, _)| index)
-                    .unwrap_or(0);
+                    .copied()
+                    .max_by_key(|index| current[*index])
+                    .unwrap_or(candidates[0]);
                 current[index] -= total;
                 index
             }
@@ -498,6 +533,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
             group_key,
             weight,
             active: Arc::new(AtomicUsize::new(0)),
+            health: Arc::new(UpstreamHealth::default()),
         });
     }
 
@@ -538,6 +574,7 @@ pub(crate) fn parse_upstream(value: Either<String, UpstreamOptions>) -> Result<U
         group_key,
         weight,
         active: Arc::new(AtomicUsize::new(0)),
+        health: Arc::new(UpstreamHealth::default()),
     })
 }
 
