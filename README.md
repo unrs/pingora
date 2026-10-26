@@ -76,7 +76,8 @@ Invalid options are reported by `start()` and in `status().error`.
 
 `setAccessLogHandler` receives one record per completed request. The callback is
 invoked through a non-blocking TSFN with a bounded 1024-record queue; a full
-queue drops records rather than blocking proxy threads.
+queue drops records rather than blocking proxy threads. Clearing the handler
+detaches it; records already submitted or queued may still be delivered.
 
 ```js
 server.setAccessLogHandler((record) => {
@@ -122,7 +123,8 @@ process-wide and happens on the first server start.
 - `removeRoute(id): boolean` — removes a route, returning whether it existed.
 - `setRequestHandler(fn): void` — installs an async request handler.
 - `setAccessLogHandler(fn): void` — receives a non-blocking record for each completed request.
-- `clearAccessLogHandler(): void` — removes the access log handler.
+- `clearAccessLogHandler(): void` — detaches the access log handler. Records already
+  submitted or queued may still be delivered.
 - `clearRequestHandler(): void` — removes the handler; the Rust fast path resumes.
 
 `state` is one of `idle`, `starting`, `running`, `stopping`, `stopped`, or

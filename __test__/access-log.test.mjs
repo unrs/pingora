@@ -23,6 +23,7 @@ test('reports completed requests to an access log handler', async () => {
     assert.ok(record.durationMs >= 0)
 
     proxy.server.clearAccessLogHandler()
+    await new Promise((resolve) => setTimeout(resolve, 50))
     const count = records.length
     const afterClear = await fetch(`http://127.0.0.1:${proxy.port}/after-clear`)
     await afterClear.text()
