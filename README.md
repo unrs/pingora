@@ -16,6 +16,9 @@ npm install pingora
 # or: pnpm add pingora
 ```
 
+The package uses `napi-postinstall` as a runtime fallback when npm fails to
+install the matching optional platform binding.
+
 ## Quick start
 
 ```js
@@ -74,16 +77,17 @@ Invalid options are reported by `start()` and in `status().error`.
 
 ### Access logs
 
-`setAccessLogHandler` receives one record per completed request. The callback is synchronous and receives one argument; returning a Promise is
-not supported. Records are submitted through a non-blocking TSFN with a bounded
+`setAccessLogHandler` receives one record per completed request. The callback
+may be async; returned promises are fire-and-forget and rejections are
+swallowed. Records are submitted through a non-blocking TSFN with a bounded
 1024-record queue; a full queue drops records rather than blocking proxy
 threads. Callback exceptions are swallowed so access logging cannot crash the
-proxy. Clearing the handler
-detaches it; records already submitted or queued may still be delivered.
+proxy. Clearing the handler detaches it; records already submitted or queued
+may still be delivered.
 
 ```js
-server.setAccessLogHandler((record) => {
-  console.log(record.method, record.path, record.status, record.durationMs)
+server.setAccessLogHandler(async (record) => {
+  await sendToCollector(record)
 })
 ```
 
@@ -96,6 +100,9 @@ interface AccessLog {
   upstreamError: boolean
   durationMs: number
 }
+
+// async handlers are allowed
+setAccessLogHandler(handler: (record: AccessLog) => void | Promise<void>): void
 ```
 
 ### Logging
