@@ -54,7 +54,9 @@
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
     "test:watch": "pnpm run build:debug && vitest",
-    "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\""
+    "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
+    "postbuild": "node scripts/postbuild.mjs",
+    "postbuild:debug": "node scripts/postbuild.mjs"
   },
   "publishConfig": {
     "access": "public",
@@ -69,5 +71,8 @@
     "lefthook": "^2.2.2",
     "vitest": "^5.0.5"
   },
-  "packageManager": "pnpm@12.14.0"
+  "packageManager": "pnpm@12.14.0",
+  "dependencies": {
+    "napi-postinstall": "^0.3.7"
+  }
 }
