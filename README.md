@@ -74,10 +74,11 @@ Invalid options are reported by `start()` and in `status().error`.
 
 ### Access logs
 
-`setAccessLogHandler` receives one record per completed request. The callback is
-invoked through a non-blocking TSFN with a bounded 1024-record queue; a full
-queue drops records rather than blocking proxy threads. Callback exceptions are
-swallowed so access logging cannot crash the proxy. Clearing the handler
+`setAccessLogHandler` receives one record per completed request. The callback is synchronous and receives one argument; returning a Promise is
+not supported. Records are submitted through a non-blocking TSFN with a bounded
+1024-record queue; a full queue drops records rather than blocking proxy
+threads. Callback exceptions are swallowed so access logging cannot crash the
+proxy. Clearing the handler
 detaches it; records already submitted or queued may still be delivered.
 
 ```js

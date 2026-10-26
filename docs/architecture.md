@@ -92,7 +92,8 @@ streamed request bodies are counted in `request_body_filter` and rejected with
 ## Access logs
 
 `setAccessLogHandler` submits up to one `AccessLog` record per request from
-`logging` through a non-blocking TSFN. The TSFN can drop records when its
+`logging` through a non-blocking TSFN. The callback is synchronous; Promise
+returns are unsupported. The TSFN can drop records when its
 1,024-entry queue is full. Callback exceptions are swallowed. System logs remain on the env_logger path.
 
 ## Logging
