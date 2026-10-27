@@ -4,10 +4,13 @@ import net from 'node:net'
 import { Server } from '../index.js'
 
 const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.1)
-if (!Number.isFinite(threshold) || threshold < 0) {
-  throw new Error(`BENCH_GATE_THRESHOLD must be a finite non-negative number, got ${process.env.BENCH_GATE_THRESHOLD}`)
+if (!Number.isFinite(threshold) || threshold <= 0) {
+  throw new Error(`BENCH_GATE_THRESHOLD must be a finite positive number, got ${process.env.BENCH_GATE_THRESHOLD}`)
 }
 const durationMs = Number(process.env.BENCH_GATE_DURATION_MS ?? 1_000)
+if (!Number.isFinite(durationMs) || durationMs <= 0) {
+  throw new Error(`BENCH_GATE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_GATE_DURATION_MS}`)
+}
 const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
 
 function listen(server) {
