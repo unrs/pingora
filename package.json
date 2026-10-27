@@ -57,7 +57,9 @@
     "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
     "postbuild": "node scripts/postbuild.mjs",
     "postbuild:debug": "node scripts/postbuild.mjs",
-    "soak": "pnpm run build:debug && node scripts/soak.mjs"
+    "soak": "pnpm run build:debug && node scripts/soak.mjs",
+    "bench:gate": "pnpm run build && node bench/gate.mjs",
+    "bench:gate:debug": "node bench/gate.mjs"
   },
   "publishConfig": {
     "access": "public",

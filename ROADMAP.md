@@ -456,7 +456,7 @@ macOS.
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
       tested native proxy versions.
-- [ ] Add a CI performance regression gate.
+- [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
 - [x] Add a soak harness for sustained traffic, route/handler churn, and
