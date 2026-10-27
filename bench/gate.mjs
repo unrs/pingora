@@ -4,6 +4,9 @@ import net from 'node:net'
 import { Server } from '../index.js'
 
 const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.1)
+if (!Number.isFinite(threshold) || threshold < 0) {
+  throw new Error(`BENCH_GATE_THRESHOLD must be a finite non-negative number, got ${process.env.BENCH_GATE_THRESHOLD}`)
+}
 const durationMs = Number(process.env.BENCH_GATE_DURATION_MS ?? 1_000)
 const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
 
@@ -22,24 +25,42 @@ async function freePort() {
   return port
 }
 
-function request(port, path = '/') {
+function request(port, path = '/', timeoutMs = 5_000) {
   return new Promise((resolve, reject) => {
+    let settled = false
+    let deadline
+    const finish = (error, status) => {
+      if (settled) return
+      settled = true
+      clearTimeout(deadline)
+      if (error) reject(error)
+      else resolve(status)
+    }
     const req = http.get({ host: '127.0.0.1', port, path, agent }, (res) => {
       res.resume()
-      res.once('end', () => resolve(res.statusCode))
-      res.once('error', reject)
+      res.once('end', () => finish(null, res.statusCode))
+      res.once('error', (error) => finish(error))
     })
-    req.once('error', reject)
-    req.setTimeout(5_000, () => req.destroy(new Error('benchmark request timeout')))
+    req.once('error', (error) => finish(error))
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`benchmark request inactivity timeout after ${timeoutMs}ms`))
+    })
+    deadline = setTimeout(() => {
+      req.destroy(new Error(`benchmark request deadline after ${timeoutMs}ms`))
+    }, timeoutMs)
   })
 }
 
-async function waitFor(port) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+async function waitFor(port, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now()
     try {
-      if ((await request(port)) === 200) return
+      if ((await request(port, '/', Math.min(500, remaining))) === 200) return
     } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(20, Math.max(0, deadline - Date.now()))),
+    )
   }
   throw new Error('benchmark proxy did not become ready')
 }
