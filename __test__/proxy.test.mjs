@@ -276,6 +276,37 @@ test('supports hot route updates', async () => {
   assert.equal(proxy.server.removeRoute('hot'), false)
 })
 
+test('skips an upstream after a connection failure', async () => {
+  const healthy = await startUpstream((_req, res) => res.end('healthy'))
+  const dead = await freePort()
+  onTestFinished(() => healthy.close())
+
+  const proxy = await createProxy({
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${dead}`, `127.0.0.1:${healthy.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  const failed = await waitForProxy(`http://127.0.0.1:${proxy.port}/first`)
+  assert.equal(failed.status, 502)
+  await failed.text()
+
+  const recovered = await eventually(async () => {
+    try {
+      const response = await fetch(`http://127.0.0.1:${proxy.port}/second`)
+      return response.status === 200 ? response : null
+    } catch {
+      return null
+    }
+  }, 'healthy upstream was not selected after failure')
+  assert.equal(await recovered.text(), 'healthy')
+})
+
 test('returns 502 when the upstream is unavailable', async () => {
   const unavailablePort = await freePort()
   const proxy = await createProxy({

@@ -75,6 +75,13 @@ response instead of `413`; the oversized body is still not forwarded further.
 
 Invalid options are reported by `start()` and in `status().error`.
 
+### Upstream health
+
+A failed upstream connection marks that peer unavailable for 5 seconds. Route
+selection skips it and uses a healthy peer; if every peer is unavailable, all are
+eligible again so the proxy can still attempt a connection. This is passive
+health only; active HTTP health checks are not implemented.
+
 ### Access logs
 
 The server submits up to one record per completed request to the registered
