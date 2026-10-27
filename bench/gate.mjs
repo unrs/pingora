@@ -79,16 +79,16 @@ async function throughput(port, milliseconds) {
 async function main() {
   const origin = http.createServer((_req, res) => res.end('ok'))
   await listen(origin)
-  const proxyPort = await freePort()
-  const server = new Server({
-    listeners: [`127.0.0.1:${proxyPort}`],
-    routes: [{ path: '/', upstreams: [`127.0.0.1:${origin.address().port}`] }],
-    gracePeriodMs: 0,
-    shutdownTimeoutMs: 500,
-    logLevel: 'off',
-  })
-
+  let server
   try {
+    const proxyPort = await freePort()
+    server = new Server({
+      listeners: [`127.0.0.1:${proxyPort}`],
+      routes: [{ path: '/', upstreams: [`127.0.0.1:${origin.address().port}`] }],
+      gracePeriodMs: 0,
+      shutdownTimeoutMs: 500,
+      logLevel: 'off',
+    })
     server.start()
     await waitFor(proxyPort)
     await throughput(origin.address().port, 200)
@@ -105,7 +105,7 @@ async function main() {
     }
   } finally {
     agent.destroy()
-    await server.stop()
+    await server?.stop()
     origin.closeAllConnections?.()
     await new Promise((resolve) => origin.close(resolve))
   }
