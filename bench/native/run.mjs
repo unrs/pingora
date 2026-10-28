@@ -1,12 +1,9 @@
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
-import net from 'node:net'
 import { availableParallelism } from 'node:os'
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-
-import { Server } from '../../index.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
@@ -25,6 +22,7 @@ const targets = [
   ['caddy', 18082],
   ['openresty', 18083],
   ['haproxy', 18084],
+  ['pingora', 18085],
 ]
 const modes = (process.env.BENCH_NATIVE_ORIGIN_MODES ?? 'cached,file')
   .split(',')
@@ -46,21 +44,6 @@ function positiveInteger(name, value) {
 function docker(...args) {
   const result = spawnSync('docker', args, { stdio: 'inherit' })
   if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
-}
-
-function listen(server) {
-  return new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-}
-
-async function freePort() {
-  const probe = net.createServer()
-  await listen(probe)
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
-  return port
 }
 
 function request(port) {
@@ -122,27 +105,13 @@ async function runMode(mode) {
   docker('compose', '-f', compose, 'up', '-d')
 
   const origin = 18080
-  let server
   try {
-    const proxyPort = await freePort()
-    server = new Server({
-      listeners: [`127.0.0.1:${proxyPort}`],
-      routes: [{ path: '/', upstreams: [`127.0.0.1:${origin}`] }],
-      threads,
-      gracePeriodMs: 0,
-      shutdownTimeoutMs: 500,
-      logLevel: 'off',
-    })
     await waitFor(origin)
-    server.start()
-    await waitFor(proxyPort)
     const results = [await measure(origin, 'direct origin (start)', mode)]
     for (const [label, port] of targets) results.push(await measure(port, label, mode))
-    results.push(await measure(proxyPort, 'pingora', mode))
     results.push(await measure(origin, 'direct origin (end)', mode))
     return results
   } finally {
-    await server?.stop()
     docker('compose', '-f', compose, 'down')
   }
 }

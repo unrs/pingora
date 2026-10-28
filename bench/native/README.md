@@ -1,7 +1,7 @@
 # Native proxy benchmark
 
-Pinned Compose services for nginx, Caddy, OpenResty, and HAProxy, all proxying to
-the same `hashicorp/http-echo` origin. A host-side Pingora instance uses the same
+Pinned Compose services for Pingora, nginx, Caddy, OpenResty, and HAProxy, all
+proxying to the same origin. A host-side Pingora instance uses the same
 origin and the same Node load generator.
 
 ```sh

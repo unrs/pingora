@@ -6,6 +6,19 @@ services:
     ports:
       - "127.0.0.1:18080:8080"
 
+  pingora:
+    build:
+      context: ../..
+      dockerfile: bench/native/pingora.Dockerfile
+    depends_on:
+      - origin
+    environment:
+      ORIGIN: origin:8080
+      THREADS: 4
+      PORT: 8085
+    ports:
+      - "127.0.0.1:18085:8085"
+
   nginx:
     image: nginx:1.27.5-alpine
     depends_on:
