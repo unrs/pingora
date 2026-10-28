@@ -111,6 +111,9 @@ async function runMode(mode) {
     for (const [label, port] of targets) results.push(await measure(port, label, mode))
     results.push(await measure(origin, 'direct origin (end)', mode))
     return results
+  } catch (error) {
+    docker('compose', '-f', compose, 'logs', '--no-color', 'pingora')
+    throw error
   } finally {
     docker('compose', '-f', compose, 'down')
   }
