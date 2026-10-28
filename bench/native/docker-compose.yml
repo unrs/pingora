@@ -13,7 +13,8 @@ services:
     depends_on:
       - origin
     environment:
-      ORIGIN: origin:8080
+      ORIGIN_HOST: origin
+      ORIGIN_PORT: 8080
       THREADS: 4
       PORT: 8085
     ports:
