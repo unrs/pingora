@@ -12,6 +12,9 @@ categories = ["network-programming", "api-bindings"]
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+bench-minimal = []
+
 [dependencies]
 async-trait = "0.1"
 bytes = "1"

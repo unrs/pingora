@@ -1,7 +1,7 @@
 # Native proxy benchmark
 
-Pinned Compose services for Pingora, nginx, Caddy, OpenResty, and HAProxy, all
-proxying to the same origin. A host-side Pingora instance uses the same
+Pinned Compose services for Pingora, a bench-minimal Pingora build, nginx,
+Caddy, OpenResty, and HAProxy, all proxying to the same origin. A host-side Pingora instance uses the same
 origin and the same Node load generator.
 
 ```sh
@@ -20,3 +20,10 @@ disabled for the proxies; nginx/OpenResty use four workers, HAProxy uses `nbthre
 This harness is not a replacement for a native load generator. It reports Node
 client throughput and p50/p99 latency; CPU/RSS and external load-generator
 numbers still need to be captured for the published report.
+
+## Minimal binding
+
+The `pingora-minimal` target is built with `--features bench-minimal`. That
+feature skips request metrics, route metrics, limit checks, handler/access-log
+lookups, and the logging hook; routing and proxying stay intact. It exists only
+for benchmark attribution and is not a supported runtime mode.

@@ -45,18 +45,19 @@ threshold; it is a catastrophic-regression guard, not a precise benchmark.
 
 ## Native proxy matrix
 
-`bench/native` contains pinned Docker Compose configs for nginx, Caddy,
-OpenResty, and HAProxy sharing one origin. `pnpm bench:native` runs the matrix
+`bench/native` contains pinned Docker Compose configs for Pingora, a
+`bench-minimal` Pingora build, nginx, Caddy, OpenResty, and HAProxy sharing one
+origin and Docker network. `pnpm bench:native` runs the matrix
 with the same Node load generator used by the smoke gate:
 
 ```sh
 pnpm bench:native
 ```
 
-It reports throughput and p50/p99 latency per target in both `cached` and
-`file` origin modes, measuring the direct origin before and after each proxy
-matrix to expose run-to-run drift. The harness
-requires Docker; CPU/RSS and a native load generator are still required for the published
+It reports throughput and p50/p99 latency per target, including the
+benchmark-only minimal Pingora build, in both `cached` and `file` origin modes.
+The direct origin is measured before and after each proxy matrix to expose
+run-to-run drift. The harness requires Docker; CPU/RSS and a native load generator are still required for the published
 report.
 
 ## Native benchmark workflow
