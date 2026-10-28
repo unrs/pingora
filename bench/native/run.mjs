@@ -11,8 +11,11 @@ import { Server } from '../../index.js'
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
-const concurrency = Number(process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
-const threads = Number(process.env.BENCH_NATIVE_THREADS ?? availableParallelism())
+if (!Number.isFinite(durationMs) || durationMs <= 0) {
+  throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
+}
+const concurrency = positiveInteger('BENCH_NATIVE_CONCURRENCY', process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
+const threads = positiveInteger('BENCH_NATIVE_THREADS', process.env.BENCH_NATIVE_THREADS ?? availableParallelism())
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets = [
   ['nginx', 18081],
@@ -20,6 +23,14 @@ const targets = [
   ['openresty', 18083],
   ['haproxy', 18084],
 ]
+
+function positiveInteger(name, value) {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${name} must be a positive integer, got ${value}`)
+  }
+  return number
+}
 
 function docker(...args) {
   const result = spawnSync('docker', args, { stdio: 'inherit' })
@@ -73,19 +84,21 @@ async function waitFor(port) {
 async function measure(port, label) {
   await waitFor(port)
   const latencies = []
-  const deadline = Date.now() + durationMs
+  const startedAt = Date.now()
+  const deadline = startedAt + durationMs
   const workers = Array.from({ length: concurrency }, async () => {
     while (Date.now() < deadline) {
       latencies.push(await request(port))
     }
   })
   await Promise.all(workers)
+  const elapsedMs = Date.now() - startedAt
   latencies.sort((a, b) => a - b)
   const percentile = (p) => latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))]
   return {
     target: label,
     requests: latencies.length,
-    rps: Math.round((latencies.length / durationMs) * 1_000),
+    rps: Math.round((latencies.length / elapsedMs) * 1_000),
     p50Ms: percentile(0.5),
     p99Ms: percentile(0.99),
   }
@@ -100,6 +113,7 @@ async function main() {
     server = new Server({
       listeners: [`127.0.0.1:${proxyPort}`],
       routes: [{ path: '/', upstreams: [`127.0.0.1:${origin}`] }],
+      threads,
       gracePeriodMs: 0,
       shutdownTimeoutMs: 500,
       logLevel: 'off',

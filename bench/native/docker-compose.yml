@@ -1,9 +1,10 @@
 services:
   origin:
-    image: hashicorp/http-echo:1.0.0
-    command: ["-listen=:8080", "-text=ok"]
+    image: nginx:1.27.5-alpine
     ports:
       - "127.0.0.1:18080:8080"
+    volumes:
+      - ./origin.conf:/etc/nginx/nginx.conf:ro
 
   nginx:
     image: nginx:1.27.5-alpine
