@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
 import net from 'node:net'
+import { availableParallelism } from 'node:os'
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +11,9 @@ import { Server } from '../../index.js'
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
-const concurrency = Number(process.env.BENCH_NATIVE_CONCURRENCY ?? 8)
+const concurrency = Number(process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
+const threads = Number(process.env.BENCH_NATIVE_THREADS ?? availableParallelism())
+const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets = [
   ['nginx', 18081],
   ['caddy', 18082],
@@ -41,7 +44,7 @@ async function freePort() {
 function request(port) {
   return new Promise((resolve, reject) => {
     const started = process.hrtime.bigint()
-    const req = http.get({ host: '127.0.0.1', port, path: '/' }, (res) => {
+    const req = http.get({ host: '127.0.0.1', port, path: '/', agent }, (res) => {
       res.resume()
       res.once('end', () => {
         if (res.statusCode !== 200) {
@@ -104,16 +107,17 @@ async function main() {
     await waitFor(origin)
     server.start()
     await waitFor(proxyPort)
-    const results = []
+    const results = [await measure(origin, 'direct origin')]
     for (const [label, port] of targets) results.push(await measure(port, label))
     results.push(await measure(proxyPort, 'pingora'))
-    const result = { durationMs, concurrency, results }
+    const result = { durationMs, concurrency, threads, results }
     const serialized = JSON.stringify(result, null, 2)
     console.log(serialized)
     if (process.env.BENCH_NATIVE_OUTPUT) {
       writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
     }
   } finally {
+    agent.destroy()
     await server?.stop()
     docker('compose', '-f', compose, 'down')
   }
