@@ -107,9 +107,10 @@ async function main() {
     await waitFor(origin)
     server.start()
     await waitFor(proxyPort)
-    const results = [await measure(origin, 'direct origin')]
+    const results = [await measure(origin, 'direct origin (start)')]
     for (const [label, port] of targets) results.push(await measure(port, label))
     results.push(await measure(proxyPort, 'pingora'))
+    results.push(await measure(origin, 'direct origin (end)'))
     const result = { durationMs, concurrency, threads, results }
     const serialized = JSON.stringify(result, null, 2)
     console.log(serialized)
