@@ -1,10 +1,6 @@
 services:
   origin:
-    image: node:24-alpine
-    command:
-      - node
-      - -e
-      - require('http').createServer((_req,res)=>res.end('ok')).listen(8080)
+    build: ./origin
     ports:
       - "127.0.0.1:18080:8080"
 
