@@ -1,3 +1,8 @@
+#![cfg_attr(
+    feature = "bench-minimal",
+    allow(dead_code, unused_imports, unused_variables)
+)]
+
 mod handler;
 mod metrics;
 mod options;
