@@ -57,9 +57,9 @@ jobs:
           {
             echo '## Native proxy benchmark'
             echo
-            echo '| target | req/s | p50 (ms) | p99 (ms) |'
-            echo '| --- | ---: | ---: | ---: |'
-            jq -r '.results[] | "| \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
+            echo '| mode | target | req/s | p50 (ms) | p99 (ms) |'
+            echo '| --- | --- | ---: | ---: | ---: |'
+            jq -r '.results[] | "| \(.mode) | \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Stop containers
