@@ -5,8 +5,10 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-if (process.platform !== 'linux' || process.arch !== 'x64') {
-  throw new Error('bench:native requires Linux x64 for the prebuilt Docker binding')
+const report = process.report?.getReport?.()
+const isGlibc = Boolean(report?.header?.glibcVersionRuntime)
+if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
+  throw new Error('bench:native requires Linux x64 with glibc for the prebuilt Docker binding')
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
