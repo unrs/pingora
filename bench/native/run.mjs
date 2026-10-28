@@ -49,7 +49,7 @@ function docker(...args) {
   if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
 }
 
-function request(port) {
+function request(port, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
     const started = process.hrtime.bigint()
     const req = http.get({ host: '127.0.0.1', port, path: '/', agent }, (res) => {
@@ -64,16 +64,20 @@ function request(port) {
       res.once('error', reject)
     })
     req.once('error', reject)
-    req.setTimeout(10_000, () => req.destroy(new Error('request timeout')))
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('request timeout')))
   })
 }
 
-async function waitFor(port) {
-  for (let attempt = 0; attempt < 150; attempt += 1) {
+async function waitFor(port, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now()
     try {
-      if ((await request(port)) >= 0) return
+      if ((await request(port, Math.max(1, Math.min(1_000, remaining)))) >= 0) return
     } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(100, Math.max(0, deadline - Date.now()))),
+    )
   }
   throw new Error(`target ${port} did not become ready`)
 }
