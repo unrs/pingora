@@ -62,6 +62,10 @@ jobs:
             jq -r '.results[] | "| \(.mode) | \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f bench/native/docker-compose.yml logs --no-color
+
       - name: Stop containers
         if: always()
         run: docker compose -f bench/native/docker-compose.yml down
