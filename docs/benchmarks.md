@@ -36,3 +36,9 @@ than `http-proxy` for single requests and about 87% faster at 20 concurrent
 requests. Run `just bench` on the target machine before drawing conclusions.
 Native comparisons against nginx, Caddy, and OpenResty are tracked in the
 roadmap benchmark matrix.
+
+## Performance smoke gate
+
+`pnpm bench:gate` compares proxy throughput against a direct origin and fails
+below the configured ratio. CI runs the debug build with a conservative 0.1
+threshold; it is a catastrophic-regression guard, not a precise benchmark.

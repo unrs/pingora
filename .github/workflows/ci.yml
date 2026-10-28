@@ -83,6 +83,9 @@ jobs:
       - name: Rust tests
         run: pnpm run test:rust
 
+      - name: Performance smoke gate
+        run: pnpm run bench:gate:debug
+
       - name: Upload binding for compatibility test
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
