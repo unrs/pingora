@@ -1,10 +1,12 @@
 services:
   origin:
-    image: nginx:1.27.5-alpine
+    image: node:24-alpine
+    command:
+      - node
+      - -e
+      - require('http').createServer((_req,res)=>res.end('ok')).listen(8080)
     ports:
       - "127.0.0.1:18080:8080"
-    volumes:
-      - ./origin.conf:/etc/nginx/nginx.conf:ro
 
   nginx:
     image: nginx:1.27.5-alpine

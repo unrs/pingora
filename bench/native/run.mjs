@@ -15,7 +15,10 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
 }
 const concurrency = positiveInteger('BENCH_NATIVE_CONCURRENCY', process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
-const threads = positiveInteger('BENCH_NATIVE_THREADS', process.env.BENCH_NATIVE_THREADS ?? availableParallelism())
+const threads = positiveInteger(
+  'BENCH_NATIVE_THREADS',
+  process.env.BENCH_NATIVE_THREADS ?? Math.min(4, availableParallelism()),
+)
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets = [
   ['nginx', 18081],

@@ -11,9 +11,8 @@ BENCH_NATIVE_DURATION_MS=10000 BENCH_NATIVE_CONCURRENCY=16 pnpm bench:native
 
 Requires Docker with Compose v2. The command starts the containers, waits for
 all targets, measures each, and tears the stack down. Access logging is disabled
-for the origin and proxies; nginx/OpenResty use `worker_processes auto`, HAProxy
-uses `nbthread auto`, and Pingora uses `BENCH_NATIVE_THREADS` (default
-`availableParallelism`).
+for the origin and proxies; nginx/OpenResty use four workers, HAProxy uses `nbthread 4`, and Pingora uses
+`BENCH_NATIVE_THREADS` (default `min(4, availableParallelism)`).
 
 This harness is not a replacement for a native load generator. It reports Node
 client throughput and p50/p99 latency; CPU/RSS and external load-generator
