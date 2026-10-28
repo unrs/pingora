@@ -56,3 +56,10 @@ pnpm bench:native
 It reports throughput and p50/p99 latency per target. The harness requires
 Docker; CPU/RSS and a native load generator are still required for the published
 report.
+
+## Native benchmark workflow
+
+The `Native benchmark` GitHub Actions workflow runs the native matrix manually
+and weekly. It builds the release binding, starts the pinned Compose stack,
+runs the benchmark, writes a table to the job summary, and uploads
+`native-benchmark.json`.

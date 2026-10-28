@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
 import net from 'node:net'
+import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -106,7 +107,12 @@ async function main() {
     const results = []
     for (const [label, port] of targets) results.push(await measure(port, label))
     results.push(await measure(proxyPort, 'pingora'))
-    console.log(JSON.stringify({ durationMs, concurrency, results }, null, 2))
+    const result = { durationMs, concurrency, results }
+    const serialized = JSON.stringify(result, null, 2)
+    console.log(serialized)
+    if (process.env.BENCH_NATIVE_OUTPUT) {
+      writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
+    }
   } finally {
     await server?.stop()
     docker('compose', '-f', compose, 'down')
