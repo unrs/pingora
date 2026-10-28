@@ -26,6 +26,14 @@ const targets = [
   ['openresty', 18083],
   ['haproxy', 18084],
 ]
+const modes = (process.env.BENCH_NATIVE_ORIGIN_MODES ?? 'cached,file')
+  .split(',')
+  .map((mode) => mode.trim())
+for (const mode of modes) {
+  if (mode !== 'cached' && mode !== 'file') {
+    throw new Error(`unsupported origin mode: ${mode}`)
+  }
+}
 
 function positiveInteger(name, value) {
   const number = Number(value)
@@ -84,7 +92,7 @@ async function waitFor(port) {
   throw new Error(`target ${port} did not become ready`)
 }
 
-async function measure(port, label) {
+async function measure(port, label, mode) {
   await waitFor(port)
   const latencies = []
   const startedAt = Date.now()
@@ -99,6 +107,7 @@ async function measure(port, label) {
   latencies.sort((a, b) => a - b)
   const percentile = (p) => latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))]
   return {
+    mode,
     target: label,
     requests: latencies.length,
     rps: Math.round((latencies.length / elapsedMs) * 1_000),
@@ -107,8 +116,11 @@ async function measure(port, label) {
   }
 }
 
-async function main() {
+async function runMode(mode) {
+  process.env.ORIGIN_READ_PER_REQUEST = mode === 'file' ? '1' : '0'
+  docker('compose', '-f', compose, 'down')
   docker('compose', '-f', compose, 'up', '-d')
+
   const origin = 18080
   let server
   try {
@@ -124,20 +136,36 @@ async function main() {
     await waitFor(origin)
     server.start()
     await waitFor(proxyPort)
-    const results = [await measure(origin, 'direct origin (start)')]
-    for (const [label, port] of targets) results.push(await measure(port, label))
-    results.push(await measure(proxyPort, 'pingora'))
-    results.push(await measure(origin, 'direct origin (end)'))
-    const result = { durationMs, concurrency, threads, results }
-    const serialized = JSON.stringify(result, null, 2)
-    console.log(serialized)
-    if (process.env.BENCH_NATIVE_OUTPUT) {
-      writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
+    const results = [await measure(origin, 'direct origin (start)', mode)]
+    for (const [label, port] of targets) results.push(await measure(port, label, mode))
+    results.push(await measure(proxyPort, 'pingora', mode))
+    results.push(await measure(origin, 'direct origin (end)', mode))
+    return results
+  } finally {
+    await server?.stop()
+    docker('compose', '-f', compose, 'down')
+  }
+}
+
+async function main() {
+  const results = []
+  try {
+    for (const mode of modes) {
+      console.error(`origin mode: ${mode}`)
+      results.push(...(await runMode(mode)))
     }
   } finally {
     agent.destroy()
-    await server?.stop()
-    docker('compose', '-f', compose, 'down')
+    try {
+      docker('compose', '-f', compose, 'down')
+    } catch {}
+  }
+
+  const result = { durationMs, concurrency, threads, modes, results }
+  const serialized = JSON.stringify(result, null, 2)
+  console.log(serialized)
+  if (process.env.BENCH_NATIVE_OUTPUT) {
+    writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
   }
 }
 

@@ -53,8 +53,9 @@ with the same Node load generator used by the smoke gate:
 pnpm bench:native
 ```
 
-It reports throughput and p50/p99 latency per target, measuring the direct
-origin before and after the proxy matrix to expose run-to-run drift. The harness
+It reports throughput and p50/p99 latency per target in both `cached` and
+`file` origin modes, measuring the direct origin before and after each proxy
+matrix to expose run-to-run drift. The harness
 requires Docker; CPU/RSS and a native load generator are still required for the published
 report.
 

@@ -1,6 +1,8 @@
 services:
   origin:
     build: ./origin
+    environment:
+      ORIGIN_READ_PER_REQUEST: ${ORIGIN_READ_PER_REQUEST:-0}
     ports:
       - "127.0.0.1:18080:8080"
 
