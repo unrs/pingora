@@ -452,7 +452,7 @@ macOS.
       or build an options object in JS. Revisit only if a real custom format is needed.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
       `http-proxy`, and `http-proxy-middleware`.
-- [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
+- [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
       tested native proxy versions.

@@ -42,3 +42,17 @@ roadmap benchmark matrix.
 `pnpm bench:gate` compares proxy throughput against a direct origin and fails
 below the configured ratio. CI runs the debug build with a conservative 0.1
 threshold; it is a catastrophic-regression guard, not a precise benchmark.
+
+## Native proxy matrix
+
+`bench/native` contains pinned Docker Compose configs for nginx, Caddy,
+OpenResty, and HAProxy sharing one origin. `pnpm bench:native` runs the matrix
+with the same Node load generator used by the smoke gate:
+
+```sh
+pnpm bench:native
+```
+
+It reports throughput and p50/p99 latency per target. The harness requires
+Docker; CPU/RSS and a native load generator are still required for the published
+report.

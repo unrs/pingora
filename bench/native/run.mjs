@@ -1,0 +1,122 @@
+import { spawnSync } from 'node:child_process'
+import http from 'node:http'
+import net from 'node:net'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { Server } from '../../index.js'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const compose = join(here, 'docker-compose.yml')
+const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
+const concurrency = Number(process.env.BENCH_NATIVE_CONCURRENCY ?? 8)
+const targets = [
+  ['nginx', 18081],
+  ['caddy', 18082],
+  ['openresty', 18083],
+  ['haproxy', 18084],
+]
+
+function docker(...args) {
+  const result = spawnSync('docker', args, { stdio: 'inherit' })
+  if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
+}
+
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+}
+
+async function freePort() {
+  const probe = net.createServer()
+  await listen(probe)
+  const { port } = probe.address()
+  await new Promise((resolve) => probe.close(resolve))
+  return port
+}
+
+function request(port) {
+  return new Promise((resolve, reject) => {
+    const started = process.hrtime.bigint()
+    const req = http.get({ host: '127.0.0.1', port, path: '/' }, (res) => {
+      res.resume()
+      res.once('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`unexpected status ${res.statusCode}`))
+          return
+        }
+        resolve(Number(process.hrtime.bigint() - started) / 1e6)
+      })
+      res.once('error', reject)
+    })
+    req.once('error', reject)
+    req.setTimeout(10_000, () => req.destroy(new Error('request timeout')))
+  })
+}
+
+async function waitFor(port) {
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    try {
+      if ((await request(port)) >= 0) return
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(`target ${port} did not become ready`)
+}
+
+async function measure(port, label) {
+  await waitFor(port)
+  const latencies = []
+  const deadline = Date.now() + durationMs
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (Date.now() < deadline) {
+      latencies.push(await request(port))
+    }
+  })
+  await Promise.all(workers)
+  latencies.sort((a, b) => a - b)
+  const percentile = (p) => latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))]
+  return {
+    target: label,
+    requests: latencies.length,
+    rps: Math.round((latencies.length / durationMs) * 1_000),
+    p50Ms: percentile(0.5),
+    p99Ms: percentile(0.99),
+  }
+}
+
+async function main() {
+  docker('compose', '-f', compose, 'up', '-d')
+  const origin = 18080
+  let server
+  try {
+    const proxyPort = await freePort()
+    server = new Server({
+      listeners: [`127.0.0.1:${proxyPort}`],
+      routes: [{ path: '/', upstreams: [`127.0.0.1:${origin}`] }],
+      gracePeriodMs: 0,
+      shutdownTimeoutMs: 500,
+      logLevel: 'off',
+    })
+    await waitFor(origin)
+    server.start()
+    await waitFor(proxyPort)
+    const results = []
+    for (const [label, port] of targets) results.push(await measure(port, label))
+    results.push(await measure(proxyPort, 'pingora'))
+    console.log(JSON.stringify({ durationMs, concurrency, results }, null, 2))
+  } finally {
+    await server?.stop()
+    docker('compose', '-f', compose, 'down')
+  }
+}
+
+main().catch((error) => {
+  console.error(error)
+  try {
+    docker('compose', '-f', compose, 'down')
+  } catch {}
+  process.exitCode = 1
+})

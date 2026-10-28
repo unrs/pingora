@@ -1,0 +1,42 @@
+services:
+  origin:
+    image: hashicorp/http-echo:1.0.0
+    command: ["-listen=:8080", "-text=ok"]
+    ports:
+      - "127.0.0.1:18080:8080"
+
+  nginx:
+    image: nginx:1.27.5-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+  caddy:
+    image: caddy:2.9.1-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18082:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+  openresty:
+    image: openresty/openresty:1.27.1.1-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18083:80"
+    volumes:
+      - ./openresty.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+
+  haproxy:
+    image: haproxy:3.0.5-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18084:80"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
