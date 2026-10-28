@@ -17,7 +17,7 @@ services:
     environment:
       ORIGIN_HOST: origin
       ORIGIN_PORT: 8080
-      THREADS: 4
+      THREADS: ${BENCH_NATIVE_THREADS:-4}
       PORT: 8085
     ports:
       - "127.0.0.1:18085:8085"
@@ -33,7 +33,7 @@ services:
     environment:
       ORIGIN_HOST: origin
       ORIGIN_PORT: 8080
-      THREADS: 4
+      THREADS: ${BENCH_NATIVE_THREADS:-4}
       PORT: 8086
     ports:
       - "127.0.0.1:18086:8086"

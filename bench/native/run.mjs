@@ -16,6 +16,7 @@ const threads = positiveInteger(
   'BENCH_NATIVE_THREADS',
   process.env.BENCH_NATIVE_THREADS ?? Math.min(4, availableParallelism()),
 )
+process.env.BENCH_NATIVE_THREADS = String(threads)
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets = [
   ['nginx', 18081],
