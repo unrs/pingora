@@ -5,6 +5,10 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+if (process.platform !== 'linux' || process.arch !== 'x64') {
+  throw new Error('bench:native requires Linux x64 for the prebuilt Docker binding')
+}
+
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
@@ -109,7 +113,7 @@ async function measure(port, label, mode) {
 async function runMode(mode) {
   process.env.ORIGIN_READ_PER_REQUEST = mode === 'file' ? '1' : '0'
   docker('compose', '-f', compose, 'down')
-  docker('compose', '-f', compose, 'up', '-d')
+  docker('compose', '-f', compose, 'up', '-d', '--build')
 
   const origin = 18080
   try {

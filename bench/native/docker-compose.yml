@@ -34,7 +34,7 @@ services:
     image: vicanso/pingap:0.15.0
     depends_on:
       - origin
-    command: ["pingap", "--conf", "/etc/pingap/pingap.toml"]
+    command: ["pingap", "--conf", "/etc/pingap/pingap.toml", "--threads", "${BENCH_NATIVE_THREADS:-4}"]
     ports:
       - "127.0.0.1:18088:80"
     volumes:
