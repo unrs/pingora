@@ -38,6 +38,16 @@ services:
     ports:
       - "127.0.0.1:18086:8086"
 
+  raw-pingora:
+    build: ./raw-pingora
+    depends_on:
+      - origin
+    environment:
+      ORIGIN: origin:8080
+      THREADS: ${BENCH_NATIVE_THREADS:-4}
+    ports:
+      - "127.0.0.1:18087:8085"
+
   nginx:
     image: nginx:1.27.5-alpine
     depends_on:

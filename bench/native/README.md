@@ -27,3 +27,9 @@ The `pingora-minimal` target is built with `--features bench-minimal`. That
 feature skips request metrics, route metrics, limit checks, handler/access-log
 lookups, and the logging hook; routing and proxying stay intact. It exists only
 for benchmark attribution and is not a supported runtime mode.
+
+## Raw Pingora
+
+The `raw-pingora` target is a standalone Rust binary using Pingora's
+`ProxyHttp` directly, without napi-rs or the binding's `Server`/`JsProxy`. It
+uses the same origin and is built in its own Dockerfile.

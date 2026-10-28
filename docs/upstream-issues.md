@@ -61,3 +61,14 @@ list of every limitation.
   the TSFN, so the queue is not allowed to overflow.
 - Cleanup: once #3655 is fixed, the in-flight guard is no longer needed for leak
   avoidance; keep it only if the explicit best-effort/drop policy is still wanted.
+
+## #1059 — tokio 1.54 panics on the first accepted connection
+
+- Status: open
+- Link: https://github.com/cloudflare/pingora/issues/1059
+- Affects: raw Pingora binaries that resolve tokio 1.54
+- Detail: Pingora 0.9.0 constructs `BufStream::with_capacity(0, 0)`; tokio 1.54
+  panics on the first accepted connection.
+- Binding workaround: the binding lockfile stays on tokio 1.53.3; the raw
+  benchmark crate pins the same version.
+- Cleanup: remove the tokio pin when the upstream fix lands.
