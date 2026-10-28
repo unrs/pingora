@@ -59,7 +59,7 @@ report.
 
 ## Native benchmark workflow
 
-The `Native benchmark` GitHub Actions workflow runs the native matrix manually
-and weekly. It builds the release binding, starts the pinned Compose stack,
+The `Native benchmark` GitHub Actions workflow runs the native matrix on pull
+requests, pushes to `main`, and manual dispatch. It builds the release binding, starts the pinned Compose stack,
 runs the benchmark, writes a table to the job summary, and uploads
 `native-benchmark.json`.
