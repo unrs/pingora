@@ -10,8 +10,6 @@ services:
     build:
       context: ../..
       dockerfile: bench/native/pingora.Dockerfile
-      args:
-        BINDING: pingora-full.node
     depends_on:
       - origin
     environment:
@@ -22,22 +20,6 @@ services:
     ports:
       - "127.0.0.1:18085:8085"
 
-  pingora-minimal:
-    build:
-      context: ../..
-      dockerfile: bench/native/pingora.Dockerfile
-      args:
-        BINDING: pingora-minimal.node
-    depends_on:
-      - origin
-    environment:
-      ORIGIN_HOST: origin
-      ORIGIN_PORT: 8080
-      THREADS: ${BENCH_NATIVE_THREADS:-4}
-      PORT: 8086
-    ports:
-      - "127.0.0.1:18086:8086"
-
   raw-pingora:
     build: ./raw-pingora
     depends_on:
@@ -47,6 +29,16 @@ services:
       THREADS: ${BENCH_NATIVE_THREADS:-4}
     ports:
       - "127.0.0.1:18087:8085"
+
+  pingap:
+    image: vicanso/pingap:0.15.0
+    depends_on:
+      - origin
+    command: ["pingap", "--conf", "/etc/pingap/pingap.toml"]
+    ports:
+      - "127.0.0.1:18088:80"
+    volumes:
+      - ./pingap.toml:/etc/pingap/pingap.toml:ro
 
   nginx:
     image: nginx:1.27.5-alpine

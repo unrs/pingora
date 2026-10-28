@@ -453,7 +453,7 @@ macOS.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
       `http-proxy`, and `http-proxy-middleware`.
 - [x] Raw Pingora benchmark binary (no napi-rs/binding wrapper).
-- [x] Benchmark-only `bench-minimal` feature for binding-overhead attribution.
+- [x] Native benchmark includes pingap, a third-party Pingora proxy.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the

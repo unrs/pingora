@@ -1,0 +1,10 @@
+[upstreams.origin]
+addrs = ["origin:8080"]
+
+[locations.root]
+upstream = "origin"
+path = "/"
+
+[servers.main]
+addr = "0.0.0.0:80"
+locations = ["root"]

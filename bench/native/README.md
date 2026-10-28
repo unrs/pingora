@@ -1,7 +1,7 @@
 # Native proxy benchmark
 
-Pinned Compose services for Pingora, a bench-minimal Pingora build, raw Pingora,
-nginx, Caddy, OpenResty, and HAProxy, all proxying to the same origin. The
+Pinned Compose services for Pingora, raw Pingora, pingap, nginx, Caddy,
+OpenResty, and HAProxy, all proxying to the same origin. The
 Compose services share the same origin and Node load generator.
 
 ```sh
@@ -21,15 +21,9 @@ This harness is not a replacement for a native load generator. It reports Node
 client throughput and p50/p99 latency; CPU/RSS and external load-generator
 numbers still need to be captured for the published report.
 
-## Minimal binding
 
-The `pingora-minimal` target is built with `--features bench-minimal`. That
-feature skips request metrics, route metrics, limit checks, handler/access-log
-lookups, and the logging hook; routing and proxying stay intact. It exists only
-for benchmark attribution and is not a supported runtime mode.
+## pingap
 
-## Raw Pingora
-
-The `raw-pingora` target is a standalone Rust binary using Pingora's
-`ProxyHttp` directly, without napi-rs or the binding's `Server`/`JsProxy`. It
-uses the same origin and is built in its own Dockerfile.
+The `pingap` target is the third-party Pingora-based proxy
+[`vicanso/pingap`](https://github.com/vicanso/pingap), pinned to 0.15.0 and
+configured with `pingap.toml`.

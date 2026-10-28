@@ -24,8 +24,8 @@ const targets = [
   ['openresty', 18083],
   ['haproxy', 18084],
   ['pingora', 18085],
-  ['pingora-minimal', 18086],
   ['raw-pingora', 18087],
+  ['pingap', 18088],
 ]
 const modes = (process.env.BENCH_NATIVE_ORIGIN_MODES ?? 'cached,file')
   .split(',')

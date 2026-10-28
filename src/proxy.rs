@@ -151,12 +151,10 @@ impl ProxyHttp for JsProxy {
     where
         Self::CTX: Send + Sync,
     {
-        #[cfg(not(feature = "bench-minimal"))]
         self.state.request_started();
         ctx.active = true;
         ctx.started_at = Some(Instant::now());
 
-        #[cfg(not(feature = "bench-minimal"))]
         if let Some((status, message)) = self.limits.request_limit_error(session.req_header()) {
             session
                 .respond_error_with_body(status, Bytes::from_static(message.as_bytes()))
@@ -169,12 +167,10 @@ impl ProxyHttp for JsProxy {
         let host = normalize_host(&request_host(req));
         let route = self.state.match_route(req, &host, &path);
         if let Some(route) = route.as_ref() {
-            #[cfg(not(feature = "bench-minimal"))]
             route.metrics.request_started();
             ctx.route = Some(route.clone());
         }
 
-        #[cfg(not(feature = "bench-minimal"))]
         if let Some(handler) = self.state.handler() {
             let view =
                 RequestView::from_session(session, route.as_ref().map(|route| route.id.as_str()));
@@ -222,7 +218,6 @@ impl ProxyHttp for JsProxy {
         if session.was_upgraded() {
             return Ok(());
         }
-        #[cfg(not(feature = "bench-minimal"))]
         if let Some(limit) = self.limits.max_request_body_bytes {
             if let Some(chunk) = body {
                 ctx.body_bytes += chunk.len() as u64;
@@ -350,31 +345,28 @@ impl ProxyHttp for JsProxy {
         ctx.active = false;
         ctx.release_active_upstream();
 
-        #[cfg(not(feature = "bench-minimal"))]
-        {
-            let status = session
-                .response_written()
-                .map(|response| response.status.as_u16());
-            let upstream_error =
-                error.is_some_and(|error| matches!(error.esource(), ErrorSource::Upstream));
-            if let Some(route) = ctx.route.as_ref() {
-                route.metrics.request_finished(status, upstream_error);
-            }
-            if let Some(logger) = self.state.access_logger() {
-                let request = session.req_header();
-                logger.log(AccessLog {
-                    method: request.method.as_str().to_string(),
-                    path: request.uri.path().to_string(),
-                    status,
-                    route_id: ctx.route.as_ref().map(|route| route.id.clone()),
-                    upstream_error,
-                    duration_ms: ctx
-                        .started_at
-                        .map(|started| started.elapsed().as_secs_f64() * 1000.0)
-                        .unwrap_or(0.0),
-                });
-            }
-            self.state.request_finished(status, upstream_error);
+        let status = session
+            .response_written()
+            .map(|response| response.status.as_u16());
+        let upstream_error =
+            error.is_some_and(|error| matches!(error.esource(), ErrorSource::Upstream));
+        if let Some(route) = ctx.route.as_ref() {
+            route.metrics.request_finished(status, upstream_error);
         }
+        if let Some(logger) = self.state.access_logger() {
+            let request = session.req_header();
+            logger.log(AccessLog {
+                method: request.method.as_str().to_string(),
+                path: request.uri.path().to_string(),
+                status,
+                route_id: ctx.route.as_ref().map(|route| route.id.clone()),
+                upstream_error,
+                duration_ms: ctx
+                    .started_at
+                    .map(|started| started.elapsed().as_secs_f64() * 1000.0)
+                    .unwrap_or(0.0),
+            });
+        }
+        self.state.request_finished(status, upstream_error);
     }
 }
