@@ -50,15 +50,17 @@ jobs:
       - name: Write summary
         if: always()
         run: |
-          if [ -s native-benchmark.json ] && jq -e '.results' native-benchmark.json >/dev/null; then
-            {
-              echo '## Native proxy benchmark'
-              echo
-              echo '| target | req/s | p50 (ms) | p99 (ms) |'
-              echo '| --- | ---: | ---: | ---: |'
-              jq -r '.results[] | "| \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
-            } >> "$GITHUB_STEP_SUMMARY"
+          if ! jq -e '.results' native-benchmark.json >/dev/null 2>&1; then
+            echo "native-benchmark.json is missing or invalid" >&2
+            exit 1
           fi
+          {
+            echo '## Native proxy benchmark'
+            echo
+            echo '| target | req/s | p50 (ms) | p99 (ms) |'
+            echo '| --- | ---: | ---: | ---: |'
+            jq -r '.results[] | "| \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Stop containers
         if: always()
