@@ -1,4 +1,6 @@
 use std::env;
+use std::net::SocketAddr;
+use std::net::ToSocketAddrs;
 
 use async_trait::async_trait;
 use pingora::proxy::{http_proxy_service, ProxyHttp, Session};
@@ -8,7 +10,7 @@ use pingora::server::Server;
 use pingora::upstreams::peer::HttpPeer;
 
 struct RawProxy {
-    origin: String,
+    origin: SocketAddr,
 }
 
 #[async_trait]
@@ -22,12 +24,17 @@ impl ProxyHttp for RawProxy {
         _session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
-        Ok(Box::new(HttpPeer::new(self.origin.clone(), false, String::new())))
+        Ok(Box::new(HttpPeer::new(self.origin, false, String::new())))
     }
 }
 
 fn main() {
     let origin = env::var("ORIGIN").unwrap_or_else(|_| "origin:8080".to_string());
+    let origin = origin
+        .to_socket_addrs()
+        .unwrap_or_else(|error| panic!("invalid origin `{origin}`: {error}"))
+        .next()
+        .unwrap_or_else(|| panic!("origin `{origin}` resolved to no addresses"));
     let threads = env::var("THREADS")
         .ok()
         .and_then(|value| value.parse().ok())
