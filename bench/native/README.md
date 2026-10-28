@@ -1,8 +1,8 @@
 # Native proxy benchmark
 
-Pinned Compose services for Pingora, a bench-minimal Pingora build, nginx,
-Caddy, OpenResty, and HAProxy, all proxying to the same origin. A host-side Pingora instance uses the same
-origin and the same Node load generator.
+Pinned Compose services for Pingora, a bench-minimal Pingora build, raw Pingora,
+nginx, Caddy, OpenResty, and HAProxy, all proxying to the same origin. The
+Compose services share the same origin and Node load generator.
 
 ```sh
 pnpm bench:native
