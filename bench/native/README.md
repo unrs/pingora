@@ -10,7 +10,8 @@ BENCH_NATIVE_DURATION_MS=10000 BENCH_NATIVE_CONCURRENCY=16 pnpm bench:native
 ```
 
 Requires Docker with Compose v2. The command starts the containers, waits for
-all targets, measures each, and tears the stack down. The origin is a minimal Go server with no request logging; access logging is
+all targets, measures each, and tears the stack down. The origin is a minimal Go server that opens and streams a 4 KiB file on every
+request, with no request logging; access logging is
 disabled for the proxies; nginx/OpenResty use four workers, HAProxy uses `nbthread 4`, and Pingora uses
 `BENCH_NATIVE_THREADS` (default `min(4, availableParallelism)`).
 
