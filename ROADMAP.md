@@ -562,7 +562,7 @@ large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 - **Runtime compatibility floor:** Node.js `^12.20.0 || ^14.18.0 || >=16.0.0` via the CommonJS loader
   (N-API 4). ESM `import` interop requires Node.js 12.22+ (named exports are
   detected by Node's CJS lexer). This floor is separate from the supported
-  Node.js release lines. Building from source needs Node.js 20.17+ for the
+  Node.js release lines. Building from source needs Node.js 24+ for the
   napi-rs CLI. The supported release lines and M5 CI matrix must follow the
   support policy.
 - **Package names:** `pingora` for the main entry point and

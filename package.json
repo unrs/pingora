@@ -55,9 +55,9 @@
     "bench": "pnpm run build && vitest bench",
     "test:watch": "pnpm run build:debug && vitest",
     "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
-    "postbuild": "node scripts/postbuild.mjs",
-    "postbuild:debug": "node scripts/postbuild.mjs",
-    "soak": "pnpm run build:debug && node scripts/soak.mjs",
+    "postbuild": "node scripts/postbuild.mts",
+    "postbuild:debug": "node scripts/postbuild.mts",
+    "soak": "pnpm run build:debug && node scripts/soak.mts",
     "bench:gate": "pnpm run build && node bench/gate.mts",
     "bench:gate:debug": "node bench/gate.mts",
     "bench:native": "pnpm run build && node bench/native/run.mts"
