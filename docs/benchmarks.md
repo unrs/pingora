@@ -68,3 +68,7 @@ The `Native benchmark` GitHub Actions workflow runs the native matrix on pull
 requests and pushes to `main`. It builds the release binding, starts the pinned Compose stack,
 runs the benchmark, writes a table to the job summary, and uploads
 `native-benchmark.json`.
+
+Each result records `startedAt` and, in GitHub Actions, `commit`. Local
+Pingora/origin/raw images are rebuilt with `--build`; third-party images use
+pinned tags rather than `latest`.

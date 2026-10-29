@@ -12,6 +12,9 @@ if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
   throw new Error('bench:native requires Linux x64 with glibc for the prebuilt Docker binding')
 }
 
+const startedAt = new Date().toISOString()
+const commit = process.env.GITHUB_SHA || null
+
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
 const preserveOnFailure = process.env.GITHUB_ACTIONS === 'true'
@@ -156,7 +159,7 @@ async function main() {
     }
   }
 
-  const result = { durationMs, concurrency, threads, modes, results }
+  const result = { startedAt, commit, durationMs, concurrency, threads, modes, results }
   const serialized = JSON.stringify(result, null, 2)
   console.log(serialized)
   if (process.env.BENCH_NATIVE_OUTPUT) {
