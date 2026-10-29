@@ -145,6 +145,25 @@ async function runMode(mode) {
 async function main() {
   const results = []
   let failed = true
+  let tornDown = false
+  const teardown = () => {
+    if (tornDown) return
+    tornDown = true
+    agent.destroy()
+    if (!failed || !preserveOnFailure) {
+      try {
+        docker('compose', '-f', compose, 'down')
+      } catch {}
+    }
+  }
+  process.once('SIGINT', () => {
+    teardown()
+    process.exit(130)
+  })
+  process.once('SIGTERM', () => {
+    teardown()
+    process.exit(143)
+  })
   try {
     for (const mode of modes) {
       console.error(`origin mode: ${mode}`)
@@ -152,12 +171,7 @@ async function main() {
     }
     failed = false
   } finally {
-    agent.destroy()
-    if (!failed || !preserveOnFailure) {
-      try {
-        docker('compose', '-f', compose, 'down')
-      } catch {}
-    }
+    teardown()
   }
 
   const result = { startedAt, commit, durationMs, concurrency, threads, modes, results }
@@ -170,10 +184,5 @@ async function main() {
 
 main().catch((error) => {
   console.error(error)
-  if (!preserveOnFailure) {
-    try {
-      docker('compose', '-f', compose, 'down')
-    } catch {}
-  }
   process.exitCode = 1
 })
