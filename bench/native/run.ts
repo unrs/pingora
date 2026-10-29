@@ -14,6 +14,7 @@ if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
 
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
+const preserveOnFailure = process.env.GITHUB_ACTIONS === 'true'
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
 if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
@@ -133,7 +134,7 @@ async function runMode(mode) {
     } catch {}
     throw error
   } finally {
-    if (!failed) docker('compose', '-f', compose, 'down')
+    if (!failed || !preserveOnFailure) docker('compose', '-f', compose, 'down')
   }
 }
 
@@ -148,7 +149,7 @@ async function main() {
     failed = false
   } finally {
     agent.destroy()
-    if (!failed) {
+    if (!failed || !preserveOnFailure) {
       try {
         docker('compose', '-f', compose, 'down')
       } catch {}
@@ -165,5 +166,10 @@ async function main() {
 
 main().catch((error) => {
   console.error(error)
+  if (!preserveOnFailure) {
+    try {
+      docker('compose', '-f', compose, 'down')
+    } catch {}
+  }
   process.exitCode = 1
 })
