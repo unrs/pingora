@@ -72,3 +72,34 @@ Compose stack, runs the benchmark, writes a table to the job summary, and upload
 Each result records `startedAt` and, in GitHub Actions, `commit`. Local
 Pingora/origin/raw images are rebuilt with `--build`; third-party images use
 pinned tags rather than `latest`.
+
+## Sample native run
+
+One CI run (commit `fd8ffff`, Linux x64, Node 24, 4 threads, 16 concurrent
+clients, 5 seconds per target, Docker Compose) produced:
+
+| mode | target | req/s | p50 (ms) | p99 (ms) |
+| --- | --- | ---: | ---: | ---: |
+| cached | direct origin (start) | 7,108 | 1.99 | 4.75 |
+| cached | nginx 1.27.5 | 6,380 | 2.12 | 4.96 |
+| cached | Caddy 2.9.1 | 5,850 | 2.50 | 6.37 |
+| cached | OpenResty 1.27.1.1 | 6,518 | 2.09 | 4.87 |
+| cached | HAProxy 3.0.5 | 7,207 | 1.88 | 4.38 |
+| cached | Pingora binding | 6,774 | 2.01 | 4.54 |
+| cached | raw Pingora | 6,799 | 2.01 | 4.63 |
+| cached | pingap 0.15.0 | 6,899 | 1.99 | 4.49 |
+| cached | direct origin (end) | 7,806 | 1.84 | 3.93 |
+| file | direct origin (start) | 7,455 | 1.89 | 4.39 |
+| file | nginx 1.27.5 | 6,336 | 2.35 | 4.95 |
+| file | Caddy 2.9.1 | 5,618 | 2.63 | 6.52 |
+| file | OpenResty 1.27.1.1 | 6,276 | 2.39 | 5.09 |
+| file | HAProxy 3.0.5 | 6,892 | 1.99 | 4.87 |
+| file | Pingora binding | 6,387 | 2.37 | 5.38 |
+| file | raw Pingora | 6,388 | 2.36 | 5.53 |
+| file | pingap 0.15.0 | 6,439 | 2.36 | 5.48 |
+| file | direct origin (end) | 7,412 | 1.89 | 4.51 |
+
+The direct origin drifts several percent between the start and end rows, and
+the Node client is the bottleneck at these rates. This is a sample, not a
+published performance claim; CPU/RSS and a native load generator are still
+required for the final report.
