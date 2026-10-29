@@ -4,9 +4,11 @@
     "noEmit": true,
     "types": [
       "node"
-    ]
+    ],
+    "verbatimModuleSyntax": false
   },
   "include": [
+    "vitest.config.ts",
     "scripts/**/*.mts",
     "bench/**/*.mts"
   ],
