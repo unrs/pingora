@@ -17,7 +17,7 @@ const commit = process.env.GITHUB_SHA || null
 
 const here = dirname(fileURLToPath(import.meta.url))
 const compose = join(here, 'docker-compose.yml')
-const preserveOnFailure = process.env.GITHUB_ACTIONS === 'true'
+const isCI = process.env.GITHUB_ACTIONS === 'true'
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
 if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
@@ -124,54 +124,34 @@ async function runMode(mode) {
   docker('compose', '-f', compose, 'up', '-d', '--build')
 
   const origin = 18080
-  let failed = true
   try {
     await waitFor(origin)
     const results = [await measure(origin, 'direct origin (start)', mode)]
     for (const [label, port] of targets) results.push(await measure(port, label, mode))
     results.push(await measure(origin, 'direct origin (end)', mode))
-    failed = false
     return results
   } catch (error) {
     try {
       docker('compose', '-f', compose, 'logs', '--no-color', 'pingora')
     } catch {}
     throw error
-  } finally {
-    if (!failed || !preserveOnFailure) docker('compose', '-f', compose, 'down')
   }
 }
 
 async function main() {
   const results = []
-  let failed = true
-  let tornDown = false
-  const teardown = () => {
-    if (tornDown) return
-    tornDown = true
-    agent.destroy()
-    if (!failed || !preserveOnFailure) {
-      try {
-        docker('compose', '-f', compose, 'down')
-      } catch {}
-    }
-  }
-  process.once('SIGINT', () => {
-    teardown()
-    process.exit(130)
-  })
-  process.once('SIGTERM', () => {
-    teardown()
-    process.exit(143)
-  })
   try {
     for (const mode of modes) {
       console.error(`origin mode: ${mode}`)
       results.push(...(await runMode(mode)))
     }
-    failed = false
   } finally {
-    teardown()
+    agent.destroy()
+    if (!isCI) {
+      try {
+        docker('compose', '-f', compose, 'down')
+      } catch {}
+    }
   }
 
   const result = { startedAt, commit, durationMs, concurrency, threads, modes, results }
