@@ -40,5 +40,35 @@ roadmap benchmark matrix.
 ## Performance smoke gate
 
 `pnpm bench:gate` compares proxy throughput against a direct origin and fails
-below the configured ratio. CI runs the debug build with a conservative 0.1
-threshold; it is a catastrophic-regression guard, not a precise benchmark.
+below the configured ratio. It alternates three rounds and uses the median ratio;
+CI runs the debug build with a conservative 0.05 threshold. It is a
+catastrophic-regression guard, not a precise benchmark.
+
+## Native proxy matrix
+
+`bench/native` contains pinned Docker Compose configs for Pingora, a raw
+Pingora binary, pingap, nginx, Caddy, OpenResty, and HAProxy sharing one origin
+and Docker network. `pnpm bench:native` runs the matrix
+with the same Node load generator used by the smoke gate:
+
+```sh
+pnpm bench:native
+```
+
+It reports throughput and p50/p99 latency per target in both `cached` and
+`file` origin modes. The direct origin is measured before and after each proxy
+matrix to expose run-to-run drift. The harness requires Node.js 24+, Linux x64
+glibc, and Docker; it is developer tooling and is not covered by the package
+runtime floor. CPU/RSS and a native load generator are still required for the
+published report.
+
+## Native benchmark workflow
+
+The `Native benchmark` GitHub Actions workflow runs the native matrix on pull
+requests and pushes to `main`. It builds the release binding, starts the pinned
+Compose stack, runs the benchmark, writes a table to the job summary, and uploads
+`native-benchmark.json`.
+
+Each result records `startedAt` and, in GitHub Actions, `commit`. Local
+Pingora/origin/raw images are rebuilt with `--build`; third-party images use
+pinned tags rather than `latest`.

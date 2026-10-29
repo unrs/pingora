@@ -5,7 +5,7 @@ import { Server } from '../index.js'
 
 const MAX_FAILURE_SAMPLES = 10
 
-function positiveInteger(name, value) {
+function positiveInteger(name: string, value: unknown): number {
   const number = Number(value)
   if (!Number.isInteger(number) || number <= 0) {
     throw new Error(`${name} must be a positive integer, got ${value}`)
@@ -17,40 +17,46 @@ const durationMs = positiveInteger('SOAK_DURATION_MS', process.env.SOAK_DURATION
 const concurrency = positiveInteger('SOAK_CONCURRENCY', process.env.SOAK_CONCURRENCY ?? 8)
 const cycles = positiveInteger('SOAK_CYCLES', process.env.SOAK_CYCLES ?? 1)
 const cycleDurationMs = Math.max(1, Math.floor(durationMs / cycles))
-const failures = []
+const failures: string[] = []
 let failureCount = 0
 let requests = 0
 let routeAdds = 0
 let handlerToggles = 0
 
-function delay(ms) {
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function recordFailure(error) {
+function recordFailure(error: unknown): void {
   failureCount += 1
   if (failures.length < MAX_FAILURE_SAMPLES) failures.push(String(error))
 }
 
-function listen(server) {
+function listen(server: http.Server | net.Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
   })
 }
 
-async function freePort() {
+function serverPort(server: http.Server | net.Server): number {
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('server has no TCP address')
+  return address.port
+}
+
+async function freePort(): Promise<number> {
   const probe = net.createServer()
   await listen(probe)
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
+  const port = serverPort(probe)
+  await new Promise<void>((resolve) => probe.close(() => resolve()))
   return port
 }
 
-function request(port, path, timeoutMs = 2_000) {
+function request(port: number, path: string, timeoutMs = 2_000): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     let settled = false
-    const finish = (error, status) => {
+    const finish = (error: Error | null, status?: number) => {
       if (settled) return
       settled = true
       if (error) reject(error)
@@ -68,7 +74,7 @@ function request(port, path, timeoutMs = 2_000) {
   })
 }
 
-async function waitForProxy(port) {
+async function waitForProxy(port: number): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
       const status = await request(port, '/ok', 500)
@@ -79,12 +85,12 @@ async function waitForProxy(port) {
   throw new Error('proxy did not become ready')
 }
 
-async function runCycle(origin, cycle) {
+async function runCycle(origin: http.Server, cycle: number): Promise<void> {
   const port = await freePort()
   const server = new Server({
     listeners: [`127.0.0.1:${port}`],
     routes: [
-      { id: 'soak', path: '/ok', upstreams: [`127.0.0.1:${origin.address().port}`] },
+      { id: 'soak', path: '/ok', upstreams: [`127.0.0.1:${serverPort(origin)}`] },
     ],
     gracePeriodMs: 0,
     shutdownTimeoutMs: 500,
@@ -123,7 +129,7 @@ async function runCycle(origin, cycle) {
           server.addRoute({
             id,
             pathPrefix: `/${id}`,
-            upstreams: [`127.0.0.1:${origin.address().port}`],
+            upstreams: [`127.0.0.1:${serverPort(origin)}`],
           })
           routeAdds += 1
           const present = await request(port, `/${id}`)

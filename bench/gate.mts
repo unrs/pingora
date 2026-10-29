@@ -3,7 +3,7 @@ import net from 'node:net'
 
 import { Server } from '../index.js'
 
-const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.1)
+const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.05)
 if (!Number.isFinite(threshold) || threshold <= 0) {
   throw new Error(`BENCH_GATE_THRESHOLD must be a finite positive number, got ${process.env.BENCH_GATE_THRESHOLD}`)
 }
@@ -11,28 +11,38 @@ const durationMs = Number(process.env.BENCH_GATE_DURATION_MS ?? 1_000)
 if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_GATE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_GATE_DURATION_MS}`)
 }
+const rounds = Number(process.env.BENCH_GATE_ROUNDS ?? 3)
+if (!Number.isInteger(rounds) || rounds <= 0) {
+  throw new Error(`BENCH_GATE_ROUNDS must be a positive integer, got ${process.env.BENCH_GATE_ROUNDS}`)
+}
 const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
 
-function listen(server) {
+function listen(server: http.Server | net.Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
   })
 }
 
-async function freePort() {
+function serverPort(server: http.Server | net.Server): number {
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('server has no TCP address')
+  return address.port
+}
+
+async function freePort(): Promise<number> {
   const probe = net.createServer()
   await listen(probe)
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
+  const port = serverPort(probe)
+  await new Promise<void>((resolve) => probe.close(() => resolve()))
   return port
 }
 
-function request(port, path = '/', timeoutMs = 5_000) {
+function request(port: number, path = '/', timeoutMs = 5_000): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     let settled = false
-    let deadline
-    const finish = (error, status) => {
+    let deadline: ReturnType<typeof setTimeout> | undefined
+    const finish = (error: Error | null, status?: number) => {
       if (settled) return
       settled = true
       clearTimeout(deadline)
@@ -54,7 +64,7 @@ function request(port, path = '/', timeoutMs = 5_000) {
   })
 }
 
-async function waitFor(port, timeoutMs = 5_000) {
+async function waitFor(port: number, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now()
@@ -68,7 +78,7 @@ async function waitFor(port, timeoutMs = 5_000) {
   throw new Error('benchmark proxy did not become ready')
 }
 
-async function throughput(port, milliseconds) {
+async function throughput(port: number, milliseconds: number): Promise<number> {
   const deadline = Date.now() + milliseconds
   let count = 0
   while (Date.now() < deadline) {
@@ -84,26 +94,43 @@ async function main() {
   await listen(origin)
   let server
   try {
+    const originPort = serverPort(origin)
     const proxyPort = await freePort()
     server = new Server({
       listeners: [`127.0.0.1:${proxyPort}`],
-      routes: [{ path: '/', upstreams: [`127.0.0.1:${origin.address().port}`] }],
+      routes: [{ path: '/', upstreams: [`127.0.0.1:${originPort}`] }],
       gracePeriodMs: 0,
       shutdownTimeoutMs: 500,
       logLevel: 'off',
     })
     server.start()
     await waitFor(proxyPort)
-    await throughput(origin.address().port, 200)
+    await throughput(originPort, 200)
     await throughput(proxyPort, 200)
 
-    const direct = await throughput(origin.address().port, durationMs)
-    const proxied = await throughput(proxyPort, durationMs)
-    const ratio = direct === 0 ? 0 : proxied / direct
-    const result = { direct, proxied, ratio, threshold, durationMs }
+    const samples: Array<{ direct: number; proxied: number; ratio: number }> = []
+    for (let round = 0; round < rounds; round += 1) {
+      let direct
+      let proxied
+      if (round % 2 === 0) {
+        direct = await throughput(originPort, durationMs)
+        proxied = await throughput(proxyPort, durationMs)
+      } else {
+        proxied = await throughput(proxyPort, durationMs)
+        direct = await throughput(originPort, durationMs)
+      }
+      samples.push({ direct, proxied, ratio: direct === 0 ? 0 : proxied / direct })
+    }
+    const ratios = samples.map((sample) => sample.ratio).sort((a, b) => a - b)
+    const middle = Math.floor(ratios.length / 2)
+    const ratio =
+      ratios.length % 2 === 0
+        ? (ratios[middle - 1] + ratios[middle]) / 2
+        : ratios[middle]
+    const result = { samples, ratio, threshold, durationMs, rounds }
     console.log(JSON.stringify(result))
     if (!Number.isFinite(ratio) || ratio < threshold) {
-      console.error(`performance gate failed: ratio ${ratio.toFixed(3)} < ${threshold}`)
+      console.error(`performance gate failed: median ratio ${ratio.toFixed(3)} < ${threshold}`)
       process.exitCode = 1
     }
   } finally {

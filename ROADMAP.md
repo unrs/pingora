@@ -452,7 +452,9 @@ macOS.
       or build an options object in JS. Revisit only if a real custom format is needed.
 - [x] Initial Vitest HTTP benchmark suite against a direct upstream,
       `http-proxy`, and `http-proxy-middleware`.
-- [ ] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
+- [x] Raw Pingora benchmark binary (no napi-rs/binding wrapper).
+- [x] Native benchmark includes pingap, a third-party Pingora proxy.
+- [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
       tested native proxy versions.
@@ -560,7 +562,7 @@ large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 - **Runtime compatibility floor:** Node.js `^12.20.0 || ^14.18.0 || >=16.0.0` via the CommonJS loader
   (N-API 4). ESM `import` interop requires Node.js 12.22+ (named exports are
   detected by Node's CJS lexer). This floor is separate from the supported
-  Node.js release lines. Building from source needs Node.js 20.17+ for the
+  Node.js release lines. Building from source needs Node.js 24+ for the
   napi-rs CLI. The supported release lines and M5 CI matrix must follow the
   support policy.
 - **Package names:** `pingora` for the main entry point and

@@ -1,0 +1,77 @@
+services:
+  origin:
+    build: ./origin
+    environment:
+      ORIGIN_READ_PER_REQUEST: ${ORIGIN_READ_PER_REQUEST:-0}
+    ports:
+      - "127.0.0.1:18080:8080"
+
+  pingora:
+    build:
+      context: ../..
+      dockerfile: bench/native/pingora.Dockerfile
+    depends_on:
+      - origin
+    environment:
+      ORIGIN_HOST: origin
+      ORIGIN_PORT: 8080
+      THREADS: ${BENCH_NATIVE_THREADS:-4}
+      PORT: 8085
+    ports:
+      - "127.0.0.1:18085:8085"
+
+  raw-pingora:
+    build: ./raw-pingora
+    depends_on:
+      - origin
+    environment:
+      ORIGIN: origin:8080
+      THREADS: ${BENCH_NATIVE_THREADS:-4}
+    ports:
+      - "127.0.0.1:18087:8085"
+
+  pingap:
+    image: vicanso/pingap:0.15.0
+    depends_on:
+      - origin
+    command: ["pingap", "--conf", "/etc/pingap/pingap.toml", "--threads", "${BENCH_NATIVE_THREADS:-4}"]
+    ports:
+      - "127.0.0.1:18088:80"
+    volumes:
+      - ./pingap.toml:/etc/pingap/pingap.toml:ro
+
+  nginx:
+    image: nginx:1.27.5-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+  caddy:
+    image: caddy:2.9.1-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18082:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+  openresty:
+    image: openresty/openresty:1.27.1.1-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18083:80"
+    volumes:
+      - ./openresty.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+
+  haproxy:
+    image: haproxy:3.0.5-alpine
+    depends_on:
+      - origin
+    ports:
+      - "127.0.0.1:18084:80"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

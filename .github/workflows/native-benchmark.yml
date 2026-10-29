@@ -1,0 +1,79 @@
+name: Native benchmark
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native proxy matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: native-bench
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Docker Compose
+        run: docker compose version
+
+      - name: Run native benchmark
+        run: |
+          BENCH_NATIVE_DURATION_MS=5000 \
+          BENCH_NATIVE_CONCURRENCY=16 \
+          BENCH_NATIVE_OUTPUT=native-benchmark.json \
+          pnpm bench:native
+
+      - name: Write summary
+        if: always()
+        run: |
+          if ! jq -e '.results' native-benchmark.json >/dev/null 2>&1; then
+            echo "native-benchmark.json is missing or invalid" >&2
+            exit 1
+          fi
+          {
+            echo '## Native proxy benchmark'
+            echo
+            echo '| mode | target | req/s | p50 (ms) | p99 (ms) |'
+            echo '| --- | --- | ---: | ---: | ---: |'
+            jq -r '.results[] | "| \(.mode) | \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f bench/native/docker-compose.yml logs --no-color
+
+      - name: Stop containers
+        if: always()
+        run: docker compose -f bench/native/docker-compose.yml down
+
+      - name: Upload benchmark result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-benchmark
+          path: native-benchmark.json
+          if-no-files-found: warn

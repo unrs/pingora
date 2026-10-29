@@ -80,6 +80,9 @@ jobs:
       - name: Test binding
         run: pnpm test
 
+      - name: Typecheck tooling
+        run: pnpm run typecheck
+
       - name: Rust tests
         run: pnpm run test:rust
 
