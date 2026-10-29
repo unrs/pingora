@@ -62,20 +62,35 @@ function docker(...args) {
 
 function request(port, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
-    const started = process.hrtime.bigint()
+    let settled = false
+    let deadline
+    let started
+    const finish = (error, latency) => {
+      if (settled) return
+      settled = true
+      clearTimeout(deadline)
+      if (error) reject(error)
+      else resolve(latency)
+    }
+    started = process.hrtime.bigint()
     const req = http.get({ host: '127.0.0.1', port, path: '/', agent }, (res) => {
       res.resume()
       res.once('end', () => {
         if (res.statusCode !== 200) {
-          reject(new Error(`unexpected status ${res.statusCode}`))
+          finish(new Error(`unexpected status ${res.statusCode}`))
           return
         }
-        resolve(Number(process.hrtime.bigint() - started) / 1e6)
+        finish(null, Number(process.hrtime.bigint() - started) / 1e6)
       })
-      res.once('error', reject)
+      res.once('error', (error) => finish(error))
     })
-    req.once('error', reject)
-    req.setTimeout(timeoutMs, () => req.destroy(new Error('request timeout')))
+    req.once('error', (error) => finish(error))
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`request inactivity timeout after ${timeoutMs}ms`))
+    })
+    deadline = setTimeout(() => {
+      req.destroy(new Error(`request deadline after ${timeoutMs}ms`))
+    }, timeoutMs)
   })
 }
 
