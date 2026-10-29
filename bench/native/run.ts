@@ -119,32 +119,40 @@ async function runMode(mode) {
   docker('compose', '-f', compose, 'up', '-d', '--build')
 
   const origin = 18080
+  let failed = true
   try {
     await waitFor(origin)
     const results = [await measure(origin, 'direct origin (start)', mode)]
     for (const [label, port] of targets) results.push(await measure(port, label, mode))
     results.push(await measure(origin, 'direct origin (end)', mode))
+    failed = false
     return results
   } catch (error) {
-    docker('compose', '-f', compose, 'logs', '--no-color', 'pingora')
+    try {
+      docker('compose', '-f', compose, 'logs', '--no-color', 'pingora')
+    } catch {}
     throw error
   } finally {
-    docker('compose', '-f', compose, 'down')
+    if (!failed) docker('compose', '-f', compose, 'down')
   }
 }
 
 async function main() {
   const results = []
+  let failed = true
   try {
     for (const mode of modes) {
       console.error(`origin mode: ${mode}`)
       results.push(...(await runMode(mode)))
     }
+    failed = false
   } finally {
     agent.destroy()
-    try {
-      docker('compose', '-f', compose, 'down')
-    } catch {}
+    if (!failed) {
+      try {
+        docker('compose', '-f', compose, 'down')
+      } catch {}
+    }
   }
 
   const result = { durationMs, concurrency, threads, modes, results }
@@ -157,8 +165,5 @@ async function main() {
 
 main().catch((error) => {
   console.error(error)
-  try {
-    docker('compose', '-f', compose, 'down')
-  } catch {}
   process.exitCode = 1
 })
