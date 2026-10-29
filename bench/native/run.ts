@@ -6,11 +6,6 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const nodeMajor = Number(process.versions.node.split('.')[0])
-if (nodeMajor < 24) {
-  throw new Error('bench:native requires Node.js 24+ for direct TypeScript execution')
-}
-
 const report = process.report?.getReport?.()
 const isGlibc = Boolean(report?.header?.glibcVersionRuntime)
 if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
