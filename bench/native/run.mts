@@ -14,20 +14,19 @@ if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
 
 const startedAt = new Date().toISOString()
 const commit = process.env.GITHUB_SHA || null
-
-const here = dirname(fileURLToPath(import.meta.url))
-const compose = join(here, 'docker-compose.yml')
-const isCI = process.env.GITHUB_ACTIONS === 'true'
+const compose = join(dirname(fileURLToPath(import.meta.url)), 'docker-compose.yml')
+const inCI = process.env.GITHUB_ACTIONS === 'true'
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
-if (!Number.isFinite(durationMs) || durationMs <= 0) {
-  throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
-}
 const concurrency = positiveInteger('BENCH_NATIVE_CONCURRENCY', process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
 const threads = positiveInteger(
   'BENCH_NATIVE_THREADS',
   process.env.BENCH_NATIVE_THREADS ?? Math.min(4, availableParallelism()),
 )
+if (!Number.isFinite(durationMs) || durationMs <= 0) {
+  throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
+}
 process.env.BENCH_NATIVE_THREADS = String(threads)
+
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets = [
   ['nginx', 18081],
@@ -60,50 +59,28 @@ function docker(...args) {
   if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
 }
 
-function request(port, timeoutMs = 10_000) {
+function request(port, timeoutMs = 5_000) {
   return new Promise((resolve, reject) => {
-    let settled = false
-    let deadline
-    let started
-    const finish = (error, latency) => {
-      if (settled) return
-      settled = true
-      clearTimeout(deadline)
-      if (error) reject(error)
-      else resolve(latency)
-    }
-    started = process.hrtime.bigint()
+    const started = process.hrtime.bigint()
     const req = http.get({ host: '127.0.0.1', port, path: '/', agent }, (res) => {
       res.resume()
+      res.once('error', reject)
       res.once('end', () => {
-        if (res.statusCode !== 200) {
-          finish(new Error(`unexpected status ${res.statusCode}`))
-          return
-        }
-        finish(null, Number(process.hrtime.bigint() - started) / 1e6)
+        if (res.statusCode !== 200) reject(new Error(`unexpected status ${res.statusCode}`))
+        else resolve(Number(process.hrtime.bigint() - started) / 1e6)
       })
-      res.once('error', (error) => finish(error))
     })
-    req.once('error', (error) => finish(error))
-    req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error(`request inactivity timeout after ${timeoutMs}ms`))
-    })
-    deadline = setTimeout(() => {
-      req.destroy(new Error(`request deadline after ${timeoutMs}ms`))
-    }, timeoutMs)
+    req.once('error', reject)
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('request timeout')))
   })
 }
 
-async function waitFor(port, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const remaining = deadline - Date.now()
+async function waitFor(port) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
-      if ((await request(port, Math.max(1, Math.min(1_000, remaining)))) >= 0) return
+      if ((await request(port, 500)) >= 0) return
     } catch {}
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.min(100, Math.max(0, deadline - Date.now()))),
-    )
+    await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error(`target ${port} did not become ready`)
 }
@@ -111,15 +88,15 @@ async function waitFor(port, timeoutMs = 15_000) {
 async function measure(port, label, mode) {
   await waitFor(port)
   const latencies = []
-  const startedAt = Date.now()
-  const deadline = startedAt + durationMs
+  const started = Date.now()
+  const deadline = started + durationMs
   const workers = Array.from({ length: concurrency }, async () => {
     while (Date.now() < deadline) {
       latencies.push(await request(port))
     }
   })
   await Promise.all(workers)
-  const elapsedMs = Date.now() - startedAt
+  const elapsedMs = Date.now() - started
   latencies.sort((a, b) => a - b)
   const percentile = (p) =>
     latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
@@ -137,20 +114,12 @@ async function runMode(mode) {
   process.env.ORIGIN_READ_PER_REQUEST = mode === 'file' ? '1' : '0'
   docker('compose', '-f', compose, 'down')
   docker('compose', '-f', compose, 'up', '-d', '--build')
+  await waitFor(18080)
 
-  const origin = 18080
-  try {
-    await waitFor(origin)
-    const results = [await measure(origin, 'direct origin (start)', mode)]
-    for (const [label, port] of targets) results.push(await measure(port, label, mode))
-    results.push(await measure(origin, 'direct origin (end)', mode))
-    return results
-  } catch (error) {
-    try {
-      docker('compose', '-f', compose, 'logs', '--no-color', 'pingora')
-    } catch {}
-    throw error
-  }
+  const results = [await measure(18080, 'direct origin (start)', mode)]
+  for (const [label, port] of targets) results.push(await measure(port, label, mode))
+  results.push(await measure(18080, 'direct origin (end)', mode))
+  return results
 }
 
 async function main() {
@@ -162,7 +131,7 @@ async function main() {
     }
   } finally {
     agent.destroy()
-    if (!isCI) {
+    if (!inCI) {
       try {
         docker('compose', '-f', compose, 'down')
       } catch {}
@@ -172,9 +141,7 @@ async function main() {
   const result = { startedAt, commit, durationMs, concurrency, threads, modes, results }
   const serialized = JSON.stringify(result, null, 2)
   console.log(serialized)
-  if (process.env.BENCH_NATIVE_OUTPUT) {
-    writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
-  }
+  if (process.env.BENCH_NATIVE_OUTPUT) writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
 }
 
 main().catch((error) => {
