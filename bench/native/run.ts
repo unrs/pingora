@@ -1,4 +1,4 @@
-// Benchmark tooling runs on the CI Node; it is not part of the runtime package.
+// Benchmark tooling runs directly on Node 24 (type stripping); it is not part of the runtime package.
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
 import { availableParallelism } from 'node:os'
@@ -21,8 +21,7 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
 const concurrency = positiveInteger('BENCH_NATIVE_CONCURRENCY', process.env.BENCH_NATIVE_CONCURRENCY ?? 16)
 const threads = positiveInteger(
   'BENCH_NATIVE_THREADS',
-  process.env.BENCH_NATIVE_THREADS ??
-    Math.max(1, Math.min(4, os.availableParallelism?.() ?? os.cpus().length)),
+  process.env.BENCH_NATIVE_THREADS ?? Math.min(4, availableParallelism()),
 )
 process.env.BENCH_NATIVE_THREADS = String(threads)
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })

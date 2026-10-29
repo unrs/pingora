@@ -60,7 +60,7 @@
     "soak": "pnpm run build:debug && node scripts/soak.mjs",
     "bench:gate": "pnpm run build && node bench/gate.mjs",
     "bench:gate:debug": "node bench/gate.mjs",
-    "bench:native": "pnpm run build && node bench/native/run.mjs"
+    "bench:native": "pnpm run build && node bench/native/run.ts"
   },
   "publishConfig": {
     "access": "public",
