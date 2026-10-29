@@ -17,11 +17,11 @@ BENCH_NATIVE_DURATION_MS=10000 BENCH_NATIVE_CONCURRENCY=16 pnpm bench:native
 - Docker with Compose v2
 
 The command starts the containers, waits for all targets, measures each, and
-tears the stack down. The origin is a minimal Go server that loads a 4 KiB file at startup and serves
-it from memory by default, with no request logging; set
-`BENCH_NATIVE_ORIGIN_MODES=cached,file` (the default) to measure both cached
-and per-request file reads; access logging is
-disabled for the proxies; nginx/OpenResty use four workers, HAProxy uses `nbthread 4`, and Pingora uses
+tears the stack down. The origin is a minimal Go server that loads a 4 KiB file
+at startup and serves it from memory by default, with no request logging; set
+`BENCH_NATIVE_ORIGIN_MODES=cached,file` (the default) to measure both cached and
+per-request file reads. Access logging is disabled for the proxies.
+nginx/OpenResty use four workers, HAProxy uses `nbthread 4`, and Pingora uses
 `BENCH_NATIVE_THREADS` (default `min(4, availableParallelism)`).
 
 This harness is not a replacement for a native load generator. It reports Node
