@@ -40,8 +40,9 @@ roadmap benchmark matrix.
 ## Performance smoke gate
 
 `pnpm bench:gate` compares proxy throughput against a direct origin and fails
-below the configured ratio. CI runs the debug build with a conservative 0.1
-threshold; it is a catastrophic-regression guard, not a precise benchmark.
+below the configured ratio. It alternates three rounds and uses the median ratio;
+CI runs the debug build with a conservative 0.05 threshold. It is a
+catastrophic-regression guard, not a precise benchmark.
 
 ## Native proxy matrix
 

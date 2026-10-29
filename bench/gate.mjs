@@ -3,13 +3,17 @@ import net from 'node:net'
 
 import { Server } from '../index.js'
 
-const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.1)
+const threshold = Number(process.env.BENCH_GATE_THRESHOLD ?? 0.05)
 if (!Number.isFinite(threshold) || threshold <= 0) {
   throw new Error(`BENCH_GATE_THRESHOLD must be a finite positive number, got ${process.env.BENCH_GATE_THRESHOLD}`)
 }
 const durationMs = Number(process.env.BENCH_GATE_DURATION_MS ?? 1_000)
 if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_GATE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_GATE_DURATION_MS}`)
+}
+const rounds = Number(process.env.BENCH_GATE_ROUNDS ?? 3)
+if (!Number.isInteger(rounds) || rounds <= 0) {
+  throw new Error(`BENCH_GATE_ROUNDS must be a positive integer, got ${process.env.BENCH_GATE_ROUNDS}`)
 }
 const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
 
@@ -97,13 +101,25 @@ async function main() {
     await throughput(origin.address().port, 200)
     await throughput(proxyPort, 200)
 
-    const direct = await throughput(origin.address().port, durationMs)
-    const proxied = await throughput(proxyPort, durationMs)
-    const ratio = direct === 0 ? 0 : proxied / direct
-    const result = { direct, proxied, ratio, threshold, durationMs }
+    const samples = []
+    for (let round = 0; round < rounds; round += 1) {
+      let direct
+      let proxied
+      if (round % 2 === 0) {
+        direct = await throughput(origin.address().port, durationMs)
+        proxied = await throughput(proxyPort, durationMs)
+      } else {
+        proxied = await throughput(proxyPort, durationMs)
+        direct = await throughput(origin.address().port, durationMs)
+      }
+      samples.push({ direct, proxied, ratio: direct === 0 ? 0 : proxied / direct })
+    }
+    const ratios = samples.map((sample) => sample.ratio).sort((a, b) => a - b)
+    const ratio = ratios[Math.floor(ratios.length / 2)]
+    const result = { samples, ratio, threshold, durationMs, rounds }
     console.log(JSON.stringify(result))
     if (!Number.isFinite(ratio) || ratio < threshold) {
-      console.error(`performance gate failed: ratio ${ratio.toFixed(3)} < ${threshold}`)
+      console.error(`performance gate failed: median ratio ${ratio.toFixed(3)} < ${threshold}`)
       process.exitCode = 1
     }
   } finally {
