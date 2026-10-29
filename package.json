@@ -60,19 +60,23 @@
     "soak": "pnpm run build:debug && node scripts/soak.mts",
     "bench:gate": "pnpm run build && node bench/gate.mts",
     "bench:gate:debug": "node bench/gate.mts",
-    "bench:native": "pnpm run build && node bench/native/run.mts"
+    "bench:native": "pnpm run build && node bench/native/run.mts",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
+    "@1stg/tsconfig": "^5.0.0",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@napi-rs/cli": "^3.10.8",
+    "@types/node": "^24.19.2",
     "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^4.2.0",
     "lefthook": "^2.2.2",
+    "typescript": "^6.0.3",
     "vitest": "^5.0.5"
   },
   "packageManager": "pnpm@12.14.0",

@@ -1,0 +1,17 @@
+{
+  "extends": "@1stg/tsconfig/nodenext",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "scripts/**/*.mts",
+    "bench/**/*.mts"
+  ],
+  "exclude": [
+    "node_modules",
+    "target"
+  ]
+}

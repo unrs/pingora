@@ -6,14 +6,16 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const report = process.report?.getReport?.()
+const report = process.report?.getReport?.() as
+  | { header?: { glibcVersionRuntime?: string } }
+  | undefined
 const isGlibc = Boolean(report?.header?.glibcVersionRuntime)
 if (process.platform !== 'linux' || process.arch !== 'x64' || !isGlibc) {
   throw new Error('bench:native requires Linux x64 with glibc for the prebuilt Docker binding')
 }
 
 const startedAt = new Date().toISOString()
-const commit = process.env.GITHUB_SHA || null
+const commit: string | null = process.env.GITHUB_SHA || null
 const compose = join(dirname(fileURLToPath(import.meta.url)), 'docker-compose.yml')
 const inCI = process.env.GITHUB_ACTIONS === 'true'
 const durationMs = Number(process.env.BENCH_NATIVE_DURATION_MS ?? 2_000)
@@ -28,7 +30,7 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
 process.env.BENCH_NATIVE_THREADS = String(threads)
 
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
-const targets = [
+const targets: Array<[string, number]> = [
   ['nginx', 18081],
   ['caddy', 18082],
   ['openresty', 18083],
@@ -46,7 +48,7 @@ for (const mode of modes) {
   }
 }
 
-function positiveInteger(name, value) {
+function positiveInteger(name: string, value: unknown): number {
   const number = Number(value)
   if (!Number.isInteger(number) || number <= 0) {
     throw new Error(`${name} must be a positive integer, got ${value}`)
@@ -54,12 +56,12 @@ function positiveInteger(name, value) {
   return number
 }
 
-function docker(...args) {
+function docker(...args: string[]): void {
   const result = spawnSync('docker', args, { stdio: 'inherit' })
   if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
 }
 
-function request(port, timeoutMs = 5_000) {
+function request(port: number, timeoutMs = 5_000): Promise<number> {
   return new Promise((resolve, reject) => {
     const started = process.hrtime.bigint()
     const req = http.get({ host: '127.0.0.1', port, path: '/', agent }, (res) => {
@@ -75,7 +77,7 @@ function request(port, timeoutMs = 5_000) {
   })
 }
 
-async function waitFor(port) {
+async function waitFor(port: number): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
       if ((await request(port, 500)) >= 0) return
@@ -85,9 +87,9 @@ async function waitFor(port) {
   throw new Error(`target ${port} did not become ready`)
 }
 
-async function measure(port, label, mode) {
+async function measure(port: number, label: string, mode: string) {
   await waitFor(port)
-  const latencies = []
+  const latencies: number[] = []
   const started = Date.now()
   const deadline = started + durationMs
   const workers = Array.from({ length: concurrency }, async () => {
@@ -98,7 +100,7 @@ async function measure(port, label, mode) {
   await Promise.all(workers)
   const elapsedMs = Date.now() - started
   latencies.sort((a, b) => a - b)
-  const percentile = (p) =>
+  const percentile = (p: number) =>
     latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
   return {
     mode,
@@ -110,7 +112,7 @@ async function measure(port, label, mode) {
   }
 }
 
-async function runMode(mode) {
+async function runMode(mode: string) {
   process.env.ORIGIN_READ_PER_REQUEST = mode === 'file' ? '1' : '0'
   docker('compose', '-f', compose, 'down')
   docker('compose', '-f', compose, 'up', '-d', '--build')
