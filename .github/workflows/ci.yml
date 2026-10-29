@@ -123,6 +123,4 @@ jobs:
           path: .
 
       - name: Smoke test
-        run: |
-          expected=$(node -p "require('./package.json').version")
-          node -e "const { version } = require('./index.js'); if (version() !== '$expected') throw new Error('unexpected version: ' + version())"
+        run: node .github/compat-smoke.cjs
