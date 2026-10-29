@@ -1,41 +1,41 @@
-const http = require('http')
-const net = require('net')
+import http from 'http'
+import net from 'net'
 
-const { Server } = require('../index.js')
+import { Server } from '../index.js'
 
 function listen(server) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', function () {
+    server.listen(0, '127.0.0.1', () => {
       resolve(server.address().port)
     })
   })
 }
 
 function close(server) {
-  return new Promise(function (resolve) {
+  return new Promise((resolve) => {
     server.close(resolve)
   })
 }
 
 function request(port) {
-  return new Promise(function (resolve, reject) {
-    const req = http.get({ host: '127.0.0.1', port: port, path: '/' }, function (res) {
+  return new Promise((resolve, reject) => {
+    const req = http.get({ host: '127.0.0.1', port, path: '/' }, (res) => {
       res.resume()
-      res.once('end', function () {
-        if (res.statusCode !== 200) reject(new Error('unexpected status ' + res.statusCode))
+      res.once('end', () => {
+        if (res.statusCode !== 200) reject(new Error(`unexpected status ${res.statusCode}`))
         else resolve()
       })
     })
     req.once('error', reject)
-    req.setTimeout(1000, function () {
+    req.setTimeout(1000, () => {
       req.destroy(new Error('request timed out'))
     })
   })
 }
 
 async function main() {
-  const origin = http.createServer(function (_req, res) {
+  const origin = http.createServer((_req, res) => {
     res.end('ok')
   })
   const originPort = await listen(origin)
@@ -44,8 +44,8 @@ async function main() {
   await close(probe)
 
   const server = new Server({
-    listeners: ['127.0.0.1:' + proxyPort],
-    routes: [{ path: '/', upstreams: ['127.0.0.1:' + originPort] }],
+    listeners: [`127.0.0.1:${proxyPort}`],
+    routes: [{ path: '/', upstreams: [`127.0.0.1:${originPort}`] }],
     gracePeriodMs: 0,
     shutdownTimeoutMs: 500,
     logLevel: 'off',
@@ -60,7 +60,7 @@ async function main() {
         break
       } catch (error) {
         if (Date.now() > deadline) throw error
-        await new Promise(function (resolve) {
+        await new Promise((resolve) => {
           setTimeout(resolve, 100)
         })
       }
@@ -71,7 +71,7 @@ async function main() {
   }
 }
 
-main().catch(function (error) {
+main().catch((error) => {
   console.error(error)
   process.exitCode = 1
 })
