@@ -1,6 +1,7 @@
+// Benchmark tooling runs on the CI Node; it is not part of the runtime package.
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
-import * as os from 'node:os'
+import { availableParallelism } from 'node:os'
 import { writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
