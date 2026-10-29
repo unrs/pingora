@@ -58,9 +58,9 @@
     "postbuild": "node scripts/postbuild.mjs",
     "postbuild:debug": "node scripts/postbuild.mjs",
     "soak": "pnpm run build:debug && node scripts/soak.mjs",
-    "bench:gate": "pnpm run build && node bench/gate.mjs",
-    "bench:gate:debug": "node bench/gate.mjs",
-    "bench:native": "pnpm run build && node bench/native/run.ts"
+    "bench:gate": "pnpm run build && node bench/gate.mts",
+    "bench:gate:debug": "node bench/gate.mts",
+    "bench:native": "pnpm run build && node bench/native/run.mts"
   },
   "publishConfig": {
     "access": "public",

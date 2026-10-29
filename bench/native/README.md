@@ -35,4 +35,4 @@ The `pingap` target is the third-party Pingora-based proxy
 [`vicanso/pingap`](https://github.com/vicanso/pingap), pinned to 0.15.0 and
 configured with `pingap.toml`.
 
-`bench:native` executes `run.ts` directly with Node 24 type stripping.
+`bench:native` executes `run.mts` directly with Node 24 type stripping.
