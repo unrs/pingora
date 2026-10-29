@@ -115,7 +115,11 @@ async function main() {
       samples.push({ direct, proxied, ratio: direct === 0 ? 0 : proxied / direct })
     }
     const ratios = samples.map((sample) => sample.ratio).sort((a, b) => a - b)
-    const ratio = ratios[Math.floor(ratios.length / 2)]
+    const middle = Math.floor(ratios.length / 2)
+    const ratio =
+      ratios.length % 2 === 0
+        ? (ratios[middle - 1] + ratios[middle]) / 2
+        : ratios[middle]
     const result = { samples, ratio, threshold, durationMs, rounds }
     console.log(JSON.stringify(result))
     if (!Number.isFinite(ratio) || ratio < threshold) {
