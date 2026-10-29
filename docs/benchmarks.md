@@ -57,8 +57,9 @@ pnpm bench:native
 It reports throughput and p50/p99 latency per target in both `cached` and
 `file` origin modes.
 The direct origin is measured before and after each proxy matrix to expose
-run-to-run drift. The harness requires Docker; CPU/RSS and a native load generator are still required for the published
-report.
+run-to-run drift. The harness requires Node.js 24+, Linux x64 glibc, and Docker; it is developer
+tooling and is not covered by the package runtime floor. CPU/RSS and a native
+load generator are still required for the published report.
 
 ## Native benchmark workflow
 

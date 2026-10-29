@@ -9,8 +9,15 @@ pnpm bench:native
 BENCH_NATIVE_DURATION_MS=10000 BENCH_NATIVE_CONCURRENCY=16 pnpm bench:native
 ```
 
-Requires Docker with Compose v2. The command starts the containers, waits for
-all targets, measures each, and tears the stack down. The origin is a minimal Go server that loads a 4 KiB file at startup and serves
+## Requirements
+
+- Node.js 24+ (the runner is TypeScript executed with native type stripping; this
+  is developer tooling and is outside the package's Node 12 runtime floor)
+- Linux x64 with glibc
+- Docker with Compose v2
+
+The command starts the containers, waits for all targets, measures each, and
+tears the stack down. The origin is a minimal Go server that loads a 4 KiB file at startup and serves
 it from memory by default, with no request logging; set
 `BENCH_NATIVE_ORIGIN_MODES=cached,file` (the default) to measure both cached
 and per-request file reads; access logging is
