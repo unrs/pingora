@@ -106,7 +106,8 @@ async function measure(port, label, mode) {
   await Promise.all(workers)
   const elapsedMs = Date.now() - startedAt
   latencies.sort((a, b) => a - b)
-  const percentile = (p) => latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))]
+  const percentile = (p) =>
+    latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
   return {
     mode,
     target: label,
