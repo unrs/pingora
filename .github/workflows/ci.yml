@@ -89,7 +89,7 @@ jobs:
       - name: Performance smoke gate
         run: pnpm run bench:gate:debug
 
-      - name: Upload binding for compatibility test
+      - name: Upload binding for runtime smoke
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binding-linux-x64-gnu
@@ -99,7 +99,7 @@ jobs:
             index.d.ts
           if-no-files-found: error
 
-  compatibility:
+  runtime-smoke:
     name: Node ${{ matrix.node }} runtime smoke
     needs: test
     runs-on: ubuntu-latest
