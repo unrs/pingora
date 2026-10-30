@@ -76,31 +76,33 @@ pinned tags rather than `latest`.
 
 ## Sample native run
 
-One CI run (commit `fd8ffff`, Linux x64, Node 24, 4 threads, 16 concurrent
+One CI run (commit `aefb134`, Linux x64, Node 24, 4 threads, 16 concurrent
 clients, 5 seconds per target, Docker Compose) produced:
 
-| mode | target | req/s | p50 (ms) | p99 (ms) |
-| --- | --- | ---: | ---: | ---: |
-| cached | direct origin (start) | 7,108 | 1.99 | 4.75 |
-| cached | nginx 1.27.5 | 6,380 | 2.12 | 4.96 |
-| cached | Caddy 2.9.1 | 5,850 | 2.50 | 6.37 |
-| cached | OpenResty 1.27.1.1 | 6,518 | 2.09 | 4.87 |
-| cached | HAProxy 3.0.5 | 7,207 | 1.88 | 4.38 |
-| cached | Pingora binding | 6,774 | 2.01 | 4.54 |
-| cached | raw Pingora | 6,799 | 2.01 | 4.63 |
-| cached | pingap 0.15.0 | 6,899 | 1.99 | 4.49 |
-| cached | direct origin (end) | 7,806 | 1.84 | 3.93 |
-| file | direct origin (start) | 7,455 | 1.89 | 4.39 |
-| file | nginx 1.27.5 | 6,336 | 2.35 | 4.95 |
-| file | Caddy 2.9.1 | 5,618 | 2.63 | 6.52 |
-| file | OpenResty 1.27.1.1 | 6,276 | 2.39 | 5.09 |
-| file | HAProxy 3.0.5 | 6,892 | 1.99 | 4.87 |
-| file | Pingora binding | 6,387 | 2.37 | 5.38 |
-| file | raw Pingora | 6,388 | 2.36 | 5.53 |
-| file | pingap 0.15.0 | 6,439 | 2.36 | 5.48 |
-| file | direct origin (end) | 7,412 | 1.89 | 4.51 |
+| mode | target | req/s | p50 (ms) | p99 (ms) | CPU% | RSS (MiB) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| cached | direct origin (start) | 15,618 | 0.88 | 2.42 | 106 | 8 |
+| cached | nginx 1.27.5 | 11,867 | 1.16 | 3.58 | 100 | 5 |
+| cached | Caddy 2.9.1 | 10,731 | 1.31 | 4.23 | 161 | 18 |
+| cached | OpenResty 1.27.1.1 | 12,389 | 1.14 | 3.29 | 106 | 5 |
+| cached | HAProxy 3.0.5 | 15,461 | 0.90 | 2.59 | 79 | 13 |
+| cached | Pingora binding | 13,707 | 1.06 | 3.11 | 123 | 15 |
+| cached | raw Pingora | 13,806 | 1.05 | 3.04 | 116 | 5 |
+| cached | pingap 0.15.0 | 13,838 | 1.05 | 2.80 | 122 | 10 |
+| cached | direct origin (end) | 16,011 | 0.87 | 2.66 | 110 | 10 |
+| file | direct origin (start) | 15,550 | 0.89 | 2.69 | 132 | 8 |
+| file | nginx 1.27.5 | 11,624 | 1.26 | 3.57 | 98 | 5 |
+| file | Caddy 2.9.1 | 9,043 | 1.58 | 4.96 | 148 | 18 |
+| file | OpenResty 1.27.1.1 | 11,094 | 1.30 | 4.02 | 95 | 5 |
+| file | HAProxy 3.0.5 | 12,680 | 1.09 | 3.97 | 78 | 13 |
+| file | Pingora binding | 10,885 | 1.31 | 4.01 | 108 | 15 |
+| file | raw Pingora | 11,360 | 1.26 | 3.75 | 107 | 5 |
+| file | pingap 0.15.0 | 11,247 | 1.28 | 3.89 | 111 | 10 |
+| file | direct origin (end) | 14,894 | 0.91 | 3.19 | 150 | 11 |
 
-The direct origin drifts several percent between the start and end rows, and
-the Node client is the bottleneck at these rates. This is a sample, not a
-published performance claim; CPU/RSS and a native load generator are still
-required for the final report.
+CPU% is the cgroup `usage_usec` delta over the measured interval and can exceed
+100% on multiple cores. RSS is `memory.current`, which includes page cache. The
+direct origin drifts several percent between the start and end rows, and the
+Node client is the bottleneck at these rates. This is a sample, not a published
+performance claim; a native load generator is still required for the final
+report.
