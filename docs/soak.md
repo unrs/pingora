@@ -39,8 +39,19 @@ A separate five-minute diagnostic sampled RSS every 30 seconds:
 
 Memory rose during native/V8 warm-up and then plateaued at roughly 276–281 MiB;
 the last four minutes grew by about 9 MiB. The two-hour run ended lower than its
-peak, which is consistent with allocator/GC behavior rather than monotonic
-growth.
+peak, but the final sample is post-run and that difference alone does not define
+the in-run trend.
+
+The final RSS sample is taken after the workload cycles stop but before cleanup,
+so it is a post-run value. The peak-to-end difference does not establish the
+in-run trend; the five-minute timeline above is the evidence for a warm-up
+plateau.
+
+To reproduce the recorded workload:
+
+```sh
+SOAK_DURATION_MS=7200000 SOAK_CONCURRENCY=8 SOAK_CYCLES=1 pnpm soak
+```
 
 This is one run, not a universal memory guarantee. Re-run the harness on the
 target platform when changing the binding, Pingora, or handler churn patterns.
