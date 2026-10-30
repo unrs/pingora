@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install Rust toolchain
@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: lts/*
           cache: pnpm
 
       - name: Install Rust toolchain
@@ -89,7 +89,7 @@ jobs:
       - name: Performance smoke gate
         run: pnpm run bench:gate:debug
 
-      - name: Upload binding for compatibility test
+      - name: Upload binding for runtime smoke
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binding-linux-x64-gnu
@@ -99,10 +99,14 @@ jobs:
             index.d.ts
           if-no-files-found: error
 
-  compatibility:
-    name: Node 12 compatibility
+  runtime-smoke:
+    name: Node ${{ matrix.node }} runtime smoke
     needs: test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['12.20.0', '14.18.0', '16', '18', '20', '22', '24', '26']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -110,7 +114,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 12.20.0
+          node-version: ${{ matrix.node }}
 
       - name: Download binding
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -118,7 +122,5 @@ jobs:
           name: binding-linux-x64-gnu
           path: .
 
-      - name: Smoke test
-        run: |
-          expected=$(node -p "require('./package.json').version")
-          node -e "const { version } = require('./index.js'); if (version() !== '$expected') throw new Error('unexpected version: ' + version())"
+      - name: Proxy smoke test
+        run: node .github/compat-smoke.mjs
