@@ -100,7 +100,7 @@ jobs:
           if-no-files-found: error
 
   compatibility:
-    name: Node ${{ matrix.node }} compatibility
+    name: Node ${{ matrix.node }} runtime smoke
     needs: test
     runs-on: ubuntu-latest
     strategy:
@@ -122,5 +122,5 @@ jobs:
           name: binding-linux-x64-gnu
           path: .
 
-      - name: Smoke test
+      - name: Proxy smoke test
         run: node .github/compat-smoke.mjs
