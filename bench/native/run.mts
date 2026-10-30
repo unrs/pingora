@@ -81,25 +81,31 @@ function cgroupPath(service: string): string | null {
   try {
     const id = dockerOutput('compose', '-f', compose, 'ps', '-q', service)
     if (!id) return null
-    const pid = dockerOutput('inspect', '-f', '{{.State.Pid}}', id)
-    const line = readFileSync(`/proc/${pid}/cgroup`, 'utf8')
+    const state = dockerOutput('inspect', '-f', '{{.State.Running}} {{.State.Pid}}', id).split(' ')
+    if (state[0] !== 'true' || !state[1] || state[1] === '0') return null
+    const line = readFileSync(`/proc/${state[1]}/cgroup`, 'utf8')
       .split('\n')
       .find((entry) => entry.startsWith('0::'))
-    return line ? `/sys/fs/cgroup${line.slice(3)}` : null
+    if (!line || !line.includes(id)) return null
+    return `/sys/fs/cgroup${line.slice(3)}`
   } catch {
     return null
   }
 }
 
-function cgroupUsage(path: string | null): { cpuUsec: number; memoryMiB: number } | null {
+function cgroupUsage(
+  path: string | null,
+): { cpuUsec?: number; memoryMiB?: number } | null {
   if (!path) return null
+  const usage: { cpuUsec?: number; memoryMiB?: number } = {}
   try {
     const cpu = readFileSync(`${path}/cpu.stat`, 'utf8').match(/usage_usec (\d+)/)
-    const memory = Number(readFileSync(`${path}/memory.current`, 'utf8'))
-    return cpu ? { cpuUsec: Number(cpu[1]), memoryMiB: memory / 1048576 } : null
-  } catch {
-    return null
-  }
+    if (cpu) usage.cpuUsec = Number(cpu[1])
+  } catch {}
+  try {
+    usage.memoryMiB = Number(readFileSync(`${path}/memory.current`, 'utf8')) / 1048576
+  } catch {}
+  return usage.cpuUsec === undefined && usage.memoryMiB === undefined ? null : usage
 }
 
 function request(port: number, timeoutMs = 5_000): Promise<number> {
@@ -144,7 +150,9 @@ async function measure(port: number, label: string, mode: string) {
   const elapsedMs = Date.now() - started
   const after = cgroupUsage(path)
   const cpuPercent =
-    before && after ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100) : null
+    before?.cpuUsec !== undefined && after?.cpuUsec !== undefined
+      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100)
+      : null
   latencies.sort((a, b) => a - b)
   const percentile = (p: number) =>
     latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
@@ -156,7 +164,7 @@ async function measure(port: number, label: string, mode: string) {
     p50Ms: percentile(0.5),
     p99Ms: percentile(0.99),
     cpuPercent,
-    memoryMiB: after ? after.memoryMiB : null,
+    memoryMiB: after?.memoryMiB ?? null,
   }
 }
 

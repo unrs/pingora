@@ -55,13 +55,13 @@ with the same Node load generator used by the smoke gate:
 pnpm bench:native
 ```
 
-It reports throughput, p50/p99 latency, average CPU%, and RSS per target in both
-`cached` and `file` origin modes. CPU% is the cgroup `usage_usec` delta over the
-measured interval; RSS is `memory.current`. The direct origin is measured before and after each proxy
-matrix to expose run-to-run drift. The harness requires Node.js 24+, Linux x64
-glibc, and Docker; it is developer tooling and is not covered by the package
-runtime floor. CPU/RSS and a native load generator are still required for the
-published report.
+It reports throughput, p50/p99 latency, average CPU%, and cgroup memory per
+target in both `cached` and `file` origin modes. CPU% is the cgroup `usage_usec`
+delta over the measured interval; cgroup memory is `memory.current`. The direct
+origin is measured before and after each proxy matrix to expose run-to-run
+drift. The harness requires Node.js 24+, Linux x64 glibc, and Docker; it is
+developer tooling and is not covered by the package runtime floor. A native load
+generator is still required for the published report.
 
 ## Native benchmark workflow
 
@@ -79,7 +79,7 @@ pinned tags rather than `latest`.
 One CI run (commit `aefb134`, Linux x64, Node 24, 4 threads, 16 concurrent
 clients, 5 seconds per target, Docker Compose) produced:
 
-| mode | target | req/s | p50 (ms) | p99 (ms) | CPU% | RSS (MiB) |
+| mode | target | req/s | p50 (ms) | p99 (ms) | CPU% | cgroup memory (MiB) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | cached | direct origin (start) | 15,618 | 0.88 | 2.42 | 106 | 8 |
 | cached | nginx 1.27.5 | 11,867 | 1.16 | 3.58 | 100 | 5 |
@@ -101,7 +101,8 @@ clients, 5 seconds per target, Docker Compose) produced:
 | file | direct origin (end) | 14,894 | 0.91 | 3.19 | 150 | 11 |
 
 CPU% is the cgroup `usage_usec` delta over the measured interval and can exceed
-100% on multiple cores. RSS is `memory.current`, which includes page cache. The
+100% on multiple cores. cgroup memory is `memory.current`, which includes page
+cache and is not process RSS. The
 direct origin drifts several percent between the start and end rows, and the
 Node client is the bottleneck at these rates. This is a sample, not a published
 performance claim; a native load generator is still required for the final
