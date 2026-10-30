@@ -57,9 +57,9 @@ jobs:
           {
             echo '## Native proxy benchmark'
             echo
-            echo '| mode | target | req/s | p50 (ms) | p99 (ms) |'
-            echo '| --- | --- | ---: | ---: | ---: |'
-            jq -r '.results[] | "| \(.mode) | \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) |"' native-benchmark.json
+            echo '| mode | target | req/s | p50 (ms) | p99 (ms) | cpu% | rss (MiB) |'
+            echo '| --- | --- | ---: | ---: | ---: | ---: | ---: |'
+            jq -r '.results[] | "| \(.mode) | \(.target) | \(.rps) | \(.p50Ms) | \(.p99Ms) | \(.cpuPercent // "n/a") | \(.memoryMiB // "n/a") |"' native-benchmark.json
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Dump container logs

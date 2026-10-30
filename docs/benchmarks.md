@@ -55,8 +55,9 @@ with the same Node load generator used by the smoke gate:
 pnpm bench:native
 ```
 
-It reports throughput and p50/p99 latency per target in both `cached` and
-`file` origin modes. The direct origin is measured before and after each proxy
+It reports throughput, p50/p99 latency, average CPU%, and RSS per target in both
+`cached` and `file` origin modes. CPU% is the cgroup `usage_usec` delta over the
+measured interval; RSS is `memory.current`. The direct origin is measured before and after each proxy
 matrix to expose run-to-run drift. The harness requires Node.js 24+, Linux x64
 glibc, and Docker; it is developer tooling and is not covered by the package
 runtime floor. CPU/RSS and a native load generator are still required for the

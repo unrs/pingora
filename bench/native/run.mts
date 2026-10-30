@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
 import { availableParallelism } from 'node:os'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -39,6 +39,16 @@ const targets: Array<[string, number]> = [
   ['raw-pingora', 18087],
   ['pingap', 18088],
 ]
+const serviceByTarget: Record<string, string> = {
+  'direct origin': 'origin',
+  nginx: 'nginx',
+  caddy: 'caddy',
+  openresty: 'openresty',
+  haproxy: 'haproxy',
+  pingora: 'pingora',
+  'raw-pingora': 'raw-pingora',
+  pingap: 'pingap',
+}
 const modes = (process.env.BENCH_NATIVE_ORIGIN_MODES ?? 'cached,file')
   .split(',')
   .map((mode) => mode.trim())
@@ -59,6 +69,37 @@ function positiveInteger(name: string, value: unknown): number {
 function docker(...args: string[]): void {
   const result = spawnSync('docker', args, { stdio: 'inherit' })
   if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
+}
+
+function dockerOutput(...args: string[]): string {
+  const result = spawnSync('docker', args, { encoding: 'utf8' })
+  if (result.status !== 0) throw new Error(`docker ${args.join(' ')} failed`)
+  return result.stdout.trim()
+}
+
+function cgroupPath(service: string): string | null {
+  try {
+    const id = dockerOutput('compose', '-f', compose, 'ps', '-q', service)
+    if (!id) return null
+    const pid = dockerOutput('inspect', '-f', '{{.State.Pid}}', id)
+    const line = readFileSync(`/proc/${pid}/cgroup`, 'utf8')
+      .split('\n')
+      .find((entry) => entry.startsWith('0::'))
+    return line ? `/sys/fs/cgroup${line.slice(3)}` : null
+  } catch {
+    return null
+  }
+}
+
+function cgroupUsage(path: string | null): { cpuUsec: number; memoryMiB: number } | null {
+  if (!path) return null
+  try {
+    const cpu = readFileSync(`${path}/cpu.stat`, 'utf8').match(/usage_usec (\d+)/)
+    const memory = Number(readFileSync(`${path}/memory.current`, 'utf8'))
+    return cpu ? { cpuUsec: Number(cpu[1]), memoryMiB: memory / 1048576 } : null
+  } catch {
+    return null
+  }
 }
 
 function request(port: number, timeoutMs = 5_000): Promise<number> {
@@ -89,6 +130,8 @@ async function waitFor(port: number): Promise<void> {
 
 async function measure(port: number, label: string, mode: string) {
   await waitFor(port)
+  const path = cgroupPath(serviceByTarget[label.replace(/ \(start\)| \(end\)/, '')])
+  const before = cgroupUsage(path)
   const latencies: number[] = []
   const started = Date.now()
   const deadline = started + durationMs
@@ -99,6 +142,9 @@ async function measure(port: number, label: string, mode: string) {
   })
   await Promise.all(workers)
   const elapsedMs = Date.now() - started
+  const after = cgroupUsage(path)
+  const cpuPercent =
+    before && after ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100) : null
   latencies.sort((a, b) => a - b)
   const percentile = (p: number) =>
     latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
@@ -109,6 +155,8 @@ async function measure(port: number, label: string, mode: string) {
     rps: Math.round((latencies.length / elapsedMs) * 1_000),
     p50Ms: percentile(0.5),
     p99Ms: percentile(0.99),
+    cpuPercent,
+    memoryMiB: after ? after.memoryMiB : null,
   }
 }
 
