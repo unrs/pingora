@@ -21,9 +21,14 @@ function close(server) {
 function request(port) {
   return new Promise((resolve, reject) => {
     const req = http.get({ host: '127.0.0.1', port, path: '/' }, (res) => {
-      res.resume()
+      let body = ''
+      res.setEncoding('utf8')
+      res.on('data', (chunk) => {
+        body += chunk
+      })
       res.once('end', () => {
         if (res.statusCode !== 200) reject(new Error(`unexpected status ${res.statusCode}`))
+        else if (body !== 'ok') reject(new Error(`unexpected body ${body}`))
         else resolve()
       })
     })
@@ -39,19 +44,19 @@ async function main() {
     res.end('ok')
   })
   const originPort = await listen(origin)
-  const probe = net.createServer()
-  const proxyPort = await listen(probe)
-  await close(probe)
-
-  const server = new Server({
-    listeners: [`127.0.0.1:${proxyPort}`],
-    routes: [{ path: '/', upstreams: [`127.0.0.1:${originPort}`] }],
-    gracePeriodMs: 0,
-    shutdownTimeoutMs: 500,
-    logLevel: 'off',
-  })
-
+  let server
   try {
+    const probe = net.createServer()
+    const proxyPort = await listen(probe)
+    await close(probe)
+
+    server = new Server({
+      listeners: [`127.0.0.1:${proxyPort}`],
+      routes: [{ path: '/', upstreams: [`127.0.0.1:${originPort}`] }],
+      gracePeriodMs: 0,
+      shutdownTimeoutMs: 500,
+      logLevel: 'off',
+    })
     server.start()
     const deadline = Date.now() + 10_000
     for (;;) {
@@ -66,7 +71,7 @@ async function main() {
       }
     }
   } finally {
-    await server.stop()
+    if (server) await server.stop()
     await close(origin)
   }
 }
