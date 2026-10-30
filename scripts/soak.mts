@@ -19,6 +19,7 @@ const cycles = positiveInteger('SOAK_CYCLES', process.env.SOAK_CYCLES ?? 1)
 const cycleDurationMs = Math.max(1, Math.floor(durationMs / cycles))
 const failures: string[] = []
 const rssSamples: number[] = []
+const rssTimeline: Array<[number, number]> = []
 let failureCount = 0
 let requests = 0
 let routeAdds = 0
@@ -168,7 +169,14 @@ async function runCycle(origin: http.Server, cycle: number): Promise<void> {
 async function main() {
   const origin = http.createServer((_req, res) => res.end('ok'))
   await listen(origin)
-  const sampleRss = () => rssSamples.push(process.memoryUsage().rss)
+  const startedAt = Date.now()
+  const sampleRss = () => {
+    const rss = process.memoryUsage().rss
+    rssSamples.push(rss)
+    if (rssSamples.length % 30 === 0) {
+      rssTimeline.push([Date.now() - startedAt, Math.round((rss / 1048576) * 10) / 10])
+    }
+  }
   sampleRss()
   const sampler = setInterval(sampleRss, 1000)
   try {
@@ -176,6 +184,7 @@ async function main() {
       await runCycle(origin, cycle)
     }
   } finally {
+    sampleRss()
     clearInterval(sampler)
     origin.closeAllConnections?.()
     await new Promise((resolve) => origin.close(resolve))
@@ -197,6 +206,7 @@ async function main() {
         end: rssMiB[rssMiB.length - 1],
         max: Math.max(...rssMiB),
         growth: Math.round((rssMiB[rssMiB.length - 1] - rssMiB[0]) * 10) / 10,
+        timeline: rssTimeline,
       },
     }),
   )
