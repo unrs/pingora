@@ -18,6 +18,7 @@ const concurrency = positiveInteger('SOAK_CONCURRENCY', process.env.SOAK_CONCURR
 const cycles = positiveInteger('SOAK_CYCLES', process.env.SOAK_CYCLES ?? 1)
 const cycleDurationMs = Math.max(1, Math.floor(durationMs / cycles))
 const failures: string[] = []
+const rssSamples: number[] = []
 let failureCount = 0
 let requests = 0
 let routeAdds = 0
@@ -167,14 +168,19 @@ async function runCycle(origin: http.Server, cycle: number): Promise<void> {
 async function main() {
   const origin = http.createServer((_req, res) => res.end('ok'))
   await listen(origin)
+  const sampleRss = () => rssSamples.push(process.memoryUsage().rss)
+  sampleRss()
+  const sampler = setInterval(sampleRss, 1000)
   try {
     for (let cycle = 0; cycle < cycles; cycle += 1) {
       await runCycle(origin, cycle)
     }
   } finally {
+    clearInterval(sampler)
     origin.closeAllConnections?.()
     await new Promise((resolve) => origin.close(resolve))
   }
+  const rssMiB = rssSamples.map((value) => Math.round((value / 1048576) * 10) / 10)
 
   console.log(
     JSON.stringify({
@@ -186,6 +192,12 @@ async function main() {
       handlerToggles,
       failureCount,
       failures,
+      rssMiB: {
+        start: rssMiB[0],
+        end: rssMiB[rssMiB.length - 1],
+        max: Math.max(...rssMiB),
+        growth: Math.round((rssMiB[rssMiB.length - 1] - rssMiB[0]) * 10) / 10,
+      },
     }),
   )
   if (failureCount > 0) process.exitCode = 1
