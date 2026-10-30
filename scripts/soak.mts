@@ -189,8 +189,12 @@ async function main() {
     origin.closeAllConnections?.()
     await new Promise((resolve) => origin.close(resolve))
   }
-  const rssMiB = rssSamples.map((value) => Math.round((value / 1048576) * 10) / 10)
+  report()
+  if (failureCount > 0) process.exitCode = 1
+}
 
+function report(): void {
+  const rssMiB = rssSamples.map((value) => Math.round((value / 1048576) * 10) / 10)
   console.log(
     JSON.stringify({
       durationMs,
@@ -201,20 +205,23 @@ async function main() {
       handlerToggles,
       failureCount,
       failures,
-      rssMiB: {
-        start: rssMiB[0],
-        end: rssMiB[rssMiB.length - 1],
-        max: Math.max(...rssMiB),
-        growth: Math.round((rssMiB[rssMiB.length - 1] - rssMiB[0]) * 10) / 10,
-        timeline: rssTimeline,
-      },
+      rssMiB:
+        rssMiB.length > 0
+          ? {
+              start: rssMiB[0],
+              end: rssMiB[rssMiB.length - 1],
+              max: Math.max(...rssMiB),
+              growth: Math.round((rssMiB[rssMiB.length - 1] - rssMiB[0]) * 10) / 10,
+              timeline: rssTimeline,
+            }
+          : null,
     }),
   )
-  if (failureCount > 0) process.exitCode = 1
 }
 
 main().catch((error) => {
   recordFailure(error)
+  report()
   console.error(error)
   process.exitCode = 1
 })
