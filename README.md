@@ -302,7 +302,8 @@ Handlers are optional: requests take the all-Rust path when none is installed.
 
 ## Security
 
-See [docs/security.md](./docs/security.md) for the security checklist and current
+See [docs/soak.md](./docs/soak.md) for the recorded two-hour soak and
+[docs/security.md](./docs/security.md) for the security checklist and current
 posture.
 
 ## Known upstream issues
