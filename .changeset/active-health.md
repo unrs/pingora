@@ -2,4 +2,4 @@
 'pingora': minor
 ---
 
-Add active TCP/UDS upstream health probes via `healthCheckIntervalMs`.
+Add active TCP upstream health probes via `healthCheckIntervalMs`.

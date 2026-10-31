@@ -667,10 +667,13 @@ fn run_health_checks(shared: Arc<SharedState>, interval: Duration, stop: Arc<Ato
     while !stop.load(Ordering::Relaxed) {
         for route in shared.routes_snapshot() {
             for upstream in &route.upstreams {
-                if upstream.probe(Duration::from_millis(500)) {
-                    upstream.health.mark_healthy();
-                } else {
-                    upstream.health.mark_unhealthy();
+                if stop.load(Ordering::Relaxed) {
+                    return;
+                }
+                match upstream.probe(Duration::from_millis(500)) {
+                    Some(true) if !upstream.tls => upstream.health.mark_healthy(),
+                    Some(false) => upstream.health.mark_unhealthy(),
+                    _ => {}
                 }
             }
         }

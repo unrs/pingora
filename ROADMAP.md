@@ -438,7 +438,7 @@ macOS.
 **Goal:** make the binding operationally credible.
 
 - [x] Passive upstream health: connection failures cool down for 5 seconds.
-- [x] Active TCP/UDS health probes with the same cooldown as passive health.
+- [x] Active TCP health probes with the same cooldown as passive health.
 - [ ] Pingora load-balancer integration.
 - [x] Weighted round-robin strategy (binding-level; Pingora LB integration is still open).
 - [x] Least-connection strategy (binding-level).

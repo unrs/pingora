@@ -3,8 +3,6 @@ use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr, TcpStream};
-#[cfg(unix)]
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -219,19 +217,12 @@ impl HostPattern {
 }
 
 impl Upstream {
-    pub fn probe(&self, timeout: Duration) -> bool {
+    pub fn probe(&self, timeout: Duration) -> Option<bool> {
         match &self.address {
-            UpstreamAddress::Inet(address) => TcpStream::connect_timeout(address, timeout).is_ok(),
-            UpstreamAddress::Unix(path) => {
-                #[cfg(unix)]
-                {
-                    UnixStream::connect(path).is_ok()
-                }
-                #[cfg(not(unix))]
-                {
-                    false
-                }
+            UpstreamAddress::Inet(address) => {
+                Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
+            UpstreamAddress::Unix(_) => None,
         }
     }
 
