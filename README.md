@@ -85,7 +85,9 @@ eligible again so the proxy can still attempt a connection.
 Set `healthCheckIntervalMs` to probe TCP upstreams in the background. A probe
 failure applies the same 5-second cooldown; a successful plain-TCP probe clears
 it. TLS upstreams and Unix sockets are not actively probed, and these are
-connectivity checks, not HTTP path/status health checks.
+connectivity checks, not HTTP path/status health checks. Health transitions apply
+to subsequent route picks; a request racing with a transition can still reach
+the peer that was just marked unhealthy.
 
 ### Access logs
 
