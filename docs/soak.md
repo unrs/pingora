@@ -38,14 +38,10 @@ A separate five-minute diagnostic sampled RSS every 30 seconds:
 ```
 
 Memory rose during native/V8 warm-up and then plateaued at roughly 276–281 MiB;
-the last four minutes grew by about 9 MiB. The two-hour run ended lower than its
-peak, but the final sample is post-run and that difference alone does not define
-the in-run trend.
-
-The final RSS sample is taken after the workload cycles stop but before cleanup,
-so it is a post-run value. The peak-to-end difference does not establish the
-in-run trend; the five-minute timeline above is the evidence for a warm-up
-plateau.
+the last four minutes grew by about 9 MiB. The final RSS sample is taken after
+the workload cycles stop but before cleanup, so it is a post-run value; the
+peak-to-end difference does not establish the in-run trend. The five-minute
+timeline above is the evidence for a warm-up plateau.
 
 To reproduce the recorded workload:
 
