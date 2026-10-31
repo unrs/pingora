@@ -219,10 +219,10 @@ impl HostPattern {
 impl Upstream {
     pub fn probe(&self, timeout: Duration) -> Option<bool> {
         match &self.address {
-            UpstreamAddress::Inet(address) => {
+            UpstreamAddress::Inet(address) if !self.tls => {
                 Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
-            UpstreamAddress::Unix(_) => None,
+            UpstreamAddress::Inet(_) | UpstreamAddress::Unix(_) => None,
         }
     }
 

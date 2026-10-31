@@ -671,9 +671,9 @@ fn run_health_checks(shared: Arc<SharedState>, interval: Duration, stop: Arc<Ato
                     return;
                 }
                 match upstream.probe(Duration::from_millis(500)) {
-                    Some(true) if !upstream.tls => upstream.health.mark_healthy(),
+                    Some(true) => upstream.health.mark_healthy(),
                     Some(false) => upstream.health.mark_unhealthy(),
-                    _ => {}
+                    None => {}
                 }
             }
         }
