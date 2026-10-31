@@ -331,16 +331,8 @@ test('actively probes upstreams before routing', async () => {
 })
 
 test('clears an upstream cooldown after a successful probe', async () => {
-  let requests = 0
-  const recovering = await startUpstream((req, res) => {
-    if (requests++ === 0) {
-      req.socket.destroy()
-      return
-    }
-    res.end('recovered')
-  })
+  const recoveringPort = await freePort()
   const fallback = await startUpstream((_req, res) => res.end('fallback'))
-  onTestFinished(() => recovering.close())
   onTestFinished(() => fallback.close())
 
   const proxy = await createProxy({
@@ -349,22 +341,34 @@ test('clears an upstream cooldown after a successful probe', async () => {
       {
         strategy: 'first',
         pathPrefix: '/',
-        upstreams: [`127.0.0.1:${recovering.port}`, `127.0.0.1:${fallback.port}`],
+        upstreams: [`127.0.0.1:${recoveringPort}`, `127.0.0.1:${fallback.port}`],
       },
     ],
   })
   onTestFinished(() => proxy.stop())
 
-  const failed = await waitForProxy(`http://127.0.0.1:${proxy.port}/fail`)
-  assert.equal(failed.status, 502)
-  await failed.text()
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  const fallbackResponse = await waitForProxy(`http://127.0.0.1:${proxy.port}/first`)
+  assert.equal(fallbackResponse.status, 200)
+  assert.equal(await fallbackResponse.text(), 'fallback')
 
-  const recovered = await eventually(async () => {
-    const response = await fetch(`http://127.0.0.1:${proxy.port}/recover`)
-    const body = await response.text()
-    return response.status === 200 && body === 'recovered' ? body : null
-  }, 'active probe did not clear the upstream cooldown')
-  assert.equal(recovered, 'recovered')
+  const recovering = await startUpstream((_req, res) => res.end('recovered'), recoveringPort)
+  onTestFinished(() => recovering.close())
+
+  const deadline = Date.now() + 2_000
+  let body = null
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${proxy.port}/recover`)
+      const text = await response.text()
+      if (response.status === 200 && text === 'recovered') {
+        body = text
+        break
+      }
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.equal(body, 'recovered')
 })
 
 test('returns 502 when the upstream is unavailable', async () => {

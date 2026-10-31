@@ -15,11 +15,11 @@ export async function freePort() {
   return port
 }
 
-export async function startUpstream(handler) {
+export async function startUpstream(handler, port = 0) {
   const server = http.createServer(handler)
   await new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
+    server.listen(port, '127.0.0.1', resolve)
   })
   return {
     port: server.address().port,

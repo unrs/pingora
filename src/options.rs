@@ -40,7 +40,7 @@ pub struct ServerOptions {
     pub max_listeners: Option<u32>,
     /// Optional numeric IP:port for a read-only /metrics and /healthz service.
     pub metrics_address: Option<String>,
-    /// Interval for active TCP/UDS health probes, in ms. `0` disables them.
+    /// Interval for active TCP health probes, in ms. `0` disables them.
     pub health_check_interval_ms: Option<u32>,
 }
 
