@@ -328,7 +328,7 @@ singleton guard is held. `stop()` is idempotent.
 | Unix domain sockets           | 0.3   | Implemented |
 | WebSocket / Upgrade passthrough| 0.3  | Implemented |
 | Passive health checks         | 0.4   | Implemented |
-| Active health checks          | 0.4   | Planned     |
+| Active health checks          | 0.4   | Implemented |
 | Per-route metrics + Prometheus text | 0.4 | Implemented |
 | Request/header/route/listener limits | 0.4 | Implemented |
 | Prometheus metrics endpoint   | 0.4   | Implemented |
