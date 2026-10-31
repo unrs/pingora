@@ -330,6 +330,43 @@ test('actively probes upstreams before routing', async () => {
   assert.equal(await response.text(), 'healthy')
 })
 
+test('clears an upstream cooldown after a successful probe', async () => {
+  let requests = 0
+  const recovering = await startUpstream((req, res) => {
+    if (requests++ === 0) {
+      req.socket.destroy()
+      return
+    }
+    res.end('recovered')
+  })
+  const fallback = await startUpstream((_req, res) => res.end('fallback'))
+  onTestFinished(() => recovering.close())
+  onTestFinished(() => fallback.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${recovering.port}`, `127.0.0.1:${fallback.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  const failed = await waitForProxy(`http://127.0.0.1:${proxy.port}/fail`)
+  assert.equal(failed.status, 502)
+  await failed.text()
+
+  const recovered = await eventually(async () => {
+    const response = await fetch(`http://127.0.0.1:${proxy.port}/recover`)
+    const body = await response.text()
+    return response.status === 200 && body === 'recovered' ? body : null
+  }, 'active probe did not clear the upstream cooldown')
+  assert.equal(recovered, 'recovered')
+})
+
 test('returns 502 when the upstream is unavailable', async () => {
   const unavailablePort = await freePort()
   const proxy = await createProxy({
