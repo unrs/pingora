@@ -307,6 +307,29 @@ test('skips an upstream after a connection failure', async () => {
   assert.equal(await recovered.text(), 'healthy')
 })
 
+test('actively probes upstreams before routing', async () => {
+  const healthy = await startUpstream((_req, res) => res.end('healthy'))
+  const dead = await freePort()
+  onTestFinished(() => healthy.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${dead}`, `127.0.0.1:${healthy.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'healthy')
+})
+
 test('returns 502 when the upstream is unavailable', async () => {
   const unavailablePort = await freePort()
   const proxy = await createProxy({

@@ -143,6 +143,7 @@ struct ServerState {
     shutdown_timeout: Duration,
     upstream_keepalive_pool_size: usize,
     handler_timeout: Duration,
+    health_check_interval: Duration,
     log_level: String,
     log_format: LogFormat,
     init_error: Option<String>,
@@ -194,6 +195,7 @@ impl JsServer {
             max_routes: None,
             max_listeners: None,
             metrics_address: None,
+            health_check_interval_ms: None,
         });
 
         let limits = Limits {
@@ -287,6 +289,9 @@ impl JsServer {
                 log_format,
                 handler_timeout: Duration::from_millis(
                     options.handler_timeout_ms.unwrap_or(1_000).max(1).into(),
+                ),
+                health_check_interval: Duration::from_millis(
+                    options.health_check_interval_ms.unwrap_or(0).into(),
                 ),
                 init_error,
                 shutdown_tx,
@@ -628,13 +633,49 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
         server.add_service(metrics);
     }
 
+    let health_stop = Arc::new(AtomicBool::new(false));
+    let health_thread = if state.health_check_interval.is_zero() {
+        None
+    } else {
+        let stop = health_stop.clone();
+        let shared = state.shared.clone();
+        let interval = state.health_check_interval;
+        Some(
+            thread::Builder::new()
+                .name("pingora-health-check".to_string())
+                .spawn(move || run_health_checks(shared, interval, stop))
+                .map_err(|error| format!("failed to start health checker: {error}"))?,
+        )
+    };
+
     server.run(RunArgs {
         shutdown_signal: Box::new(WatchSignal {
             rx: state.shutdown_tx.subscribe(),
         }),
     });
 
+    if let Some(thread) = health_thread {
+        health_stop.store(true, Ordering::Relaxed);
+        thread.thread().unpark();
+        let _ = thread.join();
+    }
+
     Ok(())
+}
+
+fn run_health_checks(shared: Arc<SharedState>, interval: Duration, stop: Arc<AtomicBool>) {
+    while !stop.load(Ordering::Relaxed) {
+        for route in shared.routes_snapshot() {
+            for upstream in &route.upstreams {
+                if upstream.probe(Duration::from_millis(500)) {
+                    upstream.health.mark_healthy();
+                } else {
+                    upstream.health.mark_unhealthy();
+                }
+            }
+        }
+        thread::park_timeout(interval);
+    }
 }
 
 fn ceil_secs(duration: Duration) -> u64 {

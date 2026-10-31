@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::BufReader;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, TcpStream};
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -48,6 +50,10 @@ pub struct UpstreamHealth {
 impl UpstreamHealth {
     fn is_healthy(&self) -> bool {
         self.blocked_until_ms.load(Ordering::Relaxed) <= now_ms()
+    }
+
+    pub(crate) fn mark_healthy(&self) {
+        self.blocked_until_ms.store(0, Ordering::Relaxed);
     }
 
     pub(crate) fn mark_unhealthy(&self) {
@@ -213,6 +219,22 @@ impl HostPattern {
 }
 
 impl Upstream {
+    pub fn probe(&self, timeout: Duration) -> bool {
+        match &self.address {
+            UpstreamAddress::Inet(address) => TcpStream::connect_timeout(address, timeout).is_ok(),
+            UpstreamAddress::Unix(path) => {
+                #[cfg(unix)]
+                {
+                    UnixStream::connect(path).is_ok()
+                }
+                #[cfg(not(unix))]
+                {
+                    false
+                }
+            }
+        }
+    }
+
     pub fn to_peer(&self) -> Result<HttpPeer, String> {
         let mut peer = match &self.address {
             UpstreamAddress::Inet(addr) => HttpPeer::new(*addr, self.tls, self.sni.clone()),

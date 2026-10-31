@@ -62,6 +62,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
 | `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
+| `healthCheckIntervalMs`      | `number`   | Active TCP/UDS probe interval; `0` disables. Defaults to `0`. |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
 | `maxRequestBodyBytes`       | `number`   | Maximum request body size, including chunked bodies; excess gets `413`. |
@@ -79,8 +80,12 @@ Invalid options are reported by `start()` and in `status().error`.
 
 A failed upstream connection marks that peer unavailable for 5 seconds. Route
 selection skips it and uses a healthy peer; if every peer is unavailable, all are
-eligible again so the proxy can still attempt a connection. This is passive
-health only; active HTTP health checks are not implemented.
+eligible again so the proxy can still attempt a connection.
+
+Set `healthCheckIntervalMs` to probe each upstream's TCP or Unix socket in the
+background. A probe failure applies the same 5-second cooldown; a successful
+probe clears it. These are connectivity checks, not HTTP path/status health
+checks.
 
 ### Access logs
 
