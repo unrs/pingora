@@ -13,11 +13,13 @@ function positiveInteger(name: string, value: unknown): number {
   return number
 }
 
-const durationMs = positiveInteger('SOAK_DURATION_MS', process.env.SOAK_DURATION_MS ?? 10_000)
-const concurrency = positiveInteger('SOAK_CONCURRENCY', process.env.SOAK_CONCURRENCY ?? 8)
-const cycles = positiveInteger('SOAK_CYCLES', process.env.SOAK_CYCLES ?? 1)
-const cycleDurationMs = Math.max(1, Math.floor(durationMs / cycles))
+let durationMs = 10_000
+let concurrency = 8
+let cycles = 1
+let cycleDurationMs = durationMs
 const failures: string[] = []
+const rssSamples: number[] = []
+const rssTimeline: Array<[number, number]> = []
 let failureCount = 0
 let requests = 0
 let routeAdds = 0
@@ -165,17 +167,39 @@ async function runCycle(origin: http.Server, cycle: number): Promise<void> {
 }
 
 async function main() {
+  durationMs = positiveInteger('SOAK_DURATION_MS', process.env.SOAK_DURATION_MS ?? 10_000)
+  concurrency = positiveInteger('SOAK_CONCURRENCY', process.env.SOAK_CONCURRENCY ?? 8)
+  cycles = positiveInteger('SOAK_CYCLES', process.env.SOAK_CYCLES ?? 1)
+  cycleDurationMs = Math.max(1, Math.floor(durationMs / cycles))
+
   const origin = http.createServer((_req, res) => res.end('ok'))
   await listen(origin)
+  const startedAt = Date.now()
+  const sampleRss = () => {
+    const rss = process.memoryUsage().rss
+    rssSamples.push(rss)
+    if (rssSamples.length % 30 === 0) {
+      rssTimeline.push([Date.now() - startedAt, Math.round((rss / 1048576) * 10) / 10])
+    }
+  }
+  sampleRss()
+  const sampler = setInterval(sampleRss, 1000)
   try {
     for (let cycle = 0; cycle < cycles; cycle += 1) {
       await runCycle(origin, cycle)
     }
   } finally {
+    sampleRss()
+    clearInterval(sampler)
     origin.closeAllConnections?.()
     await new Promise((resolve) => origin.close(resolve))
   }
+  report()
+  if (failureCount > 0) process.exitCode = 1
+}
 
+function report(): void {
+  const rssMiB = rssSamples.map((value) => Math.round((value / 1048576) * 10) / 10)
   console.log(
     JSON.stringify({
       durationMs,
@@ -186,13 +210,23 @@ async function main() {
       handlerToggles,
       failureCount,
       failures,
+      rssMiB:
+        rssMiB.length > 0
+          ? {
+              start: rssMiB[0],
+              end: rssMiB[rssMiB.length - 1],
+              max: Math.max(...rssMiB),
+              growth: Math.round((rssMiB[rssMiB.length - 1] - rssMiB[0]) * 10) / 10,
+              timeline: rssTimeline,
+            }
+          : null,
     }),
   )
-  if (failureCount > 0) process.exitCode = 1
 }
 
 main().catch((error) => {
   recordFailure(error)
+  report()
   console.error(error)
   process.exitCode = 1
 })

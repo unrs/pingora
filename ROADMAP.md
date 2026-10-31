@@ -463,7 +463,7 @@ macOS.
       SSRF considerations, denial-of-service limits.
 - [x] Add a soak harness for sustained traffic, route/handler churn, and
       repeated start/stop cycles.
-- [ ] Run and record a multi-hour soak before 1.0.
+- [x] Run and record a multi-hour soak before 1.0.
 
 **Exit criteria:** no unbounded resource growth in a multi-hour soak, benchmark
 numbers are documented, and a security checklist has been signed off.

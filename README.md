@@ -302,8 +302,8 @@ Handlers are optional: requests take the all-Rust path when none is installed.
 
 ## Security
 
-See [docs/security.md](./docs/security.md) for the security checklist and current
-posture.
+See [docs/security.md](./docs/security.md) for the security checklist and
+current posture.
 
 ## Known upstream issues
 
@@ -372,7 +372,8 @@ interface RouteMetrics {
 
 `pnpm soak` runs the proxy under sustained traffic with route and handler churn.
 It defaults to 10 seconds; override with `SOAK_DURATION_MS`,
-`SOAK_CONCURRENCY`, and `SOAK_CYCLES`.
+`SOAK_CONCURRENCY`, and `SOAK_CYCLES`. See [docs/soak.md](./docs/soak.md) for
+the recorded two-hour soak.
 
 ```sh
 SOAK_DURATION_MS=300000 SOAK_CONCURRENCY=16 pnpm soak
