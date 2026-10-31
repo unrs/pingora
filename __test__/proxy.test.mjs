@@ -324,7 +324,7 @@ test('actively probes upstreams before routing', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  await new Promise((resolve) => setTimeout(resolve, 300))
+  await healthy.connection
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'healthy')
@@ -347,7 +347,7 @@ test('clears an upstream cooldown after a successful probe', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  await new Promise((resolve) => setTimeout(resolve, 200))
+  await fallback.connection
   const fallbackResponse = await waitForProxy(`http://127.0.0.1:${proxy.port}/first`)
   assert.equal(fallbackResponse.status, 200)
   assert.equal(await fallbackResponse.text(), 'fallback')
