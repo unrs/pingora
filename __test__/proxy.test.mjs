@@ -307,6 +307,70 @@ test('skips an upstream after a connection failure', async () => {
   assert.equal(await recovered.text(), 'healthy')
 })
 
+test('actively probes upstreams before routing', async () => {
+  const healthy = await startUpstream((_req, res) => res.end('healthy'))
+  const dead = await freePort()
+  onTestFinished(() => healthy.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${dead}`, `127.0.0.1:${healthy.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await healthy.connection
+  const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'healthy')
+})
+
+test('clears an upstream cooldown after a successful probe', async () => {
+  const recoveringPort = await freePort()
+  const fallback = await startUpstream((_req, res) => res.end('fallback'))
+  onTestFinished(() => fallback.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [`127.0.0.1:${recoveringPort}`, `127.0.0.1:${fallback.port}`],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await fallback.connection
+  const fallbackResponse = await waitForProxy(`http://127.0.0.1:${proxy.port}/first`)
+  assert.equal(fallbackResponse.status, 200)
+  assert.equal(await fallbackResponse.text(), 'fallback')
+
+  const recovering = await startUpstream((_req, res) => res.end('recovered'), recoveringPort)
+  onTestFinished(() => recovering.close())
+
+  const deadline = Date.now() + 2_000
+  let body = null
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${proxy.port}/recover`)
+      const text = await response.text()
+      if (response.status === 200 && text === 'recovered') {
+        body = text
+        break
+      }
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.equal(body, 'recovered')
+})
+
 test('returns 502 when the upstream is unavailable', async () => {
   const unavailablePort = await freePort()
   const proxy = await createProxy({
