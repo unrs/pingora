@@ -584,6 +584,21 @@ impl ShutdownSignalWatch for WatchSignal {
     }
 }
 
+struct HealthThreadGuard {
+    stop: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for HealthThreadGuard {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            thread.thread().unpark();
+            let _ = thread.join();
+        }
+    }
+}
+
 fn run_server(state: Arc<ServerState>) -> Result<(), String> {
     init_logger(&state.log_level, state.log_format);
 
@@ -647,18 +662,16 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
                 .map_err(|error| format!("failed to start health checker: {error}"))?,
         )
     };
+    let _health_guard = HealthThreadGuard {
+        stop: health_stop,
+        thread: health_thread,
+    };
 
     server.run(RunArgs {
         shutdown_signal: Box::new(WatchSignal {
             rx: state.shutdown_tx.subscribe(),
         }),
     });
-
-    if let Some(thread) = health_thread {
-        health_stop.store(true, Ordering::Relaxed);
-        thread.thread().unpark();
-        let _ = thread.join();
-    }
 
     Ok(())
 }
