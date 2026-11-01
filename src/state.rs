@@ -135,6 +135,10 @@ impl SharedState {
         *self.handler.write().unwrap() = handler;
     }
 
+    pub fn routes_snapshot(&self) -> Vec<Arc<Route>> {
+        self.routes.read().unwrap().clone()
+    }
+
     pub fn handler(&self) -> Option<Arc<RequestHandler>> {
         self.handler.read().unwrap().clone()
     }

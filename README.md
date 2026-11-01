@@ -62,6 +62,7 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
 | `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
+| `healthCheckIntervalMs`      | `number`   | Active TCP probe interval; `0` disables. Defaults to `0`. |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
 | `maxRequestBodyBytes`       | `number`   | Maximum request body size, including chunked bodies; excess gets `413`. |
@@ -79,8 +80,14 @@ Invalid options are reported by `start()` and in `status().error`.
 
 A failed upstream connection marks that peer unavailable for 5 seconds. Route
 selection skips it and uses a healthy peer; if every peer is unavailable, all are
-eligible again so the proxy can still attempt a connection. This is passive
-health only; active HTTP health checks are not implemented.
+eligible again so the proxy can still attempt a connection.
+
+Set `healthCheckIntervalMs` to probe TCP upstreams in the background. A probe
+failure applies the same 5-second cooldown; a successful plain-TCP probe clears
+it. TLS upstreams and Unix sockets are not actively probed, and these are
+connectivity checks, not HTTP path/status health checks. Health transitions apply
+to subsequent route picks; a request racing with a transition can still reach
+the peer that was just marked unhealthy.
 
 ### Access logs
 
