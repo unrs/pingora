@@ -351,6 +351,7 @@ test('clears an upstream cooldown after a successful probe', async () => {
   const fallbackResponse = await waitForProxy(`http://127.0.0.1:${proxy.port}/first`)
   assert.equal(fallbackResponse.status, 200)
   assert.equal(await fallbackResponse.text(), 'fallback')
+  const fallbackAt = Date.now()
 
   const recovering = await startUpstream((_req, res) => res.end('recovered'), recoveringPort)
   onTestFinished(() => recovering.close())
@@ -376,6 +377,10 @@ test('clears an upstream cooldown after a successful probe', async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
   assert.equal(body, 'recovered')
+  assert.ok(
+    Date.now() - fallbackAt < 5_000,
+    'recovery must happen inside the five-second passive cooldown',
+  )
 })
 
 test('returns 502 when the upstream is unavailable', async () => {
