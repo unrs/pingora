@@ -336,11 +336,11 @@ singleton guard is held. `stop()` is idempotent.
 | Structured JSON logs          | 0.4   | Implemented |
 | JS access-log callback        | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
-| Native proxy benchmarks       | 0.4      | Planned     |
+| Native proxy benchmarks       | 0.4      | Implemented |
 | Server framework package       | post-1.0 | Exploring   |
 | Request/response body hooks    | later    | Exploring   |
 | Cache / L4 proxy / gRPC-Web   | later | Exploring   |
-| Windows native support        | later | Exploring   |
+| Windows native support        | later | Deferred    |
 
 ## 7. Milestones
 
@@ -483,7 +483,7 @@ numbers are documented, and a security checklist has been signed off.
 - [ ] API reference, guides, migration notes, and troubleshooting.
 - [ ] Performance regression job and published benchmark report.
 - [ ] Security policy and vulnerability reporting process.
-- [ ] Windows investigation outcome documented (support or explicit deferral).
+- [x] Windows investigation outcome documented (explicit deferral; see `docs/windows.md`).
 
 **Exit criteria:** a clean `npm install pingora` works on every Tier 1 target
 without a Rust toolchain, the API is documented, and the release workflow has
