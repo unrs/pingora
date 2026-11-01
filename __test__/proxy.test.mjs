@@ -355,6 +355,13 @@ test('clears an upstream cooldown after a successful probe', async () => {
   const recovering = await startUpstream((_req, res) => res.end('recovered'), recoveringPort)
   onTestFinished(() => recovering.close())
 
+  await Promise.race([
+    recovering.connection,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('active probe did not connect to recovering upstream')), 1_000)
+    }),
+  ])
+
   const deadline = Date.now() + 2_000
   let body = null
   while (Date.now() < deadline) {
