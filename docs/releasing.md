@@ -14,6 +14,8 @@ One release publishes seven packages, all at the same version:
 | `pingora`                          | CommonJS loader and type declarations |
 | `@pingora/binding-linux-x64-gnu`   | Linux x64 (glibc) native addon        |
 | `@pingora/binding-linux-arm64-gnu` | Linux arm64 (glibc) native addon      |
+| `@pingora/binding-linux-x64-musl`  | Linux x64 (musl) native addon         |
+| `@pingora/binding-linux-arm64-musl`| Linux arm64 (musl) native addon       |
 | `@pingora/binding-darwin-x64`      | macOS Intel native addon              |
 | `@pingora/binding-darwin-arm64`    | macOS Apple Silicon native addon      |
 
