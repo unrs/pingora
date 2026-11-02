@@ -100,7 +100,7 @@ jobs:
             build-args: --use-napi-cross
           - target: aarch64-unknown-linux-gnu
             host: ubuntu-latest
-            build-args: --use-napi-cross
+            build-args: -x
           - target: x86_64-unknown-linux-musl
             host: ubuntu-latest
             build-args: -x
@@ -129,7 +129,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Setup Zig
-        if: contains(matrix.target, 'musl')
+        if: contains(matrix.build-args, '-x') || contains(matrix.target, 'musl')
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.14.0
