@@ -7,13 +7,15 @@ the repository.
 
 ## Packages
 
-One release publishes five packages, all at the same version:
+One release publishes seven packages, all at the same version:
 
 | Package                            | Contents                              |
 | ---------------------------------- | ------------------------------------- |
 | `pingora`                          | CommonJS loader and type declarations |
 | `@pingora/binding-linux-x64-gnu`   | Linux x64 (glibc) native addon        |
 | `@pingora/binding-linux-arm64-gnu` | Linux arm64 (glibc) native addon      |
+| `@pingora/binding-linux-x64-musl`  | Linux x64 (musl) native addon         |
+| `@pingora/binding-linux-arm64-musl`| Linux arm64 (musl) native addon       |
 | `@pingora/binding-darwin-x64`      | macOS Intel native addon              |
 | `@pingora/binding-darwin-arm64`    | macOS Apple Silicon native addon      |
 
@@ -84,7 +86,7 @@ The version pull request should contain `package.json`, `Cargo.toml`,
 
 After the version pull request is merged, `release.yml`:
 
-1. builds four native targets;
+1. builds six native targets;
 2. uploads the generated `index.js` and `index.d.ts` from the Linux x64 build;
 3. runs `napi create-npm-dirs` and `napi artifacts`;
 4. runs `napi pre-publish`, which publishes each `@pingora/binding-*` package
@@ -102,12 +104,14 @@ Provenance attestations are attached to all packages.
 ### 1. Reserve the package names
 
 The npm organisation (or user) that owns the `@pingora` scope must be able to
-publish to it. The package names are already reserved. If a new platform target
-is added, publish a placeholder for it before the first release that uses it.
+publish to it. The package names are already reserved. The musl x64/arm64 placeholders have
+been published at `0.0.0` and their trusted publishers are configured. If a new
+platform target is added, publish a placeholder and configure it before the
+first release that uses it.
 
 ### 2. Configure trusted publishing
 
-For **each** of the five packages, open the package settings on npmjs.com and
+For **each** of the seven packages, open the package settings on npmjs.com and
 add a trusted publisher under **Settings → Trusted publishing**:
 
 | Field             | Value          |
