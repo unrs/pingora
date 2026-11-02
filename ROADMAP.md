@@ -58,9 +58,10 @@ These are deliberately out of scope for the first stable release:
 - **An Express-style web framework before the proxy is stable.** The server
   framework (`@pingora/http-server`) is a post-1.0 package, not a reason to blur
   the proxy API.
-- **Windows support before 1.0.** Pingora's programmatic shutdown path is
-  Unix-oriented. Windows users can use WSL; native support is revisited after
-  the Unix releases are stable.
+- **Windows support before 1.0.** Pingora's Windows support is still
+  experimental; the binding has no Windows CI lane or prebuilt target. Windows
+  users can use WSL; native support is revisited when upstream support and CI
+  can exercise the proxy end to end.
 - **A caching proxy before 1.0.** Pingora has a cache framework, but exposing it
   well needs a separate design cycle.
 - **A custom DNS resolver or service-discovery layer.** Pingora 0.9 has no DNS
