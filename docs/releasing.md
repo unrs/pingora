@@ -1,7 +1,5 @@
 # Releasing
 
-See [semver.md](./semver.md) for the public API and deprecation policy.
-
 Releases are driven by [Changesets](https://changesets.dev) and published by
 [`.github/workflows/release.yml`](../.github/workflows/release.yml) using npm
 **trusted publishing** (GitHub Actions OIDC). No `NPM_TOKEN` secret is stored in
