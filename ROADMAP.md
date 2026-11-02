@@ -482,7 +482,7 @@ numbers are documented, and a security checklist has been signed off.
       and a Changesets-driven release workflow.
 - [ ] CI matrix for the Node.js release lines selected by the support policy on
       Linux and macOS, plus the runtime compatibility floor.
-- [ ] API reference, guides, migration notes, and troubleshooting.
+- [x] API reference, guides, migration notes, and troubleshooting.
 - [ ] Performance regression job and published benchmark report.
 - [ ] Security policy and vulnerability reporting process.
 - [x] Windows investigation outcome documented (explicit deferral; see `docs/windows.md`).
