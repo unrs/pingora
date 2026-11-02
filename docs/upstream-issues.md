@@ -48,6 +48,18 @@ list of every limitation.
 - Cleanup: remove this entry and the related handler caveat when the upstream
   fix lands.
 
+## #425 — Windows server shutdown is Ctrl+C-only
+
+- Status: open PR
+- Link: https://github.com/cloudflare/pingora/pull/425
+- Affects: binding `stop()` on Windows
+- Detail: Windows `RunArgs` has no `shutdown_signal`; the server loop only waits
+  for Ctrl+C. PR #425 fixes that Ctrl+C path but does not add an injectable
+  shutdown watch, so a Windows binding cannot stop the server programmatically.
+- Related: https://github.com/cloudflare/pingora/issues/585
+- Cleanup: add Windows support once upstream exposes a shutdown hook (or an
+  equivalent server-stop API), then retry the Windows target.
+
 ## napi-rs #3655 — ThreadsafeFunction leaks boxed call data when the queue is full
 
 - Status: open
