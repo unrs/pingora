@@ -58,9 +58,10 @@ These are deliberately out of scope for the first stable release:
 - **An Express-style web framework before the proxy is stable.** The server
   framework (`@pingora/http-server`) is a post-1.0 package, not a reason to blur
   the proxy API.
-- **Windows support before 1.0.** Pingora's programmatic shutdown path is
-  Unix-oriented. Windows users can use WSL; native support is revisited after
-  the Unix releases are stable.
+- **Windows support before 1.0.** Pingora's Windows support is still
+  experimental; the binding has no Windows CI lane or prebuilt target. Windows
+  users can use WSL; native support is revisited when upstream support and CI
+  can exercise the proxy end to end.
 - **A caching proxy before 1.0.** Pingora has a cache framework, but exposing it
   well needs a separate design cycle.
 - **A custom DNS resolver or service-discovery layer.** Pingora 0.9 has no DNS
@@ -336,11 +337,11 @@ singleton guard is held. `stop()` is idempotent.
 | Structured JSON logs          | 0.4   | Implemented |
 | JS access-log callback        | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
-| Native proxy benchmarks       | 0.4      | Planned     |
+| Native proxy benchmark harness | 0.4     | Implemented |
 | Server framework package       | post-1.0 | Exploring   |
 | Request/response body hooks    | later    | Exploring   |
 | Cache / L4 proxy / gRPC-Web   | later | Exploring   |
-| Windows native support        | later | Exploring   |
+| Windows native support        | later | Deferred    |
 
 ## 7. Milestones
 
@@ -457,8 +458,9 @@ macOS.
 - [x] Native benchmark includes pingap, a third-party Pingora proxy.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
-- [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
-      tested native proxy versions.
+- [x] Publish a sample report with req/s, p50/p99 latency, CPU, cgroup memory
+      (not RSS), and the tested native proxy versions; a native load generator
+      is still open.
 - [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
@@ -483,7 +485,7 @@ numbers are documented, and a security checklist has been signed off.
 - [ ] API reference, guides, migration notes, and troubleshooting.
 - [ ] Performance regression job and published benchmark report.
 - [ ] Security policy and vulnerability reporting process.
-- [ ] Windows investigation outcome documented (support or explicit deferral).
+- [x] Windows investigation outcome documented (explicit deferral; see `docs/windows.md`).
 
 **Exit criteria:** a clean `npm install pingora` works on every Tier 1 target
 without a Rust toolchain, the API is documented, and the release workflow has
@@ -530,31 +532,29 @@ Benchmarks must answer one question: how much does the binding cost relative to
 the same proxy work done by other implementations? Every entry uses the same
 origin, workload, connection reuse, and warmup. The current Vitest suite is
 Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
-raw Rust throughput. The native matrix below is where raw Pingora capacity is
-measured with wrk/oha and a non-Node origin.
+raw Rust throughput. The native matrix below uses a Go origin for every proxy,
+but its load generator is still Node-driven; wrk/oha and a non-Node generator
+remain future work.
 
 | Class            | Implementations                                      | Status      |
 | ---------------- | ---------------------------------------------------- | ----------- |
 | Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
 | JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
-| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Planned     |
-| Load generators  | Vitest bench for JS; wrk/oha for native proxies      | Planned     |
+| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Implemented |
+| Load generators  | Vitest/Node for JS; native generator for proxies     | Partial     |
 
-Planned native benchmark work:
+Native benchmark status:
 
-- [ ] Commit pinned configs and Docker images under `bench/native/` for nginx,
-      Caddy, and OpenResty, all proxying to the same non-Node origin
-      (for example a static-file server), not the Node origin used by the Vitest
-      suite.
-- [ ] Use the same worker/CPU allocation, keep-alive settings, disabled access
-      logs, and disabled TLS for every implementation.
-- [ ] Run single-request and 20-concurrent cases; publish req/s plus p50/p99
-      latency, CPU, and RSS.
-- [ ] Record the native proxy versions and image digests with the results.
-- [ ] Add a `just bench:native` entry point that builds and runs the whole matrix.
-- [ ] Keep results machine-specific and publish the hardware/OS/runtime details
-      next to them.
-
+- [x] Pinned configs and Docker images under `bench/native/` for nginx, Caddy,
+      OpenResty, HAProxy, raw Pingora, pingap, and the binding, all using the
+      same Go origin.
+- [x] Same worker allocation, keep-alive settings, disabled access logs, and
+      disabled TLS for every implementation.
+- [x] `pnpm bench:native` builds and runs the whole matrix.
+- [x] Record native proxy versions and a sample run with req/s, p50/p99 latency,
+      CPU, and cgroup memory (not RSS).
+- [ ] Use a native load generator; the Node client is the current bottleneck.
+- [ ] Record image digests and the full hardware/OS details with a final run.
 The matrix compares proxy overhead, not absolute production capacity. TLS,
 large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 

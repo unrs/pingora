@@ -49,6 +49,12 @@ handler example is [examples/request-handler.mjs](./examples/request-handler.mjs
 
 ## API
 
+The package follows [semver](https://semver.org/). The public API is the package
+root exports, documented `Server` options/methods, route/upstream/listener
+shapes, and the handler/access-log contracts. Pre-1.0 minor releases may break
+that API with a changeset migration note; deprecated APIs stay for at least one
+minor before removal.
+
 ### `new Server(options?)`
 
 | Option                       | Type       | Description                                              |
@@ -404,7 +410,8 @@ These are end-to-end Node numbers, not Pingora's raw ceiling. See
 ## Requirements
 
 - **Runtime:** `^12.20.0 || ^14.18.0 || >=16.0.0` (CommonJS entry; `import` interop works on Node 12.22+)
-- Linux (glibc; musl planned) and macOS (Intel and Apple Silicon)
+- Linux (glibc; musl planned) and macOS (Intel and Apple Silicon); Windows is
+  [explicitly deferred](./docs/windows.md)
 - Prebuilt binaries are installed through npm; source builds are documented in
   [docs/development.md](./docs/development.md).
 
