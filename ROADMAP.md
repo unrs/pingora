@@ -458,8 +458,9 @@ macOS.
 - [x] Native benchmark includes pingap, a third-party Pingora proxy.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
-- [x] Publish a sample report with req/s, p50/p99 latency, CPU/RSS, and the
-      tested native proxy versions; a native load generator is still open.
+- [x] Publish a sample report with req/s, p50/p99 latency, CPU, cgroup memory
+      (not RSS), and the tested native proxy versions; a native load generator
+      is still open.
 - [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
@@ -551,7 +552,7 @@ Native benchmark status:
       disabled TLS for every implementation.
 - [x] `pnpm bench:native` builds and runs the whole matrix.
 - [x] Record native proxy versions and a sample run with req/s, p50/p99 latency,
-      CPU, and RSS.
+      CPU, and cgroup memory (not RSS).
 - [ ] Use a native load generator; the Node client is the current bottleneck.
 - [ ] Record image digests and the full hardware/OS details with a final run.
 The matrix compares proxy overhead, not absolute production capacity. TLS,
