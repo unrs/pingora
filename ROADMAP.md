@@ -531,8 +531,9 @@ Benchmarks must answer one question: how much does the binding cost relative to
 the same proxy work done by other implementations? Every entry uses the same
 origin, workload, connection reuse, and warmup. The current Vitest suite is
 Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
-raw Rust throughput. The native matrix below is where raw Pingora capacity is
-measured with wrk/oha and a non-Node origin.
+raw Rust throughput. The native matrix below uses a Go origin for every proxy,
+but its load generator is still Node-driven; wrk/oha and a non-Node generator
+remain future work.
 
 | Class            | Implementations                                      | Status      |
 | ---------------- | ---------------------------------------------------- | ----------- |
