@@ -476,7 +476,7 @@ numbers are documented, and a security checklist has been signed off.
 **Goal:** freeze the API and make installation boring.
 
 - [ ] API freeze and semver policy; deprecation process.
-- [ ] Prebuilt binaries: Linux x64/arm64 glibc, Linux x64/arm64 musl,
+- [x] Prebuilt binaries: Linux x64/arm64 glibc, Linux x64/arm64 musl,
       macOS x64/arm64.
 - [ ] npm platform packages, publish-time optional dependencies, provenance,
       and a Changesets-driven release workflow.
