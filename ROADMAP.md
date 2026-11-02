@@ -337,7 +337,7 @@ singleton guard is held. `stop()` is idempotent.
 | Structured JSON logs          | 0.4   | Implemented |
 | JS access-log callback        | 0.4   | Implemented |
 | Prebuilt platform binaries     | 1.0      | Planned     |
-| Native proxy benchmarks       | 0.4      | Implemented |
+| Native proxy benchmark harness | 0.4     | Implemented |
 | Server framework package       | post-1.0 | Exploring   |
 | Request/response body hooks    | later    | Exploring   |
 | Cache / L4 proxy / gRPC-Web   | later | Exploring   |
@@ -458,8 +458,8 @@ macOS.
 - [x] Native benchmark includes pingap, a third-party Pingora proxy.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
-- [ ] Publish a benchmark report with req/s, p50/p99 latency, CPU/RSS, and the
-      tested native proxy versions.
+- [x] Publish a sample report with req/s, p50/p99 latency, CPU/RSS, and the
+      tested native proxy versions; a native load generator is still open.
 - [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
@@ -538,24 +538,21 @@ measured with wrk/oha and a non-Node origin.
 | ---------------- | ---------------------------------------------------- | ----------- |
 | Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
 | JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
-| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Planned     |
-| Load generators  | Vitest bench for JS; wrk/oha for native proxies      | Planned     |
+| Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Implemented |
+| Load generators  | Vitest/Node for JS; native generator for proxies     | Partial     |
 
-Planned native benchmark work:
+Native benchmark status:
 
-- [ ] Commit pinned configs and Docker images under `bench/native/` for nginx,
-      Caddy, and OpenResty, all proxying to the same non-Node origin
-      (for example a static-file server), not the Node origin used by the Vitest
-      suite.
-- [ ] Use the same worker/CPU allocation, keep-alive settings, disabled access
-      logs, and disabled TLS for every implementation.
-- [ ] Run single-request and 20-concurrent cases; publish req/s plus p50/p99
-      latency, CPU, and RSS.
-- [ ] Record the native proxy versions and image digests with the results.
-- [ ] Add a `just bench:native` entry point that builds and runs the whole matrix.
-- [ ] Keep results machine-specific and publish the hardware/OS/runtime details
-      next to them.
-
+- [x] Pinned configs and Docker images under `bench/native/` for nginx, Caddy,
+      OpenResty, HAProxy, raw Pingora, pingap, and the binding, all using the
+      same Go origin.
+- [x] Same worker allocation, keep-alive settings, disabled access logs, and
+      disabled TLS for every implementation.
+- [x] `pnpm bench:native` builds and runs the whole matrix.
+- [x] Record native proxy versions and a sample run with req/s, p50/p99 latency,
+      CPU, and RSS.
+- [ ] Use a native load generator; the Node client is the current bottleneck.
+- [ ] Record image digests and the full hardware/OS details with a final run.
 The matrix compares proxy overhead, not absolute production capacity. TLS,
 large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
 
