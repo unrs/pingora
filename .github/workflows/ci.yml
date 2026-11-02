@@ -163,7 +163,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build musl binding
-        run: pnpm run build:debug -- --target x86_64-unknown-linux-musl
+        run: pnpm run build:debug --target x86_64-unknown-linux-musl
 
       - name: Proxy smoke test
         run: node .github/compat-smoke.mjs
