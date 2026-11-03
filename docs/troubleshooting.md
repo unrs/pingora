@@ -19,9 +19,10 @@ optional dependency, the loader tries `napi-postinstall/fallback` once.
 
 ## `GLIBC_x.yy not found`
 
-The glibc binding is built against a glibc floor. Use the musl build on older
-distros, or upgrade the host glibc. Do not rename a musl `.node` file to a glibc
-name; the dynamic loader cannot use it.
+The glibc binding is built against a glibc floor. Upgrade the host glibc or use a
+newer base image. On an actual musl host (for example Alpine), the loader selects
+the musl binding automatically. Do not rename a musl `.node` file to a glibc name;
+the glibc loader cannot use it.
 
 ## `EADDRINUSE` / stale Unix socket
 
