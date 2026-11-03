@@ -29,13 +29,21 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
 }
 process.env.BENCH_NATIVE_THREADS = String(threads)
 
+function readOptional(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
 function hostMetadata() {
-  const cpu = readFileSync('/proc/cpuinfo', 'utf8')
-    .split('\n')
+  const cpu = readOptional('/proc/cpuinfo')
+    ?.split('\n')
     .find((line) => line.startsWith('model name'))
     ?.split(':')[1]
     ?.trim()
-  const kernel = readFileSync('/proc/sys/kernel/osrelease', 'utf8').trim()
+  const kernel = readOptional('/proc/sys/kernel/osrelease')?.trim() ?? null
   return {
     platform: `${process.platform}-${process.arch}`,
     cpu: cpu ?? null,
