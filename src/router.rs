@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::io::BufReader;
+use std::io::{BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -218,6 +218,44 @@ impl HostPattern {
     }
 }
 
+struct DeadlineStream {
+    inner: TcpStream,
+    deadline: Instant,
+}
+
+impl DeadlineStream {
+    fn remaining(&self) -> std::io::Result<Duration> {
+        let remaining = self.deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "TLS handshake deadline",
+            ))
+        } else {
+            Ok(remaining)
+        }
+    }
+}
+
+impl Read for DeadlineStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.set_read_timeout(Some(self.remaining()?))?;
+        self.inner.read(buffer)
+    }
+}
+
+impl Write for DeadlineStream {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.inner.set_write_timeout(Some(self.remaining()?))?;
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.set_write_timeout(Some(self.remaining()?))?;
+        self.inner.flush()
+    }
+}
+
 fn native_tls_config() -> Option<Arc<ClientConfig>> {
     static CONFIG: OnceLock<Option<Arc<ClientConfig>>> = OnceLock::new();
     CONFIG
@@ -248,11 +286,6 @@ impl Upstream {
             Ok(stream) => stream,
             Err(_) => return Some(false),
         };
-        if stream.set_read_timeout(Some(timeout)).is_err()
-            || stream.set_write_timeout(Some(timeout)).is_err()
-        {
-            return Some(false);
-        }
 
         let config = if let Some(ca) = &self.ca {
             let mut roots = RootCertStore::empty();
@@ -278,16 +311,12 @@ impl Upstream {
             Ok(connection) => connection,
             Err(_) => return Some(false),
         };
+        let stream = DeadlineStream {
+            inner: stream,
+            deadline: Instant::now() + timeout,
+        };
         let mut tls = StreamOwned::new(connection, stream);
-        let deadline = Instant::now() + timeout;
         while tls.conn.is_handshaking() {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero()
-                || tls.sock.set_read_timeout(Some(remaining)).is_err()
-                || tls.sock.set_write_timeout(Some(remaining)).is_err()
-            {
-                return Some(false);
-            }
             if tls.conn.complete_io(&mut tls.sock).is_err() {
                 return Some(false);
             }
@@ -860,5 +889,33 @@ mod tests {
             route.upstreams[0].probe(Duration::from_millis(100)),
             Some(false)
         );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn tls_probe_honors_the_overall_deadline() {
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut byte = [0u8; 1];
+            let _ = stream.read(&mut byte);
+            std::thread::sleep(Duration::from_millis(400));
+        });
+        let upstream = parse_upstream(Either::B(UpstreamOptions {
+            address: address.to_string(),
+            weight: None,
+            tls: Some(true),
+            sni: Some("localhost".to_string()),
+            verify: Some(true),
+            ca: None,
+        }))
+        .unwrap();
+
+        let started = Instant::now();
+        assert_eq!(upstream.probe(Duration::from_millis(100)), Some(false));
+        assert!(started.elapsed() < Duration::from_millis(300));
+        server.join().unwrap();
     }
 }

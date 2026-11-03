@@ -22,12 +22,16 @@ async function startTlsUpstream(serverCert = cert, serverKey = key) {
   const server = https.createServer({ cert: serverCert, key: serverKey }, (_req, res) =>
     res.end('secure'),
   )
+  const connection = new Promise((resolve) => {
+    server.once('connection', resolve)
+  })
   await new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
   })
   return {
     port: server.address().port,
+    connection,
     close: () => new Promise((resolve) => server.close(resolve)),
   }
 }
@@ -147,7 +151,7 @@ test('active probes trust the TLS handshake', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  await fallback.connection
+  await Promise.all([tlsUpstream.connection, fallback.connection])
   const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'fallback')
