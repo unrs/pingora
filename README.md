@@ -1,5 +1,7 @@
 # pingora
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/unrs/pingora?utm_source=badge)
+
 Node.js bindings for [Cloudflare Pingora](https://github.com/cloudflare/pingora),
 built with [napi-rs](https://napi.rs).
 

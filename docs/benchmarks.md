@@ -37,6 +37,30 @@ requests. Run `just bench` on the target machine before drawing conclusions.
 Native comparisons against nginx, Caddy, and OpenResty are tracked in the
 roadmap benchmark matrix.
 
+## Continuous benchmarks (CodSpeed)
+
+The `CodSpeed` GitHub Actions workflow tracks the Vitest benchmarks on every
+pull request and push to `main` with
+[CodSpeed](https://app.codspeed.io/unrs/pingora), through
+`@codspeed/vitest-plugin`:
+
+- `bench/control-plane.bench.mjs` covers synchronous binding calls that do not
+  touch the network: constructing a `Server` with 100 routes, `addRoute` +
+  `removeRoute`, and the metrics readers. It runs in CodSpeed's CPU simulation
+  mode on `ubuntu-latest`, which gives stable instruction-based results.
+- `bench/proxy.bench.mjs` (the HTTP suite above) runs in walltime mode on
+  CodSpeed macro runners, since it measures real network I/O across Pingora's
+  worker threads.
+
+Outside the CodSpeed runner the plugin does nothing, so `just bench` and
+`pnpm exec vitest bench` behave as before. To run the simulation suite locally
+with the [CodSpeed CLI](https://codspeed.io/docs/cli):
+
+```sh
+pnpm run build
+codspeed run -m simulation -- pnpm exec vitest bench --run bench/control-plane.bench.mjs
+```
+
 ## Performance smoke gate
 
 `pnpm bench:gate` compares proxy throughput against a direct origin and fails

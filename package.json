@@ -73,6 +73,7 @@
     "@1stg/tsconfig": "^5.0.0",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
+    "@codspeed/vitest-plugin": "^6.1.0",
     "@napi-rs/cli": "^3.10.8",
     "@types/node": "^24.19.2",
     "http-proxy": "^1.18.1",
