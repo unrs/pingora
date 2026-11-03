@@ -223,7 +223,7 @@ impl Upstream {
                 Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
             UpstreamAddress::Inet(_) => None,
-            UpstreamAddress::Unix(path) => {
+            UpstreamAddress::Unix(path) if !self.tls => {
                 #[cfg(unix)]
                 {
                     let socket =
@@ -237,6 +237,7 @@ impl Upstream {
                     None
                 }
             }
+            UpstreamAddress::Unix(_) => None,
         }
     }
 
