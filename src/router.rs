@@ -16,6 +16,8 @@ use pingora::http::RequestHeader;
 use pingora::tls::{CertificateDer, RootCertStore};
 use pingora::upstreams::peer::HttpPeer;
 use pingora::utils::tls::{parse_x509, WrappedX509};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 use x509_parser::prelude::FromDer;
 
 use crate::options::{RouteOptions, UpstreamOptions};
@@ -217,12 +219,50 @@ impl HostPattern {
 }
 
 impl Upstream {
+    fn probe_tls(&self, address: &std::net::SocketAddr, timeout: Duration) -> Option<bool> {
+        if !self.verify {
+            return None;
+        }
+
+        let stream = TcpStream::connect_timeout(address, timeout).ok()?;
+        stream.set_read_timeout(Some(timeout)).ok()?;
+        stream.set_write_timeout(Some(timeout)).ok()?;
+
+        let mut roots = RootCertStore::empty();
+        if let Some(ca) = &self.ca {
+            for certificate in ca.iter() {
+                let _ = roots.add(CertificateDer::from(certificate.borrow_raw_cert().clone()));
+            }
+        } else {
+            for certificate in rustls_native_certs::load_native_certs().ok()? {
+                let _ = roots.add(certificate);
+            }
+        }
+
+        let config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let server_name = if self.sni.is_empty() {
+            ServerName::try_from(address.ip().to_string()).ok()?
+        } else {
+            ServerName::try_from(self.sni.clone()).ok()?
+        };
+        let connection = ClientConnection::new(Arc::new(config), server_name).ok()?;
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            if tls.conn.complete_io(&mut tls.sock).is_err() {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
     pub fn probe(&self, timeout: Duration) -> Option<bool> {
         match &self.address {
-            UpstreamAddress::Inet(address) if !self.tls => {
+            UpstreamAddress::Inet(address) if self.tls => self.probe_tls(address, timeout),
+            UpstreamAddress::Inet(address) => {
                 Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
-            UpstreamAddress::Inet(_) => None,
             UpstreamAddress::Unix(path) if !self.tls => {
                 #[cfg(unix)]
                 {
