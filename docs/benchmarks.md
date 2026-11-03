@@ -60,8 +60,8 @@ target in both `cached` and `file` origin modes. CPU% is the cgroup `usage_usec`
 delta over the measured interval; cgroup memory is `memory.current`. The direct
 origin is measured before and after each proxy matrix to expose run-to-run
 drift. The harness requires Node.js 24+, Linux x64 glibc, and Docker; it is
-developer tooling and is not covered by the package runtime floor. A native load
-generator is still required for the published report.
+developer tooling and is not covered by the package runtime floor. The matrix uses
+a Go load generator inside the Docker network, not the Node client.
 
 ## Native benchmark workflow
 
@@ -74,7 +74,11 @@ Each result records `startedAt` and, in GitHub Actions, `commit`. Local
 Pingora/origin/raw images are rebuilt with `--build`; third-party images use
 pinned tags rather than `latest`.
 
-## Sample native run
+## Pre-loadgen sample
+
+This run predates the Go load generator and is kept only as a baseline. The Node
+client was the bottleneck, so these numbers are not comparable with current
+native-loader runs.
 
 One CI run (commit `aefb134`, Linux x64, Node 24, 4 threads, 16 concurrent
 clients, 5 seconds per target, Docker Compose) produced:
@@ -104,6 +108,5 @@ CPU% is the cgroup `usage_usec` delta over the measured interval and can exceed
 100% on multiple cores. cgroup memory is `memory.current`, which includes page
 cache and is not process RSS. The
 direct origin drifts several percent between the start and end rows, and the
-Node client is the bottleneck at these rates. This is a sample, not a published
-performance claim; a native load generator is still required for the final
-report.
+Node client was the bottleneck at these rates. Current runs use the Go loadgen;
+see the Native benchmark workflow summary/artifact for fresh numbers.

@@ -553,7 +553,7 @@ Native benchmark status:
 - [x] `pnpm bench:native` builds and runs the whole matrix.
 - [x] Record native proxy versions and a sample run with req/s, p50/p99 latency,
       CPU, and cgroup memory (not RSS).
-- [ ] Use a native load generator; the Node client is the current bottleneck.
+- [x] Use a native load generator; the Go loadgen runs inside the Docker network.
 - [ ] Record image digests and the full hardware/OS details with a final run.
 The matrix compares proxy overhead, not absolute production capacity. TLS,
 large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.
