@@ -459,8 +459,8 @@ macOS.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [x] Publish a sample report with req/s, p50/p99 latency, CPU, cgroup memory
-      (not RSS), and the tested native proxy versions; a native load generator
-      is still open.
+      (not RSS), and the tested native proxy versions; the Go loadgen now backs
+      fresh runs.
 - [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
