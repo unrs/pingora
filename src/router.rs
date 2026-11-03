@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
@@ -224,9 +224,15 @@ impl Upstream {
             return None;
         }
 
-        let stream = TcpStream::connect_timeout(address, timeout).ok()?;
-        stream.set_read_timeout(Some(timeout)).ok()?;
-        stream.set_write_timeout(Some(timeout)).ok()?;
+        let stream = match TcpStream::connect_timeout(address, timeout) {
+            Ok(stream) => stream,
+            Err(_) => return Some(false),
+        };
+        if stream.set_read_timeout(Some(timeout)).is_err()
+            || stream.set_write_timeout(Some(timeout)).is_err()
+        {
+            return Some(false);
+        }
 
         let mut roots = RootCertStore::empty();
         if let Some(ca) = &self.ca {
@@ -234,7 +240,11 @@ impl Upstream {
                 let _ = roots.add(CertificateDer::from(certificate.borrow_raw_cert().clone()));
             }
         } else {
-            for certificate in rustls_native_certs::load_native_certs().ok()? {
+            let certificates = match rustls_native_certs::load_native_certs() {
+                Ok(certificates) => certificates,
+                Err(_) => return Some(false),
+            };
+            for certificate in certificates {
                 let _ = roots.add(certificate);
             }
         }
@@ -243,13 +253,30 @@ impl Upstream {
             .with_root_certificates(roots)
             .with_no_client_auth();
         let server_name = if self.sni.is_empty() {
-            ServerName::try_from(address.ip().to_string()).ok()?
+            match ServerName::try_from(address.ip().to_string()) {
+                Ok(name) => name,
+                Err(_) => return Some(false),
+            }
         } else {
-            ServerName::try_from(self.sni.clone()).ok()?
+            match ServerName::try_from(self.sni.clone()) {
+                Ok(name) => name,
+                Err(_) => return Some(false),
+            }
         };
-        let connection = ClientConnection::new(Arc::new(config), server_name).ok()?;
+        let connection = match ClientConnection::new(Arc::new(config), server_name) {
+            Ok(connection) => connection,
+            Err(_) => return Some(false),
+        };
         let mut tls = StreamOwned::new(connection, stream);
+        let deadline = Instant::now() + timeout;
         while tls.conn.is_handshaking() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero()
+                || tls.sock.set_read_timeout(Some(remaining)).is_err()
+                || tls.sock.set_write_timeout(Some(remaining)).is_err()
+            {
+                return Some(false);
+            }
             if tls.conn.complete_io(&mut tls.sock).is_err() {
                 return Some(false);
             }
