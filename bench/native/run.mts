@@ -1,7 +1,7 @@
 // Benchmark tooling runs directly on Node 24 (type stripping); it is not part of the runtime package.
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
-import { availableParallelism, totalmem } from 'node:os'
+import { availableParallelism, cpus, totalmem } from 'node:os'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -47,7 +47,8 @@ function hostMetadata() {
   return {
     platform: `${process.platform}-${process.arch}`,
     cpu: cpu ?? null,
-    cores: availableParallelism(),
+    cores: cpus().length,
+    runnerParallelism: availableParallelism(),
     memoryMiB: Math.round(totalmem() / 1048576),
     kernel,
     node: process.version,
