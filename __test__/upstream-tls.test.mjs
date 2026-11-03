@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { onTestFinished, test } from 'vitest'
 
-import { createProxy, waitForProxy } from './helpers.mjs'
+import { createProxy, startUpstream, waitForProxy } from './helpers.mjs'
 
 const certPath = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const keyPath = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
@@ -22,12 +22,16 @@ async function startTlsUpstream(serverCert = cert, serverKey = key) {
   const server = https.createServer({ cert: serverCert, key: serverKey }, (_req, res) =>
     res.end('secure'),
   )
+  const connection = new Promise((resolve) => {
+    server.once('connection', resolve)
+  })
   await new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', resolve)
   })
   return {
     port: server.address().port,
+    connection,
     close: () => new Promise((resolve) => server.close(resolve)),
   }
 }
@@ -124,6 +128,64 @@ test('loads CA configuration for a handler-selected upstream', async () => {
     await proxy.stop()
     await upstream.close()
   }
+})
+
+test('active probes trust the TLS handshake', async () => {
+  const tlsUpstream = await startTlsUpstream()
+  const fallback = await startUpstream((_req, res) => res.end('fallback'))
+  onTestFinished(() => tlsUpstream.close())
+  onTestFinished(() => fallback.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [
+          `https://127.0.0.1:${tlsUpstream.port}`,
+          `http://127.0.0.1:${fallback.port}`,
+        ],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await Promise.all([tlsUpstream.connection, fallback.connection])
+  const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'fallback')
+})
+
+test('active probes retain a trusted TLS upstream', async () => {
+  const tlsUpstream = await startTlsUpstream()
+  const fallback = await startUpstream((_req, res) => res.end('fallback'))
+  onTestFinished(() => tlsUpstream.close())
+  onTestFinished(() => fallback.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [
+          {
+            address: `https://127.0.0.1:${tlsUpstream.port}`,
+            sni: 'localhost',
+            ca: caPath,
+          },
+          `http://127.0.0.1:${fallback.port}`,
+        ],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await Promise.all([tlsUpstream.connection, fallback.connection])
+  const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'secure')
 })
 
 test('rejects ca without TLS and invalid CA files', async () => {

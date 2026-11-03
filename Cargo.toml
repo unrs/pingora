@@ -25,6 +25,8 @@ napi = { version = "3.14", default-features = false, features = ["napi4", "async
 napi-derive = "3.6"
 pingora = { version = "0.9", features = ["proxy", "rustls"] }
 rustls-pemfile = "2"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls-native-certs = "0.7"
 x509-parser = "0.16"
 tokio = { version = "1", features = ["sync", "time"] }
 

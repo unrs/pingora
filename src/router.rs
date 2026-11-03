@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::io::BufReader;
+use std::io::{BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
@@ -16,6 +16,8 @@ use pingora::http::RequestHeader;
 use pingora::tls::{CertificateDer, RootCertStore};
 use pingora::upstreams::peer::HttpPeer;
 use pingora::utils::tls::{parse_x509, WrappedX509};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 use x509_parser::prelude::FromDer;
 
 use crate::options::{RouteOptions, UpstreamOptions};
@@ -216,13 +218,118 @@ impl HostPattern {
     }
 }
 
+struct DeadlineStream {
+    inner: TcpStream,
+    deadline: Instant,
+}
+
+impl DeadlineStream {
+    fn remaining(&self) -> std::io::Result<Duration> {
+        let remaining = self.deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "TLS handshake deadline",
+            ))
+        } else {
+            Ok(remaining)
+        }
+    }
+}
+
+impl Read for DeadlineStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.set_read_timeout(Some(self.remaining()?))?;
+        self.inner.read(buffer)
+    }
+}
+
+impl Write for DeadlineStream {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.inner.set_write_timeout(Some(self.remaining()?))?;
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.set_write_timeout(Some(self.remaining()?))?;
+        self.inner.flush()
+    }
+}
+
+fn native_tls_config() -> Option<Arc<ClientConfig>> {
+    static CONFIG: OnceLock<Option<Arc<ClientConfig>>> = OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let mut roots = RootCertStore::empty();
+            for certificate in rustls_native_certs::load_native_certs().ok()? {
+                let _ = roots.add(certificate);
+            }
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            Some(Arc::new(config))
+        })
+        .clone()
+}
+
 impl Upstream {
+    fn probe_tls(&self, address: &std::net::SocketAddr, timeout: Duration) -> Option<bool> {
+        if !self.verify {
+            return None;
+        }
+        if self.sni.is_empty() {
+            return Some(TcpStream::connect_timeout(address, timeout).is_ok());
+        }
+
+        let stream = match TcpStream::connect_timeout(address, timeout) {
+            Ok(stream) => stream,
+            Err(_) => return Some(false),
+        };
+
+        let config = if let Some(ca) = &self.ca {
+            let mut roots = RootCertStore::empty();
+            for certificate in ca.iter() {
+                let _ = roots.add(CertificateDer::from(certificate.borrow_raw_cert().clone()));
+            }
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            Arc::new(config)
+        } else {
+            match native_tls_config() {
+                Some(config) => config,
+                None => return Some(false),
+            }
+        };
+        let server_name = match ServerName::try_from(self.sni.clone()) {
+            Ok(name) => name,
+            Err(_) => return Some(false),
+        };
+        let connection = match ClientConnection::new(config, server_name) {
+            Ok(connection) => connection,
+            Err(_) => return Some(false),
+        };
+        let stream = DeadlineStream {
+            inner: stream,
+            deadline: Instant::now() + timeout,
+        };
+        let mut tls = StreamOwned::new(connection, stream);
+        while tls.conn.is_handshaking() {
+            if tls.conn.complete_io(&mut tls.sock).is_err() {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
     pub fn probe(&self, timeout: Duration) -> Option<bool> {
         match &self.address {
-            UpstreamAddress::Inet(address) if !self.tls => {
+            UpstreamAddress::Inet(address) if self.tls => self.probe_tls(address, timeout),
+            UpstreamAddress::Inet(address) => {
                 Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
-            UpstreamAddress::Inet(_) => None,
             UpstreamAddress::Unix(path) if !self.tls => {
                 #[cfg(unix)]
                 {
@@ -782,5 +889,38 @@ mod tests {
             route.upstreams[0].probe(Duration::from_millis(100)),
             Some(false)
         );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn tls_probe_honors_the_overall_deadline() {
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut byte = [0u8; 1];
+            let _ = stream.read(&mut byte);
+            // Valid TLS record header for 256 bytes, then one payload byte every 50 ms.
+            let _ = stream.write_all(&[0x16, 0x03, 0x03, 0x01, 0x00]);
+            for _ in 0..8 {
+                std::thread::sleep(Duration::from_millis(50));
+                let _ = stream.write_all(&[0]);
+            }
+        });
+        let upstream = parse_upstream(Either::B(UpstreamOptions {
+            address: address.to_string(),
+            weight: None,
+            tls: Some(true),
+            sni: Some("localhost".to_string()),
+            verify: Some(true),
+            ca: None,
+        }))
+        .unwrap();
+
+        let started = Instant::now();
+        assert_eq!(upstream.probe(Duration::from_millis(100)), Some(false));
+        assert!(started.elapsed() < Duration::from_millis(300));
+        server.join().unwrap();
     }
 }

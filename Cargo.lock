@@ -1504,6 +1504,8 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "pingora",
+ "rustls",
+ "rustls-native-certs",
  "rustls-pemfile",
  "socket2",
  "tokio",
