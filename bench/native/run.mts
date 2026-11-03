@@ -157,11 +157,13 @@ async function measure(url: string, port: number, label: string, mode: string) {
   await waitFor(port)
   const path = cgroupPath(serviceByTarget[label.replace(/ \(start\)| \(end\)/, '')])
   const before = cgroupUsage(path)
+  const started = Date.now()
   const result = runLoadgen(url)
+  const elapsedMs = Date.now() - started
   const after = cgroupUsage(path)
   const cpuPercent =
     before?.cpuUsec !== undefined && after?.cpuUsec !== undefined
-      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / durationMs) * 100)
+      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100)
       : null
   return {
     mode,
