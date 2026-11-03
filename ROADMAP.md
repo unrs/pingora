@@ -484,7 +484,7 @@ numbers are documented, and a security checklist has been signed off.
       Linux and macOS, plus the runtime compatibility floor.
 - [x] API reference, guides, migration notes, and troubleshooting.
 - [ ] Performance regression job and published benchmark report.
-- [ ] Security policy and vulnerability reporting process.
+- [x] Security policy and vulnerability reporting process.
 - [x] Windows investigation outcome documented (explicit deferral; see `docs/windows.md`).
 
 **Exit criteria:** a clean `npm install pingora` works on every Tier 1 target
