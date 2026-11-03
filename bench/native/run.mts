@@ -1,7 +1,7 @@
 // Benchmark tooling runs directly on Node 24 (type stripping); it is not part of the runtime package.
 import { spawnSync } from 'node:child_process'
 import http from 'node:http'
-import { availableParallelism } from 'node:os'
+import { availableParallelism, cpus, totalmem } from 'node:os'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,6 +28,32 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
   throw new Error(`BENCH_NATIVE_DURATION_MS must be a finite positive number, got ${process.env.BENCH_NATIVE_DURATION_MS}`)
 }
 process.env.BENCH_NATIVE_THREADS = String(threads)
+
+function readOptional(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+function hostMetadata() {
+  const cpu = readOptional('/proc/cpuinfo')
+    ?.split('\n')
+    .find((line) => line.startsWith('model name'))
+    ?.split(':')[1]
+    ?.trim()
+  const kernel = readOptional('/proc/sys/kernel/osrelease')?.trim() ?? null
+  return {
+    platform: `${process.platform}-${process.arch}`,
+    cpu: cpu ?? null,
+    cores: cpus().length,
+    runnerParallelism: availableParallelism(),
+    memoryMiB: Math.round(totalmem() / 1048576),
+    kernel,
+    node: process.version,
+  }
+}
 
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
 const targets: Array<[string, number, string]> = [
@@ -206,7 +232,7 @@ async function main() {
     }
   }
 
-  const result = { startedAt, commit, durationMs, concurrency, threads, modes, results }
+  const result = { startedAt, commit, durationMs, concurrency, threads, modes, host: hostMetadata(), results }
   const serialized = JSON.stringify(result, null, 2)
   console.log(serialized)
   if (process.env.BENCH_NATIVE_OUTPUT) writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')

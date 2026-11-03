@@ -62,6 +62,9 @@ origin is measured before and after each proxy matrix to expose run-to-run
 drift. The harness requires Node.js 24+, Linux x64 glibc, and Docker; it is
 developer tooling and is not covered by the package runtime floor.
 
+Each result JSON records platform, CPU model, host core count, runner
+parallelism, memory, kernel, and Node version as `host` metadata.
+
 ## Native benchmark workflow
 
 The `Native benchmark` GitHub Actions workflow runs the native matrix on pull
