@@ -459,8 +459,8 @@ macOS.
 - [x] Native proxy benchmark harness: nginx, Caddy, OpenResty, and optionally
       HAProxy, with pinned configs/images and the same upstream/workload.
 - [x] Publish a sample report with req/s, p50/p99 latency, CPU, cgroup memory
-      (not RSS), and the tested native proxy versions; a native load generator
-      is still open.
+      (not RSS), and the tested native proxy versions; the Go loadgen now backs
+      fresh runs.
 - [x] Add a CI performance smoke gate (proxy throughput vs direct origin).
 - [x] Security review: open-proxy defaults, header injection, TLS defaults,
       SSRF considerations, denial-of-service limits.
@@ -532,16 +532,15 @@ Benchmarks must answer one question: how much does the binding cost relative to
 the same proxy work done by other implementations? Every entry uses the same
 origin, workload, connection reuse, and warmup. The current Vitest suite is
 Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
-raw Rust throughput. The native matrix below uses a Go origin for every proxy,
-but its load generator is still Node-driven; wrk/oha and a non-Node generator
-remain future work.
+raw Rust throughput. The native matrix below uses a Go origin and a Go load
+generator for every proxy.
 
 | Class            | Implementations                                      | Status      |
 | ---------------- | ---------------------------------------------------- | ----------- |
 | Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
 | JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
 | Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Implemented |
-| Load generators  | Vitest/Node for JS; native generator for proxies     | Partial     |
+| Load generators  | Vitest/Node for JS; Go loadgen for proxies           | Implemented |
 
 Native benchmark status:
 
@@ -553,7 +552,7 @@ Native benchmark status:
 - [x] `pnpm bench:native` builds and runs the whole matrix.
 - [x] Record native proxy versions and a sample run with req/s, p50/p99 latency,
       CPU, and cgroup memory (not RSS).
-- [ ] Use a native load generator; the Node client is the current bottleneck.
+- [x] Use a native load generator; the Go loadgen runs inside the Docker network.
 - [ ] Record image digests and the full hardware/OS details with a final run.
 The matrix compares proxy overhead, not absolute production capacity. TLS,
 large bodies, WebSocket upgrades, and HTTP/2 need separate scenarios.

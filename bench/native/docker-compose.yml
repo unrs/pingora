@@ -75,3 +75,7 @@ services:
       - "127.0.0.1:18084:80"
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
+  loadgen:
+    build: ./loadgen
+    profiles: ["loadgen"]
