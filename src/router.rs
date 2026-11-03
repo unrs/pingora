@@ -222,7 +222,22 @@ impl Upstream {
             UpstreamAddress::Inet(address) if !self.tls => {
                 Some(TcpStream::connect_timeout(address, timeout).is_ok())
             }
-            UpstreamAddress::Inet(_) | UpstreamAddress::Unix(_) => None,
+            UpstreamAddress::Inet(_) => None,
+            UpstreamAddress::Unix(path) if !self.tls => {
+                #[cfg(unix)]
+                {
+                    let socket =
+                        socket2::Socket::new(socket2::Domain::UNIX, socket2::Type::STREAM, None)
+                            .ok()?;
+                    let address = socket2::SockAddr::unix(path).ok()?;
+                    Some(socket.connect_timeout(&address, timeout).is_ok())
+                }
+                #[cfg(not(unix))]
+                {
+                    None
+                }
+            }
+            UpstreamAddress::Unix(_) => None,
         }
     }
 
@@ -739,5 +754,33 @@ mod tests {
         let third = in_addr(route.pick().unwrap()).port();
         assert_ne!(first, second);
         assert_eq!(first, third);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn probes_unix_upstreams_with_a_timeout() {
+        use std::os::unix::net::UnixListener;
+
+        let path = std::env::temp_dir().join(format!(
+            "pingora-probe-{}-{}.sock",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let listener = UnixListener::bind(&path).unwrap();
+        let route = route_with_upstreams(vec![format!("unix:{}", path.display())]);
+
+        assert_eq!(
+            route.upstreams[0].probe(Duration::from_millis(100)),
+            Some(true)
+        );
+
+        drop(listener);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(
+            route.upstreams[0].probe(Duration::from_millis(100)),
+            Some(false)
+        );
     }
 }
