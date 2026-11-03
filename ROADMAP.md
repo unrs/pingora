@@ -532,16 +532,15 @@ Benchmarks must answer one question: how much does the binding cost relative to
 the same proxy work done by other implementations? Every entry uses the same
 origin, workload, connection reuse, and warmup. The current Vitest suite is
 Node-client-bound: it measures proxy overhead in a Node stack, not Pingora's
-raw Rust throughput. The native matrix below uses a Go origin for every proxy,
-but its load generator is still Node-driven; wrk/oha and a non-Node generator
-remain future work.
+raw Rust throughput. The native matrix below uses a Go origin and a Go load
+generator for every proxy.
 
 | Class            | Implementations                                      | Status      |
 | ---------------- | ---------------------------------------------------- | ----------- |
 | Baseline         | direct origin (Node.js HTTP server, no proxy)        | Implemented |
 | JS proxies       | `pingora`, `http-proxy`, `http-proxy-middleware`   | Implemented |
 | Native proxies   | nginx, Caddy, OpenResty, HAProxy (optional)          | Implemented |
-| Load generators  | Vitest/Node for JS; native generator for proxies     | Partial     |
+| Load generators  | Vitest/Node for JS; Go loadgen for proxies           | Implemented |
 
 Native benchmark status:
 

@@ -49,7 +49,7 @@ catastrophic-regression guard, not a precise benchmark.
 `bench/native` contains pinned Docker Compose configs for Pingora, a raw
 Pingora binary, pingap, nginx, Caddy, OpenResty, and HAProxy sharing one origin
 and Docker network. `pnpm bench:native` runs the matrix
-with the same Node load generator used by the smoke gate:
+with a Go load generator inside the Docker network:
 
 ```sh
 pnpm bench:native
@@ -60,8 +60,7 @@ target in both `cached` and `file` origin modes. CPU% is the cgroup `usage_usec`
 delta over the measured interval; cgroup memory is `memory.current`. The direct
 origin is measured before and after each proxy matrix to expose run-to-run
 drift. The harness requires Node.js 24+, Linux x64 glibc, and Docker; it is
-developer tooling and is not covered by the package runtime floor. The matrix uses
-a Go load generator inside the Docker network, not the Node client.
+developer tooling and is not covered by the package runtime floor.
 
 ## Native benchmark workflow
 
