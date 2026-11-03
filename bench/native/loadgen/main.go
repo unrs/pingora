@@ -42,12 +42,13 @@ func main() {
 	targetURL := flag.String("url", "", "target URL")
 	duration := flag.Duration("duration", 5*time.Second, "load duration")
 	concurrency := flag.Int("concurrency", 16, "concurrent clients")
+	requestTimeout := flag.Duration("request-timeout", 10*time.Second, "per-request timeout")
 	flag.Parse()
 
 	parsedURL, err := url.Parse(*targetURL)
 	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" ||
-		*duration <= 0 || *concurrency <= 0 {
-		fmt.Fprintln(os.Stderr, "-url must be an absolute http(s) URL; -duration and -concurrency must be positive")
+		*duration <= 0 || *concurrency <= 0 || *requestTimeout <= 0 {
+		fmt.Fprintln(os.Stderr, "-url must be an absolute http(s) URL; durations and concurrency must be positive")
 		os.Exit(2)
 	}
 
@@ -58,8 +59,7 @@ func main() {
 	}
 	client := &http.Client{Transport: transport}
 
-	ctx, cancel := context.WithTimeout(context.Background(), *duration)
-	defer cancel()
+	runDeadline := time.Now().Add(*duration)
 
 	var errors atomic.Int64
 	var wg sync.WaitGroup
@@ -71,26 +71,26 @@ func main() {
 		go func() {
 			defer wg.Done()
 			var samples []float64
-			for ctx.Err() == nil {
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, *targetURL, nil)
+			for time.Now().Before(runDeadline) {
+				reqCtx, cancel := context.WithTimeout(context.Background(), *requestTimeout)
+				req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, *targetURL, nil)
 				if err != nil {
+					cancel()
 					errors.Add(1)
 					continue
 				}
 				started := time.Now()
 				resp, err := client.Do(req)
 				if err != nil {
-					if ctx.Err() == nil {
-						errors.Add(1)
-					}
+					cancel()
+					errors.Add(1)
 					continue
 				}
 				_, copyErr := io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
+				cancel()
 				if copyErr != nil {
-					if ctx.Err() == nil {
-						errors.Add(1)
-					}
+					errors.Add(1)
 					continue
 				}
 				if resp.StatusCode != http.StatusOK {
