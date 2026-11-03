@@ -264,11 +264,11 @@ fn native_tls_config() -> Option<Arc<ClientConfig>> {
             for certificate in rustls_native_certs::load_native_certs().ok()? {
                 let _ = roots.add(certificate);
             }
-            Some(Arc::new(
-                ClientConfig::builder()
-                    .with_root_certificates(roots)
-                    .with_no_client_auth(),
-            ))
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            Some(Arc::new(config))
         })
         .clone()
 }
@@ -292,11 +292,11 @@ impl Upstream {
             for certificate in ca.iter() {
                 let _ = roots.add(CertificateDer::from(certificate.borrow_raw_cert().clone()));
             }
-            Arc::new(
-                ClientConfig::builder()
-                    .with_root_certificates(roots)
-                    .with_no_client_auth(),
-            )
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            Arc::new(config)
         } else {
             match native_tls_config() {
                 Some(config) => config,
