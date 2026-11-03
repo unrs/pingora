@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"sync"
@@ -38,13 +39,15 @@ func percentile(samples []float64, p float64) float64 {
 }
 
 func main() {
-	url := flag.String("url", "", "target URL")
+	targetURL := flag.String("url", "", "target URL")
 	duration := flag.Duration("duration", 5*time.Second, "load duration")
 	concurrency := flag.Int("concurrency", 16, "concurrent clients")
 	flag.Parse()
 
-	if *url == "" || *duration <= 0 || *concurrency <= 0 {
-		fmt.Fprintln(os.Stderr, "-url, -duration and -concurrency are required")
+	parsedURL, err := url.Parse(*targetURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" ||
+		*duration <= 0 || *concurrency <= 0 {
+		fmt.Fprintln(os.Stderr, "-url must be an absolute http(s) URL; -duration and -concurrency must be positive")
 		os.Exit(2)
 	}
 
@@ -69,7 +72,7 @@ func main() {
 			defer wg.Done()
 			var samples []float64
 			for ctx.Err() == nil {
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, *url, nil)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, *targetURL, nil)
 				if err != nil {
 					errors.Add(1)
 					continue
@@ -82,8 +85,14 @@ func main() {
 					}
 					continue
 				}
-				_, _ = io.Copy(io.Discard, resp.Body)
+				_, copyErr := io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
+				if copyErr != nil {
+					if ctx.Err() == nil {
+						errors.Add(1)
+					}
+					continue
+				}
 				if resp.StatusCode != http.StatusOK {
 					errors.Add(1)
 					continue
