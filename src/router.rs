@@ -901,7 +901,12 @@ mod tests {
             let (mut stream, _) = listener.accept().unwrap();
             let mut byte = [0u8; 1];
             let _ = stream.read(&mut byte);
-            std::thread::sleep(Duration::from_millis(400));
+            // Valid TLS record header for 256 bytes, then one payload byte every 50 ms.
+            let _ = stream.write_all(&[0x16, 0x03, 0x03, 0x01, 0x00]);
+            for _ in 0..8 {
+                std::thread::sleep(Duration::from_millis(50));
+                let _ = stream.write_all(&[0]);
+            }
         });
         let upstream = parse_upstream(Either::B(UpstreamOptions {
             address: address.to_string(),
