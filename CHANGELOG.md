@@ -1,5 +1,13 @@
 # pingora
 
+## 0.3.0
+
+### Minor Changes
+
+- [#47](https://github.com/unrs/pingora/pull/47) [`84d1dd7`](https://github.com/unrs/pingora/commit/84d1dd74e3d70bd0e6fec7df5a12cb8f5f8a306c) Thanks [@JounQin](https://github.com/JounQin)! - Add verified TLS handshake probes to active upstream health checks.
+
+- [#44](https://github.com/unrs/pingora/pull/44) [`0bd9fba`](https://github.com/unrs/pingora/commit/0bd9fbad309b89d3f89fc9937844a3e7fdebb067) Thanks [@JounQin](https://github.com/JounQin)! - Add active Unix-socket health probes alongside the existing TCP probes.
+
 ## 0.2.0
 
 ### Minor Changes
