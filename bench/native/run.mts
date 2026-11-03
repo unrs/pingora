@@ -30,14 +30,14 @@ if (!Number.isFinite(durationMs) || durationMs <= 0) {
 process.env.BENCH_NATIVE_THREADS = String(threads)
 
 const agent = new http.Agent({ keepAlive: true, maxSockets: concurrency })
-const targets: Array<[string, number]> = [
-  ['nginx', 18081],
-  ['caddy', 18082],
-  ['openresty', 18083],
-  ['haproxy', 18084],
-  ['pingora', 18085],
-  ['raw-pingora', 18087],
-  ['pingap', 18088],
+const targets: Array<[string, number, string]> = [
+  ['nginx', 18081, 'http://nginx:80'],
+  ['caddy', 18082, 'http://caddy:80'],
+  ['openresty', 18083, 'http://openresty:80'],
+  ['haproxy', 18084, 'http://haproxy:80'],
+  ['pingora', 18085, 'http://pingora:8085'],
+  ['raw-pingora', 18087, 'http://raw-pingora:8085'],
+  ['pingap', 18088, 'http://pingap:80'],
 ]
 const serviceByTarget: Record<string, string> = {
   'direct origin': 'origin',
@@ -134,35 +134,42 @@ async function waitFor(port: number): Promise<void> {
   throw new Error(`target ${port} did not become ready`)
 }
 
-async function measure(port: number, label: string, mode: string) {
+function runLoadgen(url: string): { requests: number; rps: number; p50Ms: number; p99Ms: number } {
+  const output = dockerOutput(
+    'compose',
+    '-f',
+    compose,
+    'run',
+    '--rm',
+    '--no-deps',
+    'loadgen',
+    '-url',
+    url,
+    '-duration',
+    `${durationMs}ms`,
+    '-concurrency',
+    String(concurrency),
+  )
+  return JSON.parse(output) as { requests: number; rps: number; p50Ms: number; p99Ms: number }
+}
+
+async function measure(url: string, port: number, label: string, mode: string) {
   await waitFor(port)
   const path = cgroupPath(serviceByTarget[label.replace(/ \(start\)| \(end\)/, '')])
   const before = cgroupUsage(path)
-  const latencies: number[] = []
-  const started = Date.now()
-  const deadline = started + durationMs
-  const workers = Array.from({ length: concurrency }, async () => {
-    while (Date.now() < deadline) {
-      latencies.push(await request(port))
-    }
-  })
-  await Promise.all(workers)
-  const elapsedMs = Date.now() - started
+  const result = runLoadgen(url)
   const after = cgroupUsage(path)
   const cpuPercent =
     before?.cpuUsec !== undefined && after?.cpuUsec !== undefined
-      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100)
+      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / durationMs) * 100)
       : null
-  latencies.sort((a, b) => a - b)
-  const percentile = (p: number) =>
-    latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * p) - 1)]
   return {
     mode,
     target: label,
-    requests: latencies.length,
-    rps: Math.round((latencies.length / elapsedMs) * 1_000),
-    p50Ms: percentile(0.5),
-    p99Ms: percentile(0.99),
+    requests: result.requests,
+    rps: result.rps,
+    p50Ms: result.p50Ms,
+    p99Ms: result.p99Ms,
     cpuPercent,
     memoryMiB: after?.memoryMiB ?? null,
   }
@@ -171,12 +178,13 @@ async function measure(port: number, label: string, mode: string) {
 async function runMode(mode: string) {
   process.env.ORIGIN_READ_PER_REQUEST = mode === 'file' ? '1' : '0'
   docker('compose', '-f', compose, 'down')
+  docker('compose', '-f', compose, 'build', 'loadgen')
   docker('compose', '-f', compose, 'up', '-d', '--build')
   await waitFor(18080)
 
-  const results = [await measure(18080, 'direct origin (start)', mode)]
-  for (const [label, port] of targets) results.push(await measure(port, label, mode))
-  results.push(await measure(18080, 'direct origin (end)', mode))
+  const results = [await measure('http://origin:8080', 18080, 'direct origin (start)', mode)]
+  for (const [label, port, url] of targets) results.push(await measure(url, port, label, mode))
+  results.push(await measure('http://origin:8080', 18080, 'direct origin (end)', mode))
   return results
 }
 
