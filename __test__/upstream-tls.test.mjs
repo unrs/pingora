@@ -157,6 +157,37 @@ test('active probes trust the TLS handshake', async () => {
   assert.equal(await response.text(), 'fallback')
 })
 
+test('active probes retain a trusted TLS upstream', async () => {
+  const tlsUpstream = await startTlsUpstream()
+  const fallback = await startUpstream((_req, res) => res.end('fallback'))
+  onTestFinished(() => tlsUpstream.close())
+  onTestFinished(() => fallback.close())
+
+  const proxy = await createProxy({
+    healthCheckIntervalMs: 50,
+    routes: [
+      {
+        strategy: 'first',
+        pathPrefix: '/',
+        upstreams: [
+          {
+            address: `https://127.0.0.1:${tlsUpstream.port}`,
+            sni: 'localhost',
+            ca: caPath,
+          },
+          `http://127.0.0.1:${fallback.port}`,
+        ],
+      },
+    ],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await Promise.all([tlsUpstream.connection, fallback.connection])
+  const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'secure')
+})
+
 test('rejects ca without TLS and invalid CA files', async () => {
   const proxy = await createProxy()
   onTestFinished(() => proxy.stop())

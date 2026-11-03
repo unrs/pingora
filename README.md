@@ -90,9 +90,10 @@ eligible again so the proxy can still attempt a connection.
 
 Set `healthCheckIntervalMs` to probe plain-TCP, TLS, and Unix-socket upstreams
 in the background. A probe failure applies the same 5-second cooldown; a
-successful probe clears it. TLS probes verify the certificate and SNI; upstreams
-with `verify: false` remain passive-only. These are connectivity checks, not
-HTTP path/status health checks. Health transitions apply
+successful probe clears it. TLS probes verify the certificate and SNI, except
+when `sni` is empty; those probes check only TCP connectivity. Upstreams with
+`verify: false` remain passive-only. These are connectivity checks, not HTTP
+path/status health checks. Health transitions apply
 to subsequent route picks; a request racing with a transition can still reach
 the peer that was just marked unhealthy.
 
