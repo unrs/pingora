@@ -218,10 +218,30 @@ impl HostPattern {
     }
 }
 
+fn native_tls_config() -> Option<Arc<ClientConfig>> {
+    static CONFIG: OnceLock<Option<Arc<ClientConfig>>> = OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            let mut roots = RootCertStore::empty();
+            for certificate in rustls_native_certs::load_native_certs().ok()? {
+                let _ = roots.add(certificate);
+            }
+            Some(Arc::new(
+                ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            ))
+        })
+        .clone()
+}
+
 impl Upstream {
     fn probe_tls(&self, address: &std::net::SocketAddr, timeout: Duration) -> Option<bool> {
         if !self.verify {
             return None;
+        }
+        if self.sni.is_empty() {
+            return Some(TcpStream::connect_timeout(address, timeout).is_ok());
         }
 
         let stream = match TcpStream::connect_timeout(address, timeout) {
@@ -234,36 +254,27 @@ impl Upstream {
             return Some(false);
         }
 
-        let mut roots = RootCertStore::empty();
-        if let Some(ca) = &self.ca {
+        let config = if let Some(ca) = &self.ca {
+            let mut roots = RootCertStore::empty();
             for certificate in ca.iter() {
                 let _ = roots.add(CertificateDer::from(certificate.borrow_raw_cert().clone()));
             }
+            Arc::new(
+                ClientConfig::builder()
+                    .with_root_certificates(roots)
+                    .with_no_client_auth(),
+            )
         } else {
-            let certificates = match rustls_native_certs::load_native_certs() {
-                Ok(certificates) => certificates,
-                Err(_) => return Some(false),
-            };
-            for certificate in certificates {
-                let _ = roots.add(certificate);
-            }
-        }
-
-        let config = ClientConfig::builder()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        let server_name = if self.sni.is_empty() {
-            match ServerName::try_from(address.ip().to_string()) {
-                Ok(name) => name,
-                Err(_) => return Some(false),
-            }
-        } else {
-            match ServerName::try_from(self.sni.clone()) {
-                Ok(name) => name,
-                Err(_) => return Some(false),
+            match native_tls_config() {
+                Some(config) => config,
+                None => return Some(false),
             }
         };
-        let connection = match ClientConnection::new(Arc::new(config), server_name) {
+        let server_name = match ServerName::try_from(self.sni.clone()) {
+            Ok(name) => name,
+            Err(_) => return Some(false),
+        };
+        let connection = match ClientConnection::new(config, server_name) {
             Ok(connection) => connection,
             Err(_) => return Some(false),
         };
