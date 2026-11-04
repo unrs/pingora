@@ -64,6 +64,9 @@ export function createServer(
     server: serverOptions = {},
   } = options
   if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
+  if (!Number.isSafeInteger(maxRequestBodyBytes) || maxRequestBodyBytes <= 0) {
+    throw new TypeError('maxRequestBodyBytes must be a positive integer')
+  }
   const address = normalizeListen(listen)
 
   const server = new Server({

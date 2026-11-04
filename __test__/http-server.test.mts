@@ -7,6 +7,15 @@ import { createServer } from '@pingora/http-server'
 import { freePort } from './helpers.mjs'
 
 
+test('rejects invalid body limits', () => {
+  for (const maxRequestBodyBytes of [0, -1, 1.5, Infinity, NaN]) {
+    assert.throws(
+      () => createServer({ listen: 3000, maxRequestBodyBytes, handler: () => ({ body: 'x' }) }),
+      /maxRequestBodyBytes/,
+    )
+  }
+})
+
 test('rejects invalid ports', () => {
   for (const listen of [0, 65536, '3000', ':3000']) {
     assert.throws(
