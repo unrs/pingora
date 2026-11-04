@@ -23,6 +23,7 @@ test('starts on a free port and serves GET and POST', async () => {
     listen: port,
     maxRequestBodyBytes: 1024,
     handler: async (request) => ({
+      action: 'continue',
       status: 200,
       headers: { 'x-method': request.method },
       body: request.body?.length ? request.body : 'empty',

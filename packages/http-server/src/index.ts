@@ -68,8 +68,8 @@ export function createServer(options: HttpServerOptions | HttpServerOptions["han
   })
 
   server.setRequestHandler(async (request) => ({
-    action: 'respond',
     ...(await handler(request)),
+    action: 'respond',
   }))
 
   function listenOptions(): net.NetConnectOpts {
