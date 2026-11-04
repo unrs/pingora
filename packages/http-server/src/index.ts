@@ -164,7 +164,6 @@ export function createServer(
   }
 
   let started = false
-  let starting = false
   let serverUsed = false
   let activeStart: AbortController | undefined
   let transition: Promise<void> = Promise.resolve()
@@ -179,8 +178,6 @@ export function createServer(
   }
 
   function start(): Promise<void> {
-    if (starting) return Promise.reject(new Error('server is already starting'))
-    starting = true
     const controller =
       typeof AbortController === 'function' ? new AbortController() : undefined
     activeStart = controller
@@ -206,8 +203,7 @@ export function createServer(
           throw error
         }
       } finally {
-        starting = false
-        activeStart = undefined
+        if (activeStart === controller) activeStart = undefined
       }
     })
   }

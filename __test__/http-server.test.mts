@@ -125,7 +125,7 @@ test('serializes concurrent start and close', async () => {
   await app.close()
 })
 
-test('rejects a second start while starting', async () => {
+test('serializes a second start while starting', async () => {
   const port = await freePort()
   const app = createServer({
     listen: port,
@@ -134,7 +134,7 @@ test('rejects a second start while starting', async () => {
   onTestFinished(() => app.close())
 
   const starting = app.start()
-  await assert.rejects(app.start(), /already starting/)
+  await assert.rejects(app.start(), /already been started/)
   await starting
   await app.close()
 })
@@ -152,6 +152,29 @@ test('allows a start queued after close', async () => {
   const restarting = app.start()
   await closing
   await restarting
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.close()
+})
+
+test('starts after close while an earlier start is pending', async () => {
+  const port = await freePort()
+  const blocker = await new Promise<net.Server>((resolve, reject) => {
+    const socket = net.createServer()
+    socket.once('error', reject)
+    socket.listen(port, '127.0.0.1', () => resolve(socket))
+  })
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  const first = app.start()
+  const closing = app.close()
+  const second = app.start()
+  await new Promise<void>((resolve) => blocker.close(() => resolve()))
+  await Promise.allSettled([first, closing, second])
+
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.close()
 })
