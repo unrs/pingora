@@ -102,6 +102,30 @@ test('ignores stale stop tasks', async () => {
   await app.close()
 })
 
+test('does not let a superseded start disturb a later lifecycle', async () => {
+  const port = await freePort()
+  const blocker = await new Promise<net.Server>((resolve, reject) => {
+    const socket = net.createServer()
+    socket.once('error', reject)
+    socket.listen(port, '127.0.0.1', () => resolve(socket))
+  })
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  const starting = app.start()
+  const closing = app.close()
+  await new Promise<void>((resolve) => blocker.close(() => resolve()))
+  await assert.rejects(starting)
+  await closing
+
+  await app.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.close()
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({

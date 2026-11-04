@@ -134,6 +134,7 @@ export function createServer(
 
   let started = false
   let serverUsed = false
+  let lifecycle = 0
 
   async function start(): Promise<void> {
     if (started) throw new Error('server has already been started')
@@ -142,11 +143,13 @@ export function createServer(
       serverUsed = false
     }
     const target = server
+    const run = ++lifecycle
     started = true
     try {
       target.start()
       await waitForListener(target)
     } catch (error) {
+      if (run !== lifecycle) throw error
       started = false
       // A failed readiness probe must not leave the native server running and
       // block an immediate retry.
@@ -157,6 +160,7 @@ export function createServer(
   }
 
   async function close(): Promise<void> {
+    ++lifecycle
     if (!started) return
     started = false
     const target = server
