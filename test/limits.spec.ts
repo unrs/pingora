@@ -3,9 +3,10 @@ import http from 'node:http'
 import { test } from 'vitest'
 
 import { Server } from '../index.js'
-import { createProxy, request, startUpstream, waitForProxy } from './helpers.mjs'
+import type { ServerOptions } from '../index.js'
+import { createProxy, request, startUpstream, waitForProxy } from './helpers.js'
 
-async function proxyWith(upstream, options = {}) {
+async function proxyWith(upstream: { port: number }, options: Partial<ServerOptions> = {}) {
   const proxy = await createProxy({
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
     ...options,
@@ -42,14 +43,14 @@ test('rejects oversized request headers with 431', async () => {
   }
 })
 
-function chunkedRequest(url, body) {
+function chunkedRequest(url: string, body: string): Promise<{ status?: number; body: string }> {
   return new Promise((resolve, reject) => {
     const request = http.request(
       url,
       { method: 'POST', headers: { 'transfer-encoding': 'chunked' } },
       (response) => {
-        const chunks = []
-        response.on('data', (chunk) => chunks.push(chunk))
+        const chunks: Buffer[] = []
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
         response.on('end', () =>
           resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),
         )

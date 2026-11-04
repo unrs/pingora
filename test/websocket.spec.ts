@@ -2,26 +2,32 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import http from 'node:http'
 import net from 'node:net'
+import type { Duplex } from 'node:stream'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
-import { onTestFinished, test } from 'vitest'
+import { test } from 'vitest'
 
-import { createProxy, waitForProxy } from './helpers.mjs'
+import { createProxy, waitForProxy } from './helpers.js'
 
 const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 const KEY = 'dGhlIHNhbXBsZSBub25jZQ=='
 
-function acceptValue(key) {
+function acceptValue(key: string) {
   return createHash('sha1').update(key + WEBSOCKET_GUID).digest('base64')
 }
 
 async function startUpgradeUpstream() {
   const server = http.createServer((_req, res) => res.end('http'))
-  const sockets = new Set()
+  const sockets = new Set<Duplex>()
   server.on('upgrade', (req, socket) => {
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
-    const accept = acceptValue(req.headers['sec-websocket-key'])
+    const key = req.headers['sec-websocket-key']
+    if (typeof key !== 'string') {
+      socket.destroy()
+      return
+    }
+    const accept = acceptValue(key)
     socket.write(
       [
         'HTTP/1.1 101 Switching Protocols',
@@ -33,14 +39,16 @@ async function startUpgradeUpstream() {
       ].join('\r\n'),
     )
     socket.write('hello')
-    socket.on('data', (chunk) => socket.write(chunk))
+    socket.on('data', (chunk: Buffer) => socket.write(chunk))
   })
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
+    server.listen(0, '127.0.0.1', () => resolve())
   })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('upstream has no TCP address')
   return {
-    port: server.address().port,
+    port: address.port,
     close: () => {
       for (const socket of sockets) socket.destroy()
       server.closeAllConnections?.()
@@ -49,7 +57,11 @@ async function startUpgradeUpstream() {
   }
 }
 
-async function waitForData(read, predicate, label) {
+async function waitForData(
+  read: () => string,
+  predicate: (value: string) => boolean,
+  label: string,
+) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate(read())) return
     await delay(10)

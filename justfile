@@ -42,7 +42,11 @@ lint:
     cargo clippy --all-targets -- -D warnings
 
 # Format, lint, build, and test.
-check: fmt-check lint test
+check: fmt-check lint test typecov
+
+# Enforce 100% TypeScript type coverage.
+typecov:
+    pnpm run typecov
 
 # Assemble release artifacts into the platform packages.
 artifacts:

@@ -37,3 +37,6 @@ artifacts/
 
 # Workspace package builds
 packages/*/lib
+
+# type-coverage cache
+.type-coverage

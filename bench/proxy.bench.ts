@@ -16,40 +16,48 @@ const outboundAgent = new http.Agent({
   maxFreeSockets: 64,
 })
 
-const servers = []
-let pingora
-let upstreamPort
-let pingoraPort
-let httpProxyPort
-let middlewarePort
+type ServerHandle = net.Server
+const servers: ServerHandle[] = []
+let pingora: Server | undefined
+let upstreamPort = 0
+let pingoraPort = 0
+let httpProxyPort = 0
+let middlewarePort = 0
 
-function listen(server) {
+function listen(server: ServerHandle): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       servers.push(server)
-      resolve(server.address().port)
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        reject(new Error('failed to bind benchmark server'))
+        return
+      }
+      resolve(address.port)
     })
   })
 }
 
-function close(server) {
-  return new Promise((resolve) => server.close(resolve))
+function close(server: ServerHandle): Promise<void> {
+  return new Promise((resolve) => server.close(() => resolve()))
 }
 
 async function freePort() {
   const probe = net.createServer()
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', resolve)
+    probe.listen(0, '127.0.0.1', () => resolve())
   })
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
+  const address = probe.address()
+  if (!address || typeof address === 'string') throw new Error('failed to allocate a TCP port')
+  const { port } = address
+  await new Promise<void>((resolve) => probe.close(() => resolve()))
   return port
 }
 
-function request(port) {
-  return new Promise((resolve, reject) => {
+function request(port: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     const req = http.request(
       {
         host: '127.0.0.1',
@@ -75,7 +83,7 @@ function request(port) {
   })
 }
 
-async function waitFor(port) {
+async function waitFor(port: number): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
       await request(port)
@@ -87,7 +95,7 @@ async function waitFor(port) {
   throw new Error(`server on ${port} did not become ready`)
 }
 
-function concurrent(port) {
+function concurrent(port: number): Promise<void[]> {
   return Promise.all(Array.from({ length: BATCH }, () => request(port)))
 }
 
@@ -117,8 +125,8 @@ beforeAll(async () => {
     target,
     agent: outboundAgent,
   })
-  httpProxyInstance.on('error', (_error, _req, res) => {
-    if (res && !res.headersSent) {
+  httpProxyInstance.on('error', (_error: Error, _req: http.IncomingMessage, res: http.ServerResponse | net.Socket) => {
+    if (res instanceof http.ServerResponse && !res.headersSent) {
       res.statusCode = 502
       res.end()
     }

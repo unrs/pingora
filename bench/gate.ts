@@ -92,7 +92,7 @@ async function throughput(port: number, milliseconds: number): Promise<number> {
 async function main() {
   const origin = http.createServer((_req, res) => res.end('ok'))
   await listen(origin)
-  let server
+  let server: Server | undefined
   try {
     const originPort = serverPort(origin)
     const proxyPort = await freePort()
@@ -110,8 +110,8 @@ async function main() {
 
     const samples: Array<{ direct: number; proxied: number; ratio: number }> = []
     for (let round = 0; round < rounds; round += 1) {
-      let direct
-      let proxied
+      let direct: number
+      let proxied: number
       if (round % 2 === 0) {
         direct = await throughput(originPort, durationMs)
         proxied = await throughput(proxyPort, durationMs)
@@ -141,7 +141,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error(error)
   process.exitCode = 1
 })

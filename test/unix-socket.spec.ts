@@ -7,18 +7,18 @@ import { join } from 'node:path'
 import { test } from 'vitest'
 
 import { Server } from '../index.js'
-import { createProxy, startUpstream, waitForProxy } from './helpers.mjs'
+import { createProxy, startUpstream, waitForProxy } from './helpers.js'
 
 async function tempSocket() {
   const directory = await mkdtemp(join(tmpdir(), 'pingora-uds-'))
   return { directory, socketPath: join(directory, 'proxy.sock') }
 }
 
-function requestUds(socketPath, path = '/') {
+function requestUds(socketPath: string, path = '/'): Promise<{ status?: number; body: string }> {
   return new Promise((resolve, reject) => {
     const request = http.request({ socketPath, path }, (response) => {
-      const chunks = []
-      response.on('data', (chunk) => chunks.push(chunk))
+      const chunks: Buffer[] = []
+      response.on('data', (chunk: Buffer) => chunks.push(chunk))
       response.on('end', () =>
         resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),
       )
@@ -41,7 +41,7 @@ test('listens on a Unix domain socket', async () => {
 
   try {
     server.start()
-    let response
+    let response: { status?: number; body: string } | undefined
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
         response = await requestUds(socketPath)
@@ -64,7 +64,7 @@ test('listens on a Unix domain socket', async () => {
 test('proxies to a Unix domain socket upstream', async () => {
   const { directory, socketPath } = await tempSocket()
   const upstream = http.createServer((_req, res) => res.end('unix-upstream'))
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     upstream.once('error', reject)
     upstream.listen(socketPath, resolve)
   })
@@ -89,7 +89,7 @@ test('reuses a Unix listener path after stop', async () => {
   const { directory, socketPath } = await tempSocket()
   try {
     const stale = net.createServer()
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       stale.once('error', reject)
       stale.listen(socketPath, resolve)
     })
@@ -103,7 +103,7 @@ test('reuses a Unix listener path after stop', async () => {
       logLevel: 'off',
     })
     server.start()
-    let response
+    let response: { status?: number; body: string } | undefined
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
         response = await requestUds(socketPath)
@@ -124,7 +124,7 @@ test('reuses a Unix listener path after stop', async () => {
     })
     try {
       restarted.start()
-      let restartedResponse
+      let restartedResponse: { status?: number; body: string } | undefined
       for (let attempt = 0; attempt < 50; attempt += 1) {
         try {
           restartedResponse = await requestUds(socketPath)

@@ -7,7 +7,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { onTestFinished, test } from 'vitest'
 
-import { createProxy, startUpstream, waitForProxy } from './helpers.mjs'
+import type { RouteOptions } from '../index.js'
+import { createProxy, startUpstream, waitForProxy } from './helpers.js'
 
 const certPath = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const keyPath = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
@@ -18,25 +19,36 @@ const key2Path = fileURLToPath(new URL('./fixtures/key2.pem', import.meta.url))
 const cert = readFileSync(certPath)
 const key = readFileSync(keyPath)
 
-async function startTlsUpstream(serverCert = cert, serverKey = key) {
+async function startTlsUpstream(serverCert = cert, serverKey = key): Promise<{
+  port: number
+  connection: Promise<unknown>
+  close: () => Promise<void>
+}> {
   const server = https.createServer({ cert: serverCert, key: serverKey }, (_req, res) =>
     res.end('secure'),
   )
   const connection = new Promise((resolve) => {
     server.once('connection', resolve)
   })
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
+    server.listen(0, '127.0.0.1', () => resolve())
   })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('upstream has no TCP address')
   return {
-    port: server.address().port,
+    port: address.port,
     connection,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   }
 }
 
-async function withTlsProxy(upstreams, run, serverCert, serverKey) {
+async function withTlsProxy(
+  upstreams: (port: number) => RouteOptions['upstreams'],
+  run: (proxy: Awaited<ReturnType<typeof createProxy>>) => Promise<void>,
+  serverCert = cert,
+  serverKey = key,
+) {
   const upstream = await startTlsUpstream(serverCert, serverKey)
   try {
     const proxy = await createProxy({

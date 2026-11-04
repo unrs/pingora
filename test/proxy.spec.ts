@@ -9,10 +9,10 @@ import {
   request,
   startUpstream,
   waitForProxy,
-} from './helpers.mjs'
+} from './helpers.js'
 
 test('proxies requests, applies headers, and reports metrics', async () => {
-  let seen
+  let seen: { route?: string | string[]; url?: string } | undefined
   const upstream = await startUpstream((req, res) => {
     res.setHeader('x-upstream', 'yes')
     seen = { route: req.headers['x-route'], url: req.url }
@@ -94,7 +94,7 @@ test('round-robins across upstreams', async () => {
   onTestFinished(() => proxy.stop())
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
-  const bodies = []
+  const bodies: string[] = []
   for (let index = 0; index < 4; index += 1) {
     const response = await fetch(`http://127.0.0.1:${proxy.port}/rr`)
     bodies.push(await response.text())
@@ -104,12 +104,12 @@ test('round-robins across upstreams', async () => {
 })
 
 test('least-connections prefers the idle upstream', async () => {
-  let markSlowStarted
-  let releaseSlow
-  const slowStarted = new Promise((resolve) => {
+  let markSlowStarted!: () => void
+  let releaseSlow!: () => void
+  const slowStarted = new Promise<void>((resolve) => {
     markSlowStarted = resolve
   })
-  const slowRelease = new Promise((resolve) => {
+  const slowRelease = new Promise<void>((resolve) => {
     releaseSlow = resolve
   })
   const slow = await startUpstream(async (req, res) => {
@@ -175,7 +175,7 @@ test('weighted round-robin follows upstream weights', async () => {
   onTestFinished(() => proxy.stop())
 
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
-  const bodies = []
+  const bodies: string[] = []
   for (let index = 0; index < 8; index += 1) {
     const response = await fetch(`http://127.0.0.1:${proxy.port}/weighted`)
     bodies.push(await response.text())
@@ -364,7 +364,7 @@ test('clears an upstream cooldown after a successful probe', async () => {
   ])
 
   const deadline = Date.now() + 2_000
-  let body = null
+  let body: string | null = null
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${proxy.port}/recover`)

@@ -7,7 +7,7 @@ import {
   freePort,
   startUpstream,
   waitForProxy,
-} from './helpers.mjs'
+} from './helpers.js'
 
 test('serves metrics and health on a dedicated listener', async () => {
   const upstream = await startUpstream((_req, res) => res.end('ok'))

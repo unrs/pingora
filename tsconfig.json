@@ -10,8 +10,9 @@
     "tsdown.config.mts",
     "vitest.config.mts",
     "scripts/**/*.mts",
-    "bench/**/*.mts",
-    "packages/**/*.ts"
+    "bench/**/*.ts",
+    "packages/**/*.ts",
+    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules",

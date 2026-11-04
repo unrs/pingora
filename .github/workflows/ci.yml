@@ -83,6 +83,9 @@ jobs:
       - name: Typecheck tooling
         run: pnpm run typecheck
 
+      - name: Type coverage
+        run: pnpm run typecov
+
       - name: Rust tests
         run: pnpm run test:rust
 

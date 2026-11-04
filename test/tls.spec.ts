@@ -2,25 +2,32 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import http2 from 'node:http2'
 import https from 'node:https'
+import type { IncomingHttpHeaders } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
 import { Server } from '../index.js'
-import { freePort, startUpstream, waitForProxy } from './helpers.mjs'
+import type { ServerOptions } from '../index.js'
+import { freePort, startUpstream, waitForProxy } from './helpers.js'
 
 const cert = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const key = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
 const caPath = fileURLToPath(new URL('./fixtures/ca.pem', import.meta.url))
 const ca = readFileSync(caPath)
 
-function httpsRequest(port, path = '/') {
+function httpsRequest(port: number, path = '/'): Promise<{
+  status?: number
+  httpVersion: string
+  headers: IncomingHttpHeaders
+  body: string
+}> {
   return new Promise((resolve, reject) => {
     const request = https.request(
       { host: '127.0.0.1', port, path, ca },
       (response) => {
-        const chunks = []
-        response.on('data', (chunk) => chunks.push(chunk))
+        const chunks: Buffer[] = []
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
         response.on('end', () =>
           resolve({
             status: response.statusCode,
@@ -36,7 +43,7 @@ function httpsRequest(port, path = '/') {
   })
 }
 
-async function waitForHttps(port, path = '/') {
+async function waitForHttps(port: number, path = '/') {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       return await httpsRequest(port, path)
@@ -47,30 +54,35 @@ async function waitForHttps(port, path = '/') {
   throw new Error(`TLS proxy at ${port} did not become ready`)
 }
 
-function http2Request(port, path = '/') {
+function http2Request(port: number, path = '/'): Promise<{
+  status?: number
+  body: string
+  alpn?: string
+}> {
   const client = http2.connect(`https://127.0.0.1:${port}`, { ca })
   return new Promise((resolve, reject) => {
-    client.once('error', (error) => {
+    client.once('error', (error: Error) => {
       client.close()
       reject(error)
     })
     const request = client.request({ ':path': path })
-    let headers
-    const chunks = []
+    let headers: http2.IncomingHttpHeaders | undefined
+    const chunks: string[] = []
     request.on('response', (value) => {
       headers = value
     })
     request.setEncoding('utf8')
-    request.on('data', (chunk) => chunks.push(chunk))
+    request.on('data', (chunk: string) => chunks.push(chunk))
     request.on('end', () => {
       client.close()
       resolve({
-        status: headers?.[':status'],
+        status:
+          headers?.[':status'] === undefined ? undefined : Number(headers[':status']),
         body: chunks.join(''),
         alpn: client.alpnProtocol,
       })
     })
-    request.once('error', (error) => {
+    request.once('error', (error: Error) => {
       client.close()
       reject(error)
     })
@@ -78,7 +90,7 @@ function http2Request(port, path = '/') {
   })
 }
 
-async function createTlsProxy(options) {
+async function createTlsProxy(options: Partial<ServerOptions>) {
   const port = await freePort()
   const server = new Server({
     listeners: [
@@ -127,7 +139,7 @@ test('negotiates HTTP/2 over TLS and exposes https to the handler', async () => 
   }))
 
   await waitForHttps(proxy.port)
-  let response
+  let response: Awaited<ReturnType<typeof http2Request>> | undefined
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       response = await http2Request(proxy.port)

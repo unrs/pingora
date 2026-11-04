@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import net from 'node:net'
 
 import { onTestFinished, test } from 'vitest'
-import { Server } from 'pingora'
+import { Server } from '../index.js'
 
 import { createServer } from '@pingora/http-server'
-import { freePort } from './helpers.mjs'
+import { freePort } from './helpers.js'
 
 async function occupy(port: number): Promise<net.Server> {
   return new Promise((resolve, reject) => {
