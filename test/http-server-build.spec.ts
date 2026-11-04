@@ -56,15 +56,7 @@ function waitForExit(child: ChildProcess, getStderr: () => string): Promise<void
   })
 }
 
-type Facade = {
-  start(): Promise<void>
-  close(): Promise<void>
-}
-
-type CreateServer = (options: {
-  listen: number
-  handler: () => { body: string }
-}) => Facade
+type CreateServer = typeof import('@pingora/http-server').createServer
 
 async function exercise(createServer: CreateServer) {
   const port = await freePort()

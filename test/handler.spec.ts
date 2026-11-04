@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { once } from 'node:events'
+import { spawn, type ChildProcess } from 'node:child_process'
 import http from 'node:http'
 import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -393,6 +392,9 @@ test('stops cleanly with an in-flight handler', async () => {
   assert.equal(proxy.server.status().state, 'stopped')
 })
 
+function waitForExitCode(child: ChildProcess): Promise<number | null> {
+  return new Promise((resolve) => child.once('exit', (code) => resolve(code)))
+}
 
 test('does not keep the event loop alive after stop', async () => {
   const port = await freePort()
@@ -411,16 +413,14 @@ test('does not keep the event loop alive after stop', async () => {
     env: { ...process.env, PORT: String(port) },
     stdio: 'ignore',
   })
-  const result: unknown = await Promise.race([
-    once(child, 'exit'),
+  const code = await Promise.race([
+    waitForExitCode(child),
     delay(5_000).then(() => null),
   ])
-  if (!Array.isArray(result)) {
+  if (code === null) {
     child.kill('SIGKILL')
     assert.fail('process did not exit after server.stop()')
   }
-  const [first] = result as unknown[]
-  const code = typeof first === 'number' ? first : null
   assert.equal(code, 0)
 })
 
