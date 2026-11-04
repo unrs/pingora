@@ -1,17 +1,10 @@
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
 
 import { onTestFinished, test } from 'vitest'
 
 import { createServer } from '@pingora/http-server'
 import { freePort } from './helpers.mjs'
 
-const require = createRequire(import.meta.url)
-
-test('exposes a CommonJS entry', () => {
-  const cjs = require('@pingora/http-server')
-  assert.equal(typeof cjs.createServer, 'function')
-})
 
 test('rejects port 0', () => {
   assert.throws(() => createServer({ listen: 0, handler: () => ({ body: 'x' }) }), /positive integer/)

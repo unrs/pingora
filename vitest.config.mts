@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
   test: {
     include: ['__test__/**/*.test.mjs', '__test__/**/*.test.mts'],
     benchmark: {
