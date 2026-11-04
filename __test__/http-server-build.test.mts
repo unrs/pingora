@@ -24,17 +24,12 @@ function spawnFacade(script: string) {
     stderr += chunk
   })
   onTestFinished(() => child.kill())
-  return {
-    child,
-    get stderr() {
-      return stderr
-    },
-  }
+  return { child, stderr: () => stderr }
 }
 
-function waitForReady(child: ChildProcess): Promise<void> {
+function waitForReady(child: ChildProcess, getStderr: () => string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('child did not start')), CHILD_TIMEOUT_MS)
+    const timer = setTimeout(() => reject(new Error(`child did not start: ${getStderr()}`)), CHILD_TIMEOUT_MS)
     child.stdout?.on('data', (chunk) => {
       if (chunk.toString().includes('ready')) {
         clearTimeout(timer)
@@ -43,18 +38,18 @@ function waitForReady(child: ChildProcess): Promise<void> {
     })
     child.once('exit', (code) => {
       clearTimeout(timer)
-      reject(new Error(`child exited early (${code})`))
+      reject(new Error(`child exited early (${code}): ${getStderr()}`))
     })
   })
 }
 
-function waitForExit(child: ChildProcess): Promise<void> {
+function waitForExit(child: ChildProcess, getStderr: () => string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('child did not exit')), CHILD_TIMEOUT_MS)
+    const timer = setTimeout(() => reject(new Error(`child did not exit: ${getStderr()}`)), CHILD_TIMEOUT_MS)
     child.once('exit', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()
-      else reject(new Error(`child exited with ${code}`))
+      else reject(new Error(`child exited with ${code}: ${getStderr()}`))
     })
   })
 }
@@ -83,10 +78,10 @@ app.start().then(() => console.log('ready')).catch((error) => {
   console.error(error)
   process.exit(1)
 })`)
-  await waitForReady(child)
+  await waitForReady(child, stderr)
 
   const response = await fetch(`http://127.0.0.1:${port}/`)
-  assert.equal(response.status, 200, stderr)
+  assert.equal(response.status, 200, stderr())
   assert.equal(await response.text(), 'alive')
   assert.equal(child.exitCode, null)
   await new Promise<void>((resolve) => {
@@ -107,7 +102,7 @@ app.start().then(() => console.log('ready')).catch((error) => {
   console.error(error)
   process.exit(1)
 })`)
-  await waitForExit(child)
+  await waitForExit(child, stderr)
 })
 
 test('releases the keepalive after app.server.stop()', async () => {
