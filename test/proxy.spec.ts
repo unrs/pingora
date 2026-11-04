@@ -104,12 +104,12 @@ test('round-robins across upstreams', async () => {
 })
 
 test('least-connections prefers the idle upstream', async () => {
-  let markSlowStarted
-  let releaseSlow
-  const slowStarted = new Promise((resolve) => {
+  let markSlowStarted!: () => void
+  let releaseSlow!: () => void
+  const slowStarted = new Promise<void>((resolve) => {
     markSlowStarted = resolve
   })
-  const slowRelease = new Promise((resolve) => {
+  const slowRelease = new Promise<void>((resolve) => {
     releaseSlow = resolve
   })
   const slow = await startUpstream(async (req, res) => {

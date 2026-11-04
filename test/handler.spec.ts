@@ -6,6 +6,8 @@ import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
+import type { RequestDecision, RequestView } from '../index.js'
+
 import {
   createProxy,
   eventually,
@@ -126,7 +128,7 @@ test('passes a request view and returns a synthetic response', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  const seen = []
+  const seen: RequestView[] = []
   proxy.server.setRequestHandler(async (request) => {
     await delay(10)
     seen.push(request)
@@ -175,7 +177,7 @@ test('passes a request view and returns a synthetic response', async () => {
 })
 
 test('overrides the upstream and mutates headers', async () => {
-  let observed
+  let observed: http.IncomingHttpHeaders | undefined
   const first = await startUpstream((_req, res) => res.end('first'))
   const second = await startUpstream((req, res) => {
     observed = req.headers
@@ -220,6 +222,7 @@ test('overrides the upstream and mutates headers', async () => {
   assert.equal(response.headers.get('x-remove-response'), null)
   assert.equal(response.headers.get('x-route-response'), null)
   assert.equal(response.headers.get('x-response-precedence'), 'handler')
+  assert.ok(observed)
   assert.equal(observed['x-handler'], 'yes')
   assert.equal(observed['x-remove'], undefined)
   assert.equal(observed['x-route-header'], undefined)
@@ -248,7 +251,7 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   proxy.server.setRequestHandler(async () => ({ action: 'upstream' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/no-upstream`)).status, 500)
 
-  proxy.server.setRequestHandler(async () => undefined)
+  proxy.server.setRequestHandler(async () => undefined as unknown as RequestDecision)
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/undefined`)).status, 500)
 
 
@@ -326,12 +329,12 @@ test('keeps an in-flight handler alive after clearing it', async () => {
   onTestFinished(() => proxy.stop())
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
 
-  let entered
-  let release
-  const enteredPromise = new Promise((resolve) => {
+  let entered!: () => void
+  let release!: () => void
+  const enteredPromise = new Promise<void>((resolve) => {
     entered = resolve
   })
-  const gate = new Promise((resolve) => {
+  const gate = new Promise<void>((resolve) => {
     release = resolve
   })
 
@@ -366,12 +369,12 @@ test('stops cleanly with an in-flight handler', async () => {
   onTestFinished(() => proxy.stop())
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
 
-  let entered
-  let release
-  const enteredPromise = new Promise((resolve) => {
+  let entered!: () => void
+  let release!: () => void
+  const enteredPromise = new Promise<void>((resolve) => {
     entered = resolve
   })
-  const gate = new Promise((resolve) => {
+  const gate = new Promise<void>((resolve) => {
     release = resolve
   })
 
@@ -429,7 +432,7 @@ test('joins repeated request headers in the view', async () => {
   onTestFinished(() => proxy.stop())
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
 
-  let seen
+  let seen: RequestView | undefined
   proxy.server.setRequestHandler(async (request) => {
     seen = request
     return { action: 'respond', body: 'ok' }
@@ -452,6 +455,7 @@ test('joins repeated request headers in the view', async () => {
     request.end()
   })
 
+  assert.ok(seen)
   assert.equal(seen.headers['x-repeat'], 'one, two')
 })
 
@@ -465,7 +469,7 @@ test('exposes non-UTF8 request header values lossily', async () => {
   onTestFinished(() => proxy.stop())
   await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
 
-  let seen
+  let seen: RequestView | undefined
   proxy.server.setRequestHandler(async (request) => {
     seen = request
     return { action: 'respond', body: 'ok' }
@@ -486,6 +490,7 @@ test('exposes non-UTF8 request header values lossily', async () => {
     socket.on('error', reject)
   })
 
+  assert.ok(seen)
   assert.ok(seen.headers['x-internal'].includes('\uFFFD'))
 })
 

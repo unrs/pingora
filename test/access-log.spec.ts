@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
 
+import type { AccessLog } from '../index.js'
 import { createProxy, eventually, startUpstream, waitForProxy } from './helpers.js'
 
 test('reports completed requests to an access log handler', async () => {
@@ -8,7 +9,7 @@ test('reports completed requests to an access log handler', async () => {
   const proxy = await createProxy({
     routes: [{ id: 'app', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
   })
-  const records = []
+  const records: AccessLog[] = []
   try {
     proxy.server.setAccessLogHandler((record) => records.push(record))
     const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/hello?x=1`)
@@ -39,7 +40,7 @@ test('marks upstream failures in the access log', async () => {
   const proxy = await createProxy({
     routes: [{ id: 'dead', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
   })
-  const records = []
+  const records: AccessLog[] = []
   try {
     proxy.server.setAccessLogHandler((record) => records.push(record))
     const response = await waitForProxy(`http://127.0.0.1:${proxy.port}/`)
@@ -77,8 +78,8 @@ test('supports async access log handlers', async () => {
   const proxy = await createProxy({
     routes: [{ id: 'app', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
   })
-  let resolveRecord
-  const recordSeen = new Promise<any>((resolve) => {
+  let resolveRecord!: (record: AccessLog) => void
+  const recordSeen = new Promise<AccessLog>((resolve) => {
     resolveRecord = resolve
   })
   try {

@@ -14,10 +14,10 @@ async function tempSocket() {
   return { directory, socketPath: join(directory, 'proxy.sock') }
 }
 
-function requestUds(socketPath, path = '/') {
+function requestUds(socketPath: string, path = '/'): Promise<{ status?: number; body: string }> {
   return new Promise((resolve, reject) => {
     const request = http.request({ socketPath, path }, (response) => {
-      const chunks = []
+      const chunks: Buffer[] = []
       response.on('data', (chunk) => chunks.push(chunk))
       response.on('end', () =>
         resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),

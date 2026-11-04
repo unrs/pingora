@@ -25,7 +25,7 @@ function httpsRequest(port: number, path = '/'): Promise<{
     const request = https.request(
       { host: '127.0.0.1', port, path, ca },
       (response) => {
-        const chunks = []
+        const chunks: Buffer[] = []
         response.on('data', (chunk) => chunks.push(chunk))
         response.on('end', () =>
           resolve({
@@ -42,7 +42,7 @@ function httpsRequest(port: number, path = '/'): Promise<{
   })
 }
 
-async function waitForHttps(port, path = '/') {
+async function waitForHttps(port: number, path = '/') {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       return await httpsRequest(port, path)
@@ -65,8 +65,8 @@ function http2Request(port: number, path = '/'): Promise<{
       reject(error)
     })
     const request = client.request({ ':path': path })
-    let headers
-    const chunks = []
+    let headers: http2.IncomingHttpHeaders | undefined
+    const chunks: string[] = []
     request.on('response', (value) => {
       headers = value
     })
@@ -75,7 +75,8 @@ function http2Request(port: number, path = '/'): Promise<{
     request.on('end', () => {
       client.close()
       resolve({
-        status: headers?.[':status'],
+        status:
+          headers?.[':status'] === undefined ? undefined : Number(headers[':status']),
         body: chunks.join(''),
         alpn: client.alpnProtocol,
       })
@@ -88,7 +89,7 @@ function http2Request(port: number, path = '/'): Promise<{
   })
 }
 
-async function createTlsProxy(options) {
+async function createTlsProxy(options: Record<string, unknown>) {
   const port = await freePort()
   const server = new Server({
     listeners: [

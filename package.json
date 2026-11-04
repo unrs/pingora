@@ -64,7 +64,7 @@
     "bench:gate": "pnpm run build && node bench/gate.ts",
     "bench:gate:debug": "node bench/gate.ts",
     "bench:native": "pnpm run build && node bench/native/run.ts",
-    "typecheck": "pnpm run build:debug && tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.bench.json"
+    "typecheck": "pnpm run build:debug && tsc --noEmit"
   },
   "publishConfig": {
     "access": "public",
@@ -76,6 +76,7 @@
     "@changesets/cli": "^3.0.3",
     "@napi-rs/cli": "^3.10.8",
     "@pingora/http-server": "workspace:*",
+    "@types/http-proxy": "^1.17.17",
     "@types/node": "^24.19.2",
     "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^4.2.0",

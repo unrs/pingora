@@ -5,7 +5,7 @@ import { test } from 'vitest'
 import { Server } from '../index.js'
 import { createProxy, request, startUpstream, waitForProxy } from './helpers.js'
 
-async function proxyWith(upstream, options = {}) {
+async function proxyWith(upstream: { port: number }, options: Record<string, unknown> = {}) {
   const proxy = await createProxy({
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
     ...options,
@@ -48,7 +48,7 @@ function chunkedRequest(url: string, body: string): Promise<{ status?: number; b
       url,
       { method: 'POST', headers: { 'transfer-encoding': 'chunked' } },
       (response) => {
-        const chunks = []
+        const chunks: Buffer[] = []
         response.on('data', (chunk) => chunks.push(chunk))
         response.on('end', () =>
           resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),

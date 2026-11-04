@@ -55,10 +55,10 @@ export async function waitForProxy(url: string, options?: RequestInit): Promise<
 export async function eventually<T>(
   predicate: () => T | Promise<T>,
   message?: string,
-): Promise<T> {
+): Promise<NonNullable<T>> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const value = await predicate()
-    if (value) return value
+    if (value) return value as NonNullable<T>
     await delay(10)
   }
   throw new Error(message)

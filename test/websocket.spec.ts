@@ -13,7 +13,7 @@ import { createProxy, waitForProxy } from './helpers.js'
 const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 const KEY = 'dGhlIHNhbXBsZSBub25jZQ=='
 
-function acceptValue(key) {
+function acceptValue(key: string) {
   return createHash('sha1').update(key + WEBSOCKET_GUID).digest('base64')
 }
 
@@ -23,7 +23,12 @@ async function startUpgradeUpstream() {
   server.on('upgrade', (req, socket) => {
     sockets.add(socket)
     socket.on('close', () => sockets.delete(socket))
-    const accept = acceptValue(req.headers['sec-websocket-key'])
+    const key = req.headers['sec-websocket-key']
+    if (typeof key !== 'string') {
+      socket.destroy()
+      return
+    }
+    const accept = acceptValue(key)
     socket.write(
       [
         'HTTP/1.1 101 Switching Protocols',
@@ -51,7 +56,11 @@ async function startUpgradeUpstream() {
   }
 }
 
-async function waitForData(read, predicate, label) {
+async function waitForData(
+  read: () => string,
+  predicate: (value: string) => boolean,
+  label: string,
+) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate(read())) return
     await delay(10)
