@@ -1,6 +1,6 @@
 {
   "name": "@pingora/http-server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Direct HTTP server facade for the pingora Node binding",
   "type": "module",
   "main": "./lib/index.cjs",
