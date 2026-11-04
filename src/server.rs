@@ -144,6 +144,7 @@ struct ServerState {
     upstream_keepalive_pool_size: usize,
     handler_timeout: Duration,
     health_check_interval: Duration,
+    read_handler_body: bool,
     log_level: String,
     log_format: LogFormat,
     init_error: Option<String>,
@@ -196,6 +197,7 @@ impl JsServer {
             max_listeners: None,
             metrics_address: None,
             health_check_interval_ms: None,
+            read_handler_body: None,
         });
 
         let limits = Limits {
@@ -293,6 +295,7 @@ impl JsServer {
                 health_check_interval: Duration::from_millis(
                     options.health_check_interval_ms.unwrap_or(0).into(),
                 ),
+                read_handler_body: options.read_handler_body.unwrap_or(false),
                 init_error,
                 shutdown_tx,
                 status: AtomicU8::new(IDLE),
@@ -618,7 +621,11 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
 
     let mut service = pingora::proxy::http_proxy_service(
         &server.configuration,
-        JsProxy::new(state.shared.clone(), state.limits.clone()),
+        JsProxy::new(
+            state.shared.clone(),
+            state.limits.clone(),
+            state.read_handler_body,
+        ),
     );
     for listener in &state.listeners {
         if let Some(path) = unix_path(&listener.address) {

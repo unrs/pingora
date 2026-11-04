@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use napi::bindgen_prelude::{Either, Promise};
+use napi::bindgen_prelude::{Buffer, Either, Promise};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::Status;
 use napi_derive::napi;
@@ -31,6 +31,8 @@ pub struct RequestView {
     pub http_version: String,
     /// Matched route id, or `None` when no route matched.
     pub route_id: Option<String>,
+    /// Buffered request body when `readHandlerBody` is enabled.
+    pub body: Option<Buffer>,
 }
 
 #[napi(object)]
@@ -158,7 +160,7 @@ impl RequestHandler {
 }
 
 impl RequestView {
-    pub fn from_session(session: &Session, route_id: Option<&str>) -> Self {
+    pub fn from_session(session: &Session, route_id: Option<&str>, body: Option<Buffer>) -> Self {
         let req = session.req_header();
         let mut headers: HashMap<String, String> = HashMap::with_capacity(req.headers.len());
         for (name, value) in req.headers.iter() {
@@ -195,6 +197,7 @@ impl RequestView {
             scheme: scheme.to_string(),
             http_version: format!("{:?}", req.version),
             route_id: route_id.map(ToString::to_string),
+            body,
         }
     }
 }

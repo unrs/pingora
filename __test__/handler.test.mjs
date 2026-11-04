@@ -14,6 +14,32 @@ import {
   waitForProxy,
 } from './helpers.mjs'
 
+test('buffers the request body before the handler', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  onTestFinished(() => upstream.close())
+
+  const proxy = await createProxy({
+    readHandlerBody: true,
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  onTestFinished(() => proxy.stop())
+
+  let body
+  proxy.server.setRequestHandler(async (request) => {
+    body = request.body?.toString()
+    return { action: 'respond', status: 200, body: body ?? '' }
+  })
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  const response = await fetch(`http://127.0.0.1:${proxy.port}/echo`, {
+    method: 'POST',
+    body: 'payload',
+  })
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'payload')
+  assert.equal(body, 'payload')
+})
+
 test('passes a request view and returns a synthetic response', async () => {
   const upstream = await startUpstream((_req, res) => res.end('upstream'))
   onTestFinished(() => upstream.close())

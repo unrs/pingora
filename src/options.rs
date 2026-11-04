@@ -43,6 +43,9 @@ pub struct ServerOptions {
     /// Interval for active plain-TCP, TLS, and Unix-socket (Unix only) health
     /// probes, in ms. `0` disables them.
     pub health_check_interval_ms: Option<u32>,
+    /// Buffer the request body before calling the handler. The route cannot
+    /// proxy after this option consumes the body; use it for direct responses.
+    pub read_handler_body: Option<bool>,
 }
 
 #[napi(object)]

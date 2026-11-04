@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use napi::bindgen_prelude::Buffer;
 use pingora::http::{RequestHeader, ResponseHeader};
 use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
@@ -17,6 +18,7 @@ use crate::state::{request_host, SharedState};
 pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
+    read_handler_body: bool,
 }
 
 impl ProxyCtx {
@@ -34,8 +36,12 @@ impl Drop for ProxyCtx {
 }
 
 impl JsProxy {
-    pub fn new(state: Arc<SharedState>, limits: Limits) -> Self {
-        Self { state, limits }
+    pub fn new(state: Arc<SharedState>, limits: Limits, read_handler_body: bool) -> Self {
+        Self {
+            state,
+            limits,
+            read_handler_body,
+        }
     }
 
     async fn apply_decision(
@@ -172,9 +178,45 @@ impl ProxyHttp for JsProxy {
         }
 
         if let Some(handler) = self.state.handler() {
-            let view =
-                RequestView::from_session(session, route.as_ref().map(|route| route.id.as_str()));
+            let body = if self.read_handler_body {
+                let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
+                let mut body = Vec::new();
+                while let Some(chunk) = session.downstream_session.read_request_body().await? {
+                    if body.len() as u64 + chunk.len() as u64 > max {
+                        session
+                            .respond_error_with_body(
+                                413,
+                                Bytes::from_static(b"request body too large"),
+                            )
+                            .await?;
+                        return Ok(true);
+                    }
+                    body.extend_from_slice(&chunk);
+                }
+                Some(Buffer::from(body))
+            } else {
+                None
+            };
+            let view = RequestView::from_session(
+                session,
+                route.as_ref().map(|route| route.id.as_str()),
+                body,
+            );
             match handler.call(view).await {
+                Ok(decision)
+                    if self.read_handler_body
+                        && !decision
+                            .action
+                            .as_deref()
+                            .unwrap_or("continue")
+                            .eq_ignore_ascii_case("respond") =>
+                {
+                    return Self::handler_failed(
+                        session,
+                        "readHandlerBody requires the handler to respond",
+                    )
+                    .await;
+                }
                 Ok(decision) => match self.apply_decision(session, ctx, decision).await {
                     Ok(true) => return Ok(true),
                     Ok(false) if ctx.route.is_none() && ctx.upstream.is_none() => {
