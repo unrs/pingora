@@ -6,10 +6,12 @@ import { test } from 'vitest'
 import { __napiBindingTarget, version } from '../index.js'
 
 const require = createRequire(import.meta.url)
-const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+const pkg: { version: string } = JSON.parse(
+  fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+)
 
 test('loads through require', () => {
-  const cjs = require('../index.js')
+  const cjs: { __napiBindingTarget: string; version: () => string } = require('../index.js')
   assert.equal(cjs.__napiBindingTarget, 'native')
   assert.equal(cjs.version(), pkg.version)
 })

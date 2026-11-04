@@ -39,7 +39,7 @@ async function startUpgradeUpstream() {
       ].join('\r\n'),
     )
     socket.write('hello')
-    socket.on('data', (chunk) => socket.write(chunk))
+    socket.on('data', (chunk: Buffer) => socket.write(chunk))
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)

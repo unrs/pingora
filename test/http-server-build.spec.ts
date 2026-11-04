@@ -20,7 +20,7 @@ function spawnFacade(script: string) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let stderr = ''
-  child.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (chunk: Buffer) => {
     stderr += chunk
   })
   onTestFinished(() => {
@@ -32,7 +32,7 @@ function spawnFacade(script: string) {
 function waitForReady(child: ChildProcess, getStderr: () => string): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`child did not start: ${getStderr()}`)), CHILD_TIMEOUT_MS)
-    child.stdout?.on('data', (chunk) => {
+    child.stdout?.on('data', (chunk: Buffer) => {
       if (chunk.toString().includes('ready')) {
         clearTimeout(timer)
         resolve()
@@ -56,7 +56,17 @@ function waitForExit(child: ChildProcess, getStderr: () => string): Promise<void
   })
 }
 
-async function exercise(createServer: Function) {
+type Facade = {
+  start(): Promise<void>
+  close(): Promise<void>
+}
+
+type CreateServer = (options: {
+  listen: number
+  handler: () => { body: string }
+}) => Facade
+
+async function exercise(createServer: CreateServer) {
   const port = await freePort()
   const app = createServer({
     listen: port,
@@ -140,10 +150,14 @@ test('resolves through the package exports map', () => {
 
 test('serves from the CommonJS artifact', async () => {
   assert.equal(existsSync(cjsPath), true, 'missing lib/index.cjs')
-  await exercise(require(cjsPath).createServer)
+  const cjs = require(cjsPath) as { createServer: CreateServer }
+  await exercise(cjs.createServer)
 })
 
 test('serves from the ESM artifact', async () => {
   assert.equal(existsSync(esmPath), true, 'missing lib/index.mjs')
-  await exercise((await import(pathToFileURL(esmPath).href)).createServer)
+  const esm = (await import(pathToFileURL(esmPath).href)) as {
+    createServer: CreateServer
+  }
+  await exercise(esm.createServer)
 })

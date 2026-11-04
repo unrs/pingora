@@ -49,7 +49,7 @@ function chunkedRequest(url: string, body: string): Promise<{ status?: number; b
       { method: 'POST', headers: { 'transfer-encoding': 'chunked' } },
       (response) => {
         const chunks: Buffer[] = []
-        response.on('data', (chunk) => chunks.push(chunk))
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
         response.on('end', () =>
           resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),
         )

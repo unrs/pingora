@@ -44,7 +44,7 @@ async function startTlsUpstream(serverCert = cert, serverKey = key): Promise<{
 
 async function withTlsProxy(
   upstreams: (port: number) => unknown[],
-  run: (proxy: any) => Promise<void>,
+  run: (proxy: Awaited<ReturnType<typeof createProxy>>) => Promise<void>,
   serverCert = cert,
   serverKey = key,
 ) {

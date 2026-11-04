@@ -18,7 +18,7 @@ function requestUds(socketPath: string, path = '/'): Promise<{ status?: number; 
   return new Promise((resolve, reject) => {
     const request = http.request({ socketPath, path }, (response) => {
       const chunks: Buffer[] = []
-      response.on('data', (chunk) => chunks.push(chunk))
+      response.on('data', (chunk: Buffer) => chunks.push(chunk))
       response.on('end', () =>
         resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),
       )
@@ -41,7 +41,7 @@ test('listens on a Unix domain socket', async () => {
 
   try {
     server.start()
-    let response
+    let response: { status?: number; body: string } | undefined
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
         response = await requestUds(socketPath)
@@ -103,7 +103,7 @@ test('reuses a Unix listener path after stop', async () => {
       logLevel: 'off',
     })
     server.start()
-    let response
+    let response: { status?: number; body: string } | undefined
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
         response = await requestUds(socketPath)
@@ -124,7 +124,7 @@ test('reuses a Unix listener path after stop', async () => {
     })
     try {
       restarted.start()
-      let restartedResponse
+      let restartedResponse: { status?: number; body: string } | undefined
       for (let attempt = 0; attempt < 50; attempt += 1) {
         try {
           restartedResponse = await requestUds(socketPath)

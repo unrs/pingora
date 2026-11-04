@@ -224,7 +224,7 @@ function report(): void {
   )
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   recordFailure(error)
   report()
   console.error(error)

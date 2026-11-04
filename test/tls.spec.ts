@@ -26,7 +26,7 @@ function httpsRequest(port: number, path = '/'): Promise<{
       { host: '127.0.0.1', port, path, ca },
       (response) => {
         const chunks: Buffer[] = []
-        response.on('data', (chunk) => chunks.push(chunk))
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
         response.on('end', () =>
           resolve({
             status: response.statusCode,
@@ -60,7 +60,7 @@ function http2Request(port: number, path = '/'): Promise<{
 }> {
   const client = http2.connect(`https://127.0.0.1:${port}`, { ca })
   return new Promise((resolve, reject) => {
-    client.once('error', (error) => {
+    client.once('error', (error: Error) => {
       client.close()
       reject(error)
     })
@@ -71,7 +71,7 @@ function http2Request(port: number, path = '/'): Promise<{
       headers = value
     })
     request.setEncoding('utf8')
-    request.on('data', (chunk) => chunks.push(chunk))
+    request.on('data', (chunk: string) => chunks.push(chunk))
     request.on('end', () => {
       client.close()
       resolve({
@@ -81,7 +81,7 @@ function http2Request(port: number, path = '/'): Promise<{
         alpn: client.alpnProtocol,
       })
     })
-    request.once('error', (error) => {
+    request.once('error', (error: Error) => {
       client.close()
       reject(error)
     })
@@ -138,7 +138,7 @@ test('negotiates HTTP/2 over TLS and exposes https to the handler', async () => 
   }))
 
   await waitForHttps(proxy.port)
-  let response
+  let response: Awaited<ReturnType<typeof http2Request>> | undefined
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       response = await http2Request(proxy.port)

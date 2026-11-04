@@ -79,7 +79,7 @@ test('buffers the request body before the handler', async () => {
   })
   onTestFinished(() => proxy.stop())
 
-  let body
+  let body: string | undefined
   proxy.server.setRequestHandler(async (request) => {
     body = request.body?.toString()
     return { action: 'respond', status: 200, body: body ?? '' }
@@ -385,7 +385,7 @@ test('stops cleanly with an in-flight handler', async () => {
     return { action: 'continue' }
   })
 
-  const pending = fetch(`http://127.0.0.1:${proxy.port}/slow`).catch((error) => error)
+  const pending = fetch(`http://127.0.0.1:${proxy.port}/slow`).catch((error: unknown) => error)
   await enteredPromise
   const stopping = proxy.stop()
   release()
@@ -412,15 +412,17 @@ test('does not keep the event loop alive after stop', async () => {
     env: { ...process.env, PORT: String(port) },
     stdio: 'ignore',
   })
-  const result = await Promise.race([
+  const result: unknown = await Promise.race([
     once(child, 'exit'),
     delay(5_000).then(() => null),
   ])
-  if (!result) {
+  if (!Array.isArray(result)) {
     child.kill('SIGKILL')
     assert.fail('process did not exit after server.stop()')
   }
-  assert.equal(result[0], 0)
+  const [first] = result as unknown[]
+  const code = typeof first === 'number' ? first : null
+  assert.equal(code, 0)
 })
 
 test('joins repeated request headers in the view', async () => {

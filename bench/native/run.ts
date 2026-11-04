@@ -217,7 +217,7 @@ async function runMode(mode: string) {
 }
 
 async function main() {
-  const results = []
+  const results: Awaited<ReturnType<typeof measure>>[] = []
   try {
     for (const mode of modes) {
       console.error(`origin mode: ${mode}`)
@@ -238,7 +238,7 @@ async function main() {
   if (process.env.BENCH_NATIVE_OUTPUT) writeFileSync(process.env.BENCH_NATIVE_OUTPUT, serialized + '\n')
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error(error)
   process.exitCode = 1
 })
