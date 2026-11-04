@@ -50,7 +50,6 @@
     "artifacts": "napi artifacts",
     "create-npm-dirs": "napi create-npm-dirs",
     "build:packages": "tsdown -W packages/http-server",
-    "dev:packages": "tsdown -W -w packages/http-server",
     "test": "pnpm run build:debug && pnpm run build:packages && vitest run",
     "fmt": "cargo fmt --all",
     "fmt:check": "cargo fmt --all -- --check",
