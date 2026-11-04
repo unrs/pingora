@@ -200,7 +200,7 @@ export function createServer(
         serverUsed = true
         throw error
       } finally {
-        if (activeStart === controller) activeStart = undefined
+        activeStart = undefined
       }
     })
   }
