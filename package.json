@@ -56,7 +56,7 @@
     "lint": "cargo clippy --all-targets -- -D warnings",
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
-    "test:watch": "pnpm run build:debug && vitest --watch",
+    "test:watch": "pnpm run build:debug && vitest --watch --exclude '**/http-server-build.test.mts'",
     "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
     "postbuild": "node scripts/postbuild.mts",
     "postbuild:debug": "node scripts/postbuild.mts",
