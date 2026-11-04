@@ -297,6 +297,7 @@ interface RequestDecision {
   action?: 'continue' | 'respond' | 'upstream'
   status?: number
   headers?: Record<string, string>
+  // Buffer is zero-copy; do not mutate it after returning the decision.
   body?: string | Buffer
   upstream?: string | Upstream
   requestHeaders?: Record<string, string>
