@@ -1,6 +1,6 @@
 'use strict'
 
-const net = require('node:net')
+const net = require('net')
 
 const { Server } = require('./index.js')
 
@@ -8,8 +8,21 @@ const DEFAULT_LISTEN = '127.0.0.1:8080'
 const DEFAULT_MAX_BODY = 1_048_576
 
 function normalizeListen(listen) {
-  if (typeof listen === 'number') return `127.0.0.1:${listen}`
-  if (typeof listen === 'string' && listen.length > 0) return listen
+  if (typeof listen === 'number') {
+    if (!Number.isInteger(listen) || listen <= 0) {
+      throw new TypeError('listen port must be a positive integer')
+    }
+    return `127.0.0.1:${listen}`
+  }
+  if (typeof listen === 'string' && listen.length > 0) {
+    if (!listen.startsWith('unix:')) {
+      const port = Number(listen.slice(listen.lastIndexOf(':') + 1))
+      if (!Number.isInteger(port) || port <= 0) {
+        throw new TypeError('listen port must be a positive integer')
+      }
+    }
+    return listen
+  }
   throw new TypeError('listen must be a port or address string')
 }
 
@@ -41,8 +54,10 @@ function createServer(options = {}) {
   function listenOptions() {
     if (address.startsWith('unix:')) return { path: address.slice(5) }
     const separator = address.lastIndexOf(':')
+    let host = address.slice(0, separator)
+    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1)
     return {
-      host: address.slice(0, separator),
+      host,
       port: Number(address.slice(separator + 1)),
     }
   }

@@ -5,6 +5,10 @@ import { onTestFinished, test } from 'vitest'
 import { createServer } from '../http-server.js'
 import { freePort } from './helpers.mjs'
 
+test('rejects port 0', () => {
+  assert.throws(() => createServer({ listen: 0, handler: () => ({ body: 'x' }) }), /positive integer/)
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({
