@@ -88,11 +88,17 @@ export function createServer(options: HttpServerOptions | HttpServerOptions["han
       const deadline = Date.now() + 10_000
       const attempt = () => {
         const socket = net.connect(listenOptions())
+        const timer = setTimeout(
+          () => socket.destroy(new Error('connect attempt timed out')),
+          Math.max(0, deadline - Date.now()),
+        )
         socket.once('connect', () => {
+          clearTimeout(timer)
           socket.destroy()
           resolve()
         })
         socket.once('error', () => {
+          clearTimeout(timer)
           socket.destroy()
           const status = server.status()
           if (status.state === 'failed' || status.state === 'stopped') {
