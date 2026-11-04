@@ -101,7 +101,7 @@ export function createServer(
     }
   }
 
-  function waitForListener(target: Server, signal?: AbortSignal): Promise<void> {
+  function waitForListener(target: Server): Promise<void> {
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + 10_000
       let settled = false
@@ -115,18 +115,9 @@ export function createServer(
         if (timer) clearTimeout(timer)
         if (retry) clearTimeout(retry)
         socket?.destroy()
-        signal?.removeEventListener('abort', abort)
         if (error) reject(error)
         else resolve()
       }
-
-      const abort = () => finish(new Error('server start aborted'))
-
-      if (signal?.aborted) {
-        abort()
-        return
-      }
-      signal?.addEventListener('abort', abort, { once: true })
 
       const attempt = () => {
         if (settled) return
@@ -163,60 +154,58 @@ export function createServer(
     })
   }
 
-  let started = false
+  type Lifecycle = 'idle' | 'starting' | 'running' | 'closing'
+  let lifecycle: Lifecycle = 'idle'
   let serverUsed = false
-  let activeStart: AbortController | undefined
-  let transition: Promise<void> = Promise.resolve()
-
-  function serialize(operation: () => Promise<void>): Promise<void> {
-    const result = transition.then(operation, operation)
-    transition = result.then(
-      () => undefined,
-      () => undefined,
-    )
-    return result
-  }
+  let closing: Promise<void> | undefined
 
   function start(): Promise<void> {
-    const controller =
-      typeof AbortController === 'function' ? new AbortController() : undefined
-    activeStart = controller
-    return serialize(async () => {
-      try {
-        if (controller?.signal.aborted) throw new Error('server start aborted')
-        if (started) throw new Error('server has already been started')
-        if (serverUsed) {
-          server = createNativeServer()
-          serverUsed = false
-        }
-        const target = server
-        started = true
-        try {
-          target.start()
-          await waitForListener(target, controller?.signal)
-        } catch (error) {
-          started = false
-          // A failed readiness probe must not leave the native server running and
-          // block an immediate retry.
-          await target.stop().catch(() => {})
-          serverUsed = true
-          throw error
-        }
-      } finally {
-        if (activeStart === controller) activeStart = undefined
+    if (lifecycle === 'running') {
+      return Promise.reject(new Error('server has already been started'))
+    }
+    if (lifecycle !== 'idle') {
+      return Promise.reject(new Error('server lifecycle transition in progress'))
+    }
+    lifecycle = 'starting'
+    return (async () => {
+      if (serverUsed) {
+        server = createNativeServer()
+        serverUsed = false
       }
-    })
+      const target = server
+      try {
+        target.start()
+        await waitForListener(target)
+        lifecycle = 'running'
+      } catch (error) {
+        await target.stop().catch(() => {})
+        serverUsed = true
+        lifecycle = 'idle'
+        throw error
+      }
+    })()
   }
 
   function close(): Promise<void> {
-    activeStart?.abort()
-    return serialize(async () => {
-      if (!started) return
-      started = false
-      const target = server
-      serverUsed = true
-      await target.stop()
-    })
+    if (lifecycle === 'starting') {
+      return Promise.reject(new Error('server is starting; await start() before close()'))
+    }
+    if (lifecycle === 'closing') return closing!
+    if (lifecycle !== 'running') return Promise.resolve()
+
+    lifecycle = 'closing'
+    const target = server
+    const operation = (async () => {
+      try {
+        await target.stop()
+      } finally {
+        serverUsed = true
+        lifecycle = 'idle'
+        closing = undefined
+      }
+    })()
+    closing = operation
+    return operation
   }
 
   return {

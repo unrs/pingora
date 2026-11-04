@@ -6,6 +6,17 @@ import { onTestFinished, test } from 'vitest'
 import { createServer } from '@pingora/http-server'
 import { freePort } from './helpers.mjs'
 
+async function occupy(port: number): Promise<net.Server> {
+  return new Promise((resolve, reject) => {
+    const socket = net.createServer()
+    socket.once('error', reject)
+    socket.listen(port, '127.0.0.1', () => resolve(socket))
+  })
+}
+
+function closeServer(server: net.Server): Promise<void> {
+  return new Promise((resolve) => server.close(() => resolve()))
+}
 
 test('rejects invalid body limits', () => {
   for (const maxRequestBodyBytes of [0, -1, 1.5, Infinity, NaN, 0x1_0000_0000]) {
@@ -25,24 +36,14 @@ test('rejects invalid ports', () => {
   }
 })
 
-test('stops the native server when the listener cannot start', async () => {
+test('retries after a failed start', async () => {
   const port = await freePort()
-  const blocker = await new Promise<net.Server>((resolve, reject) => {
-    const socket = net.createServer()
-    socket.once('error', reject)
-    socket.listen(port, '127.0.0.1', () => resolve(socket))
-  })
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
+  const blocker = await occupy(port)
+  const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
   onTestFinished(() => app.close())
 
-  try {
-    await assert.rejects(app.start())
-  } finally {
-    await new Promise<void>((resolve) => blocker.close(() => resolve()))
-  }
+  await assert.rejects(app.start())
+  await closeServer(blocker)
 
   await app.start()
   const response = await fetch(`http://127.0.0.1:${port}/`)
@@ -50,142 +51,40 @@ test('stops the native server when the listener cannot start', async () => {
   assert.equal(await response.text(), 'ok')
 })
 
-test('restarts after stop and after a failed start', async () => {
+test('restarts after close', async () => {
   const port = await freePort()
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
+  const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
   onTestFinished(() => app.close())
 
   await app.start()
   await assert.rejects(app.start(), /already been started/)
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.close()
+  await app.close()
+
   await app.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.close()
 })
 
-test('does not let an idle stop clear a later start', async () => {
+test('rejects close while start is in progress', async () => {
   const port = await freePort()
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
-  onTestFinished(() => app.close())
-
-  const idleStop = app.close()
-  await app.start()
-  await idleStop
-  await app.close()
-  await app.start()
-  await app.close()
-})
-
-test('ignores stale stop tasks', async () => {
-  const port = await freePort()
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
-  onTestFinished(() => app.close())
-
-  await app.start()
-  const firstStop = app.close()
-  const staleStop = app.close()
-  await firstStop
-  await app.start()
-  await staleStop
-  await app.close()
-  await app.start()
-  await app.close()
-})
-
-test('serializes concurrent start and close', async () => {
-  const port = await freePort()
-  const blocker = await new Promise<net.Server>((resolve, reject) => {
-    const socket = net.createServer()
-    socket.once('error', reject)
-    socket.listen(port, '127.0.0.1', () => resolve(socket))
-  })
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
+  const blocker = await occupy(port)
+  const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
   onTestFinished(() => app.close())
 
   const starting = app.start()
-  const closing = app.close()
-  await new Promise<void>((resolve) => blocker.close(() => resolve()))
-  await Promise.allSettled([starting, closing])
-
-  await app.start()
-  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
-  await app.close()
+  await assert.rejects(app.close(), /starting/)
+  await assert.rejects(starting)
+  await closeServer(blocker)
 })
 
-test('serializes a second start while starting', async () => {
-  const port = await freePort()
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
-  onTestFinished(() => app.close())
-
-  const starting = app.start()
-  await assert.rejects(app.start(), /already been started/)
-  await starting
-  await app.close()
-})
-
-test('allows a start queued after close', async () => {
-  const port = await freePort()
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
-  onTestFinished(() => app.close())
-
-  await app.start()
-  const closing = app.close()
-  const restarting = app.start()
-  await closing
-  await restarting
-  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
-  await app.close()
-})
-
-test('starts after close while an earlier start is pending', async () => {
-  const port = await freePort()
-  const blocker = await new Promise<net.Server>((resolve, reject) => {
-    const socket = net.createServer()
-    socket.once('error', reject)
-    socket.listen(port, '127.0.0.1', () => resolve(socket))
-  })
-  const app = createServer({
-    listen: port,
-    handler: () => ({ body: 'ok' }),
-  })
-  onTestFinished(() => app.close())
-
-  const first = app.start()
-  const closing = app.close()
-  const second = app.start()
-  await new Promise<void>((resolve) => blocker.close(() => resolve()))
-  await Promise.allSettled([first, closing, second])
-
-  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
-  await app.close()
-})
-
-test('starts on a free port and serves GET and POST', async () => {
+test('serves GET, POST, and rejects an over-limit body', async () => {
   const port = await freePort()
   const app = createServer({
     listen: port,
     maxRequestBodyBytes: 1024,
     handler: async (request) => ({
-      action: 'continue',
       status: 200,
       headers: { 'x-method': request.method },
       body: request.body?.length ? request.body : 'empty',

@@ -76,12 +76,8 @@ The returned object exposes:
 - `close(): Promise<void>`
 
 `start()` waits until the listener is reachable. `close()` stops the current
-native server. Lifecycle calls are serialized.
-
-When global `AbortController` is available, `close()` aborts an in-flight
-`start()` immediately. Node.js versions without it still work, but `close()`
-waits for the current lifecycle transition; applications that need immediate
-cancellation can install an `AbortController` polyfill.
+native server. Lifecycle calls must be awaited and cannot overlap: calling
+`close()` while `start()` is pending rejects, and vice versa.
 
 ## Limitations
 
