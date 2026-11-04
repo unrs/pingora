@@ -55,7 +55,7 @@ with a Go load generator inside the Docker network:
 pnpm bench:native
 ```
 
-It reports throughput, p50/p99 latency, average CPU%, and cgroup memory per
+It reports throughput, p50/p95/p99 latency, average CPU%, and cgroup memory per
 target in both `cached` and `file` origin modes. CPU% is the cgroup `usage_usec`
 delta over the measured interval; cgroup memory is `memory.current`. The direct
 origin is measured before and after each proxy matrix to expose run-to-run
@@ -64,6 +64,26 @@ developer tooling and is not covered by the package runtime floor.
 
 Each result JSON records platform, CPU model, host core count, runner
 parallelism, memory, kernel, and Node version as `host` metadata.
+
+## HTTP server frameworks
+
+`bench/server` compares `@pingora/http-server` with Node's `http` module,
+Express, Fastify, Koa, NestJS, Hono, and Elysia's Node adapter. Every target
+serves the same `/plaintext`, `/json`, and `/users/42` routes, runs in
+Docker with the same CPU/memory limits, and is driven by the Go load generator
+from the native matrix:
+
+```sh
+pnpm bench:server
+BENCH_SERVER_DURATION_MS=10000 BENCH_SERVER_CONCURRENCY=32 pnpm bench:server
+```
+
+Published versions are pinned in `bench/server/package.json`. The runner records
+framework versions, Node/runtime metadata, host metadata, requests, errors,
+req/s, p50/p95/p99 latency, CPU%, cgroup memory, and RSS. A 500 ms warmup runs
+before each target; `BENCH_SERVER_WARMUP_MS=0` skips it. NestJS uses its default Express
+adapter; Elysia uses `@elysiajs/node`. See
+[`bench/server/README.md`](../bench/server/README.md) for the full setup.
 
 ## Native benchmark workflow
 
