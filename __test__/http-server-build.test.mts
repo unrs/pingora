@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { test } from 'vitest'
+import { onTestFinished, test } from 'vitest'
 
 import { freePort } from './helpers.mjs'
 
@@ -28,6 +28,54 @@ async function exercise(createServer: Function) {
     await app.close()
   }
 }
+
+test('keeps the process alive after start', async () => {
+  const port = await freePort()
+  const child = spawn(
+    process.execPath,
+    [
+      '-e',
+      `const { createServer } = require('@pingora/http-server')
+       const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
+       app.start().then(() => console.log('ready')).catch((error) => {
+         console.error(error)
+         process.exit(1)
+       })`,
+    ],
+    {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  )
+  let stderr = ''
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`child did not start: ${stderr}`)), 5000)
+    child.stdout.on('data', (chunk) => {
+      if (chunk.toString().includes('ready')) {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      reject(new Error(`child exited early (${code}): ${stderr}`))
+    })
+  })
+
+  onTestFinished(() => child.kill())
+  const response = await fetch(`http://127.0.0.1:${port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'alive')
+  assert.equal(child.exitCode, null)
+  await new Promise<void>((resolve) => {
+    child.once('exit', () => resolve())
+    child.kill()
+  })
+})
 
 test('resolves through the package exports map', () => {
   const cwd = fileURLToPath(new URL('..', import.meta.url))
