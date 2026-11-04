@@ -98,9 +98,9 @@ After the version pull request is merged, `release.yml`:
    when native is being rebuilt;
 3. runs `napi create-npm-dirs` and `napi artifacts` when native is being
    rebuilt;
-4. runs `napi pre-publish` for the platform packages when native is being
+4. runs `pnpm build:packages` for the workspace JS packages;
+5. runs `napi pre-publish` for the platform packages when native is being
    rebuilt (existing versions are skipped);
-5. runs `pnpm build:packages` for the workspace JS packages;
 6. runs `changesets/action/publish`, which executes `changeset publish`,
    publishes every unpublished workspace version, pushes tags, and creates the
    GitHub releases.
@@ -152,7 +152,8 @@ The `release` job needs `contents: write` and `pull-requests: write`; the
 `actions/setup-node` is intentionally **not** given `registry-url`: that option
 writes an `.npmrc` entry that expects `NODE_AUTH_TOKEN` and can take precedence
 over OIDC. The workflow installs pnpm via `pnpm/action-setup` (the version comes
-from `packageManager` in `package.json`) and publishes with `pnpm publish`.
+from `packageManager` in `package.json`) and publishes with `changeset publish`
+through `changesets/action/publish`.
 
 ## Verifying a release
 
@@ -160,6 +161,11 @@ from `packageManager` in `package.json`) and publishes with `pnpm publish`.
 npm view pingora@<version> version
 npm view @pingora/http-server@<version> version
 npm view @pingora/binding-linux-x64-gnu@<version> version
+npm view @pingora/binding-linux-arm64-gnu@<version> version
+npm view @pingora/binding-linux-x64-musl@<version> version
+npm view @pingora/binding-linux-arm64-musl@<version> version
+npm view @pingora/binding-darwin-x64@<version> version
+npm view @pingora/binding-darwin-arm64@<version> version
 npm install pingora@<version>
 node -e "const { version } = require('pingora'); console.log(version())"
 git ls-remote --tags origin "pingora@<version>" "@pingora/http-server@<version>"
