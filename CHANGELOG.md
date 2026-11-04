@@ -1,5 +1,15 @@
 # pingora
 
+## 0.4.0
+
+### Minor Changes
+
+- [#51](https://github.com/unrs/pingora/pull/51) [`62edb53`](https://github.com/unrs/pingora/commit/62edb53de074170493d4282f6f5ab13dd63789f2) Thanks [@JounQin](https://github.com/JounQin)! - Allow Buffer response bodies from the request handler.
+
+- [#49](https://github.com/unrs/pingora/pull/49) [`e1e23ed`](https://github.com/unrs/pingora/commit/e1e23ed585be434d9d02c3acf66373eb9115eb2d) Thanks [@JounQin](https://github.com/JounQin)! - Add `readHandlerBody` for direct handlers that need the buffered request body;
+  it requires `maxRequestBodyBytes`, honors `Expect: 100-continue`, and is bounded
+  by `handlerTimeoutMs`.
+
 ## 0.3.0
 
 ### Minor Changes
