@@ -83,6 +83,25 @@ test('does not let an idle stop clear a later start', async () => {
   await app.close()
 })
 
+test('ignores stale stop tasks', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const firstStop = app.stop()
+  const staleStop = app.stop()
+  await firstStop
+  await app.start()
+  await staleStop
+  await app.stop()
+  await app.start()
+  await app.close()
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({
