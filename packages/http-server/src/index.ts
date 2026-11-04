@@ -17,8 +17,13 @@ export interface HttpServerOptions {
   server?: Omit<ServerOptions, 'listeners' | 'routes' | 'readHandlerBody' | 'maxRequestBodyBytes'>
 }
 
+export type DelegatedServer = Omit<Server, 'start' | 'stop'> & {
+  start(): Promise<void>
+  stop(): Promise<void>
+}
+
 export interface HttpServer {
-  server: Server
+  server: DelegatedServer
   url: string
   start(): Promise<void>
   close(): Promise<void>
@@ -121,7 +126,7 @@ export function createServer(
     return native
   }
 
-  function exposeServer(native: Server): Server {
+  function exposeServer(native: Server): DelegatedServer {
     const rawStop = native.stop.bind(native)
     return new Proxy(native, {
       get(target, property) {
@@ -141,7 +146,7 @@ export function createServer(
           ? value
           : value.bind(target)
       },
-    })
+    }) as DelegatedServer
   }
 
   let server = createNativeServer()

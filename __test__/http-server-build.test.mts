@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -10,9 +10,54 @@ import { freePort } from './helpers.mjs'
 
 const require = createRequire(import.meta.url)
 const CHILD_TIMEOUT_MS = 12_000
-
+const facadeCwd = fileURLToPath(new URL('..', import.meta.url))
 const cjsPath = fileURLToPath(new URL('../packages/http-server/lib/index.cjs', import.meta.url))
 const esmPath = fileURLToPath(new URL('../packages/http-server/lib/index.mjs', import.meta.url))
+
+function spawnFacade(script: string) {
+  const child = spawn(process.execPath, ['-e', script], {
+    cwd: facadeCwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let stderr = ''
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+  onTestFinished(() => child.kill())
+  return {
+    child,
+    get stderr() {
+      return stderr
+    },
+  }
+}
+
+function waitForReady(child: ChildProcess): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('child did not start')), CHILD_TIMEOUT_MS)
+    child.stdout?.on('data', (chunk) => {
+      if (chunk.toString().includes('ready')) {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      reject(new Error(`child exited early (${code})`))
+    })
+  })
+}
+
+function waitForExit(child: ChildProcess): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('child did not exit')), CHILD_TIMEOUT_MS)
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve()
+      else reject(new Error(`child exited with ${code}`))
+    })
+  })
+}
 
 async function exercise(createServer: Function) {
   const port = await freePort()
@@ -32,44 +77,16 @@ async function exercise(createServer: Function) {
 
 test('keeps the process alive after start', async () => {
   const port = await freePort()
-  const child = spawn(
-    process.execPath,
-    [
-      '-e',
-      `const { createServer } = require('@pingora/http-server')
-       const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
-       app.start().then(() => console.log('ready')).catch((error) => {
-         console.error(error)
-         process.exit(1)
-       })`,
-    ],
-    {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-  onTestFinished(() => child.kill())
-  let stderr = ''
-  child.stderr.on('data', (chunk) => {
-    stderr += chunk
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not start: ${stderr}`)), CHILD_TIMEOUT_MS)
-    child.stdout.on('data', (chunk) => {
-      if (chunk.toString().includes('ready')) {
-        clearTimeout(timer)
-        resolve()
-      }
-    })
-    child.once('exit', (code) => {
-      clearTimeout(timer)
-      reject(new Error(`child exited early (${code}): ${stderr}`))
-    })
-  })
+  const { child, stderr } = spawnFacade(`const { createServer } = require('@pingora/http-server')
+const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
+app.start().then(() => console.log('ready')).catch((error) => {
+  console.error(error)
+  process.exit(1)
+})`)
+  await waitForReady(child)
 
   const response = await fetch(`http://127.0.0.1:${port}/`)
-  assert.equal(response.status, 200)
+  assert.equal(response.status, 200, stderr)
   assert.equal(await response.text(), 'alive')
   assert.equal(child.exitCode, null)
   await new Promise<void>((resolve) => {
@@ -80,82 +97,35 @@ test('keeps the process alive after start', async () => {
 
 test('unref lets the process exit after start', async () => {
   const port = await freePort()
-  const child = spawn(
-    process.execPath,
-    [
-      '-e',
-      `const { createServer } = require('@pingora/http-server')
-       const app = createServer({
-         listen: ${port},
-         unref: true,
-         handler: () => ({ body: 'alive' }),
-       })
-       app.start().then(() => console.log('ready')).catch((error) => {
-         console.error(error)
-         process.exit(1)
-       })`,
-    ],
-    {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-  onTestFinished(() => child.kill())
-  let stderr = ''
-  child.stderr.on('data', (chunk) => {
-    stderr += chunk
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not exit: ${stderr}`)), CHILD_TIMEOUT_MS)
-    child.once('exit', (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else reject(new Error(`child exited with ${code}: ${stderr}`))
-    })
-  })
+  const { child } = spawnFacade(`const { createServer } = require('@pingora/http-server')
+const app = createServer({
+  listen: ${port},
+  unref: true,
+  handler: () => ({ body: 'alive' }),
+})
+app.start().then(() => console.log('ready')).catch((error) => {
+  console.error(error)
+  process.exit(1)
+})`)
+  await waitForExit(child)
 })
 
 test('releases the keepalive after app.server.stop()', async () => {
   const port = await freePort()
-  const child = spawn(
-    process.execPath,
-    [
-      '-e',
-      `const { createServer } = require('@pingora/http-server')
-       const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
-       app.start().then(() => app.server.stop()).catch((error) => {
-         console.error(error)
-         process.exit(1)
-       })`,
-    ],
-    {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-  onTestFinished(() => child.kill())
-  let stderr = ''
-  child.stderr.on('data', (chunk) => {
-    stderr += chunk
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not exit: ${stderr}`)), CHILD_TIMEOUT_MS)
-    child.once('exit', (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else reject(new Error(`child exited with ${code}: ${stderr}`))
-    })
-  })
+  const { child } = spawnFacade(`const { createServer } = require('@pingora/http-server')
+const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
+app.start().then(() => app.server.stop()).catch((error) => {
+  console.error(error)
+  process.exit(1)
+})`)
+  await waitForExit(child)
 })
 
 test('resolves through the package exports map', () => {
-  const cwd = fileURLToPath(new URL('..', import.meta.url))
   const cjs = spawnSync(
     process.execPath,
     ['-e', "const m = require('@pingora/http-server'); if (typeof m.createServer !== 'function') process.exit(1)"],
-    { cwd, encoding: 'utf8' },
+    { cwd: facadeCwd, encoding: 'utf8' },
   )
   assert.equal(cjs.status, 0, cjs.stderr)
 
@@ -166,7 +136,7 @@ test('resolves through the package exports map', () => {
       '-e',
       "const m = await import('@pingora/http-server'); if (typeof m.createServer !== 'function') process.exit(1)",
     ],
-    { cwd, encoding: 'utf8' },
+    { cwd: facadeCwd, encoding: 'utf8' },
   )
   assert.equal(esm.status, 0, esm.stderr)
 })

@@ -75,7 +75,8 @@ The returned object exposes:
 
 - `server` — current native `pingora` server for status/metrics; its `start()` and
   `stop()` delegate to the facade lifecycle (replaced on the next `start()` after
-  close or a failed start)
+  close or a failed start). A replaced handle's `start()` rejects; its `stop()`
+  only retires that old native instance.
 - `url`
 - `start(): Promise<void>`
 - `close(): Promise<void>`
