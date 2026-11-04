@@ -58,7 +58,8 @@ The workflow checks the root native version on npm only to decide whether native
 artifacts must be rebuilt. The JS package versions are decided by Changesets
 itself. That makes the check safe to retry after a failed run:
 
-- if a version is already on npm, nothing is published again;
+- if the root native version is already on npm, native rebuilding is skipped;
+- Changesets still publishes any other workspace version missing from npm;
 - if a previous run failed before publishing, the next push to `main` tries
   again.
 
@@ -158,11 +159,16 @@ through `changesets/action/publish`.
 ## Verifying a release
 
 ```sh
-npm view pingora@<version> version
-npm view @pingora/http-server@<version> version
-npm install pingora@<version>
+# Run for a native release.
+npm view pingora@<pingora-version> version
+npm install pingora@<pingora-version>
 node -e "const { version } = require('pingora'); console.log(version())"
-git ls-remote --tags origin "pingora@<version>" "@pingora/http-server@<version>"
+git ls-remote --tags origin "pingora@<pingora-version>"
+
+# Run when the facade was released.
+npm view @pingora/http-server@<http-server-version> version
+npm install @pingora/http-server@<http-server-version>
+git ls-remote --tags origin "@pingora/http-server@<http-server-version>"
 ```
 
 Check that `CHANGELOG.md` names the release and that the GitHub Actions run has
