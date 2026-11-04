@@ -67,6 +67,22 @@ test('restarts after stop and after a failed start', async () => {
   await app.close()
 })
 
+test('does not let an idle stop clear a later start', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  const idleStop = app.stop()
+  await app.start()
+  await idleStop
+  await app.stop()
+  await app.start()
+  await app.close()
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({

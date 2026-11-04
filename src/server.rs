@@ -574,7 +574,9 @@ impl Task for StopTask {
         if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
             self.state.set_status(STOPPED);
         }
-        self.started_flag.store(false, Ordering::Release);
+        if self.started {
+            self.started_flag.store(false, Ordering::Release);
+        }
         Ok(())
     }
 
