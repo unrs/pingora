@@ -3,7 +3,7 @@ import http from 'node:http'
 import { test } from 'vitest'
 
 import { Server } from '../index.js'
-import { createProxy, request, startUpstream, waitForProxy } from './helpers.mjs'
+import { createProxy, request, startUpstream, waitForProxy } from './helpers.js'
 
 async function proxyWith(upstream, options = {}) {
   const proxy = await createProxy({
@@ -42,7 +42,7 @@ test('rejects oversized request headers with 431', async () => {
   }
 })
 
-function chunkedRequest(url, body) {
+function chunkedRequest(url: string, body: string): Promise<{ status?: number; body: string }> {
   return new Promise((resolve, reject) => {
     const request = http.request(
       url,

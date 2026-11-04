@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strictNullChecks": false
+  },
+  "include": [
+    "bench/proxy.bench.ts"
+  ],
+  "exclude": []
+}

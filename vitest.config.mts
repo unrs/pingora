@@ -11,9 +11,9 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['__test__/**/*.test.mjs', '__test__/**/*.test.mts'],
+    include: ['test/**/*.spec.ts'],
     benchmark: {
-      include: ['bench/**/*.bench.mjs'],
+      include: ['bench/**/*.bench.ts'],
     },
     pool: 'forks',
     fileParallelism: false,

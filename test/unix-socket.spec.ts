@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { test } from 'vitest'
 
 import { Server } from '../index.js'
-import { createProxy, startUpstream, waitForProxy } from './helpers.mjs'
+import { createProxy, startUpstream, waitForProxy } from './helpers.js'
 
 async function tempSocket() {
   const directory = await mkdtemp(join(tmpdir(), 'pingora-uds-'))
@@ -64,7 +64,7 @@ test('listens on a Unix domain socket', async () => {
 test('proxies to a Unix domain socket upstream', async () => {
   const { directory, socketPath } = await tempSocket()
   const upstream = http.createServer((_req, res) => res.end('unix-upstream'))
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     upstream.once('error', reject)
     upstream.listen(socketPath, resolve)
   })
@@ -89,7 +89,7 @@ test('reuses a Unix listener path after stop', async () => {
   const { directory, socketPath } = await tempSocket()
   try {
     const stale = net.createServer()
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       stale.once('error', reject)
       stale.listen(socketPath, resolve)
     })

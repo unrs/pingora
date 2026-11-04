@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
 
-import { createProxy, eventually, startUpstream, waitForProxy } from './helpers.mjs'
+import { createProxy, eventually, startUpstream, waitForProxy } from './helpers.js'
 
 test('reports completed requests to an access log handler', async () => {
   const upstream = await startUpstream((_req, res) => res.end('ok'))
@@ -78,7 +78,7 @@ test('supports async access log handlers', async () => {
     routes: [{ id: 'app', pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
   })
   let resolveRecord
-  const recordSeen = new Promise((resolve) => {
+  const recordSeen = new Promise<any>((resolve) => {
     resolveRecord = resolve
   })
   try {

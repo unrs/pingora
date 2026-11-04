@@ -10,11 +10,13 @@
     "tsdown.config.mts",
     "vitest.config.mts",
     "scripts/**/*.mts",
-    "bench/**/*.mts",
+    "bench/**/*.ts",
     "packages/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "target"
+    "target",
+    "bench/native/pingora-server.ts",
+    "bench/proxy.bench.ts"
   ]
 }

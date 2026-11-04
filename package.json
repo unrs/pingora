@@ -56,15 +56,15 @@
     "lint": "cargo clippy --all-targets -- -D warnings",
     "test:rust": "cargo test",
     "bench": "pnpm run build && vitest bench",
-    "test:watch": "pnpm run build:debug && vitest --watch --exclude '**/http-server-build.test.mts'",
+    "test:watch": "pnpm run build:debug && vitest --watch --exclude '**/http-server-build.spec.ts'",
     "version": "changeset version && cargo set-version --workspace \"$(node -p 'require(\"./package.json\").version')\"",
     "postbuild": "node scripts/postbuild.mts",
     "postbuild:debug": "node scripts/postbuild.mts",
     "soak": "pnpm run build:debug && node scripts/soak.mts",
-    "bench:gate": "pnpm run build && node bench/gate.mts",
-    "bench:gate:debug": "node bench/gate.mts",
-    "bench:native": "pnpm run build && node bench/native/run.mts",
-    "typecheck": "pnpm run build:debug && tsc --noEmit"
+    "bench:gate": "pnpm run build && node bench/gate.ts",
+    "bench:gate:debug": "node bench/gate.ts",
+    "bench:native": "pnpm run build && node bench/native/run.ts",
+    "typecheck": "pnpm run build:debug && tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.bench.json"
   },
   "publishConfig": {
     "access": "public",

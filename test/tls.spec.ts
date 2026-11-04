@@ -2,19 +2,25 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import http2 from 'node:http2'
 import https from 'node:https'
+import type { OutgoingHttpHeaders } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
 import { Server } from '../index.js'
-import { freePort, startUpstream, waitForProxy } from './helpers.mjs'
+import { freePort, startUpstream, waitForProxy } from './helpers.js'
 
 const cert = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
 const key = fileURLToPath(new URL('./fixtures/key.pem', import.meta.url))
 const caPath = fileURLToPath(new URL('./fixtures/ca.pem', import.meta.url))
 const ca = readFileSync(caPath)
 
-function httpsRequest(port, path = '/') {
+function httpsRequest(port: number, path = '/'): Promise<{
+  status?: number
+  httpVersion: string
+  headers: OutgoingHttpHeaders
+  body: string
+}> {
   return new Promise((resolve, reject) => {
     const request = https.request(
       { host: '127.0.0.1', port, path, ca },
@@ -47,7 +53,11 @@ async function waitForHttps(port, path = '/') {
   throw new Error(`TLS proxy at ${port} did not become ready`)
 }
 
-function http2Request(port, path = '/') {
+function http2Request(port: number, path = '/'): Promise<{
+  status?: number
+  body: string
+  alpn?: string
+}> {
   const client = http2.connect(`https://127.0.0.1:${port}`, { ca })
   return new Promise((resolve, reject) => {
     client.once('error', (error) => {

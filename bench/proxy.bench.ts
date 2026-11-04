@@ -39,17 +39,19 @@ function close(server) {
 
 async function freePort() {
   const probe = net.createServer()
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', resolve)
+    probe.listen(0, '127.0.0.1', () => resolve())
   })
-  const { port } = probe.address()
-  await new Promise((resolve) => probe.close(resolve))
+  const address = probe.address()
+  if (!address || typeof address === 'string') throw new Error('failed to allocate a TCP port')
+  const { port } = address
+  await new Promise<void>((resolve) => probe.close(() => resolve()))
   return port
 }
 
 function request(port) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const req = http.request(
       {
         host: '127.0.0.1',

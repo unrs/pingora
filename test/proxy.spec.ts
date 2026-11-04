@@ -9,7 +9,7 @@ import {
   request,
   startUpstream,
   waitForProxy,
-} from './helpers.mjs'
+} from './helpers.js'
 
 test('proxies requests, applies headers, and reports metrics', async () => {
   let seen

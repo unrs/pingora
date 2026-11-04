@@ -12,7 +12,7 @@ import {
   freePort,
   startUpstream,
   waitForProxy,
-} from './helpers.mjs'
+} from './helpers.js'
 
 test('rejects a chunked body over the buffered handler limit', async () => {
   const proxy = await createProxy({

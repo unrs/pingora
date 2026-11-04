@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { onTestFinished, test } from 'vitest'
 
-import { freePort } from './helpers.mjs'
+import { freePort } from './helpers.js'
 
 const require = createRequire(import.meta.url)
 const CHILD_TIMEOUT_MS = 12_000
@@ -23,7 +23,9 @@ function spawnFacade(script: string) {
   child.stderr.on('data', (chunk) => {
     stderr += chunk
   })
-  onTestFinished(() => child.kill())
+  onTestFinished(() => {
+    child.kill()
+  })
   return { child, stderr: () => stderr }
 }
 
