@@ -321,6 +321,32 @@ Set `readHandlerBody` with a finite `maxRequestBodyBytes` to expose the buffered
 body as `request.body`. Such a handler must respond; body reading is bounded by
 `handlerTimeoutMs` and returns `408` on timeout.
 
+### HTTP server facade
+
+For direct request handling without an upstream, use the `pingora/http-server`
+subpath:
+
+```js
+import { createServer } from 'pingora/http-server'
+
+const app = createServer({
+  listen: 3000,
+  maxRequestBodyBytes: 1_048_576,
+  handler: async (request) => ({
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path: request.path, bytes: request.body?.length ?? 0 }),
+  }),
+})
+
+await app.start()
+await app.close()
+```
+
+The facade enables `readHandlerBody`, forces every handler result to a synthetic
+response, waits for the listener, and accepts string or Buffer bodies. Response
+streaming is not implemented yet; large responses are buffered.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md) for vulnerability reporting and
