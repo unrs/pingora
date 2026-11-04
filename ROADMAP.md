@@ -123,7 +123,7 @@ src/
   router.rs    route matching, upstream parsing, load-balancing strategies
   proxy.rs     ProxyHttp implementation and request/response translation
   state.rs     shared state, handler handle, metrics
-__test__/      node:test integration tests
+test/          Vitest .spec.ts integration tests
 examples/      runnable Node examples
 docs/          guides beyond the README
 ```
