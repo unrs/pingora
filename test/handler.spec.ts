@@ -6,7 +6,7 @@ import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
-import type { RequestDecision, RequestView } from '../index.js'
+import type { RequestView } from '../index.js'
 
 import {
   createProxy,
@@ -251,7 +251,8 @@ test('maps handler errors, invalid decisions, and timeouts to 500', async () => 
   proxy.server.setRequestHandler(async () => ({ action: 'upstream' }))
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/no-upstream`)).status, 500)
 
-  proxy.server.setRequestHandler(async () => undefined as unknown as RequestDecision)
+  // @ts-expect-error the request handler intentionally returns an invalid value
+  proxy.server.setRequestHandler(async () => undefined)
   assert.equal((await fetch(`http://127.0.0.1:${proxy.port}/undefined`)).status, 500)
 
 
