@@ -6,8 +6,13 @@ import { createServer } from '@pingora/http-server'
 import { freePort } from './helpers.mjs'
 
 
-test('rejects port 0', () => {
-  assert.throws(() => createServer({ listen: 0, handler: () => ({ body: 'x' }) }), /positive integer/)
+test('rejects invalid ports', () => {
+  for (const listen of [0, 65536, '3000', ':3000']) {
+    assert.throws(
+      () => createServer({ listen, handler: () => ({ body: 'x' }) }),
+      /listen/,
+    )
+  }
 })
 
 test('starts on a free port and serves GET and POST', async () => {

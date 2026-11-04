@@ -3,7 +3,6 @@ import net from 'net'
 import { Server } from 'pingora'
 import type { RequestView, ServerOptions } from 'pingora'
 
-
 export interface HttpServerResponse {
   status?: number
   headers?: Record<string, string>
@@ -30,16 +29,17 @@ const DEFAULT_MAX_BODY = 1_048_576
 
 function normalizeListen(listen: string | number): string {
   if (typeof listen === 'number') {
-    if (!Number.isInteger(listen) || listen <= 0) {
-      throw new TypeError('listen port must be a positive integer')
+    if (!Number.isInteger(listen) || listen <= 0 || listen > 65535) {
+      throw new TypeError('listen port must be a positive integer below 65536')
     }
     return `127.0.0.1:${listen}`
   }
   if (typeof listen === 'string' && listen.length > 0) {
     if (!listen.startsWith('unix:')) {
-      const port = Number(listen.slice(listen.lastIndexOf(':') + 1))
-      if (!Number.isInteger(port) || port <= 0) {
-        throw new TypeError('listen port must be a positive integer')
+      const separator = listen.lastIndexOf(':')
+      const port = Number(listen.slice(separator + 1))
+      if (separator <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535) {
+        throw new TypeError('listen must be host:port with a valid port')
       }
     }
     return listen
@@ -51,17 +51,25 @@ function urlFor(listen: string): string {
   return listen.startsWith('unix:') ? listen : `http://${listen}`
 }
 
-export function createServer(handler: HttpServerOptions["handler"]): HttpServer
+export function createServer(handler: HttpServerOptions['handler']): HttpServer
 export function createServer(options: HttpServerOptions): HttpServer
-export function createServer(options: HttpServerOptions | HttpServerOptions["handler"] = {} as HttpServerOptions): HttpServer {
+export function createServer(
+  options: HttpServerOptions | HttpServerOptions['handler'],
+): HttpServer {
   if (typeof options === 'function') options = { handler: options }
-  const { handler, listen = DEFAULT_LISTEN, maxRequestBodyBytes = DEFAULT_MAX_BODY, server: serverOptions = {} } = options
+  const {
+    handler,
+    listen = DEFAULT_LISTEN,
+    maxRequestBodyBytes = DEFAULT_MAX_BODY,
+    server: serverOptions = {},
+  } = options
   if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
   const address = normalizeListen(listen)
 
   const server = new Server({
     ...serverOptions,
     listeners: [address],
+    // Native routes require an upstream; direct responses never use this one.
     routes: [{ id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
     readHandlerBody: true,
     maxRequestBodyBytes,
@@ -127,5 +135,3 @@ export function createServer(options: HttpServerOptions | HttpServerOptions["han
     close: () => server.stop(),
   }
 }
-
-
