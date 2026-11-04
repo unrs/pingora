@@ -3,7 +3,7 @@ use std::io::Write as _;
 #[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, Once};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -172,8 +172,7 @@ impl ServerState {
 #[napi(js_name = "Server")]
 pub struct JsServer {
     state: Arc<ServerState>,
-    started: Arc<AtomicBool>,
-    generation: Arc<AtomicU64>,
+    started: AtomicBool,
     join: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -307,8 +306,7 @@ impl JsServer {
                 exited: Mutex::new(false),
                 exit_cv: Condvar::new(),
             }),
-            started: Arc::new(AtomicBool::new(false)),
-            generation: Arc::new(AtomicU64::new(0)),
+            started: AtomicBool::new(false),
             join: Mutex::new(None),
         }
     }
@@ -330,12 +328,6 @@ impl JsServer {
                 "another pingora server is already running in this process",
             ));
         }
-
-        // Make a stopped server restartable.
-        self.generation.fetch_add(1, Ordering::AcqRel);
-        *self.state.exited.lock().unwrap() = false;
-        *self.state.last_error.lock().unwrap() = None;
-        self.state.shutdown_tx.send_replace(false);
 
         // Pingora's listener service panics on invalid or busy addresses in a
         // spawned thread, so preflight here to keep start() fallible.
@@ -414,9 +406,6 @@ impl JsServer {
             return AsyncTask::new(StopTask {
                 join: None,
                 started: false,
-                started_flag: self.started.clone(),
-                generation: self.generation.clone(),
-                generation_captured: self.generation.load(Ordering::Acquire),
                 state: self.state.clone(),
             });
         }
@@ -430,9 +419,6 @@ impl JsServer {
         AsyncTask::new(StopTask {
             join,
             started: true,
-            started_flag: self.started.clone(),
-            generation: self.generation.clone(),
-            generation_captured: self.generation.load(Ordering::Acquire),
             state: self.state.clone(),
         })
     }
@@ -557,9 +543,6 @@ impl JsServer {
 pub struct StopTask {
     join: Option<JoinHandle<()>>,
     started: bool,
-    started_flag: Arc<AtomicBool>,
-    generation: Arc<AtomicU64>,
-    generation_captured: u64,
     state: Arc<ServerState>,
 }
 
@@ -580,11 +563,8 @@ impl Task for StopTask {
                 exited = self.state.exit_cv.wait(exited).unwrap();
             }
         }
-        if self.started && self.generation.load(Ordering::Acquire) == self.generation_captured {
-            if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
-                self.state.set_status(STOPPED);
-            }
-            self.started_flag.store(false, Ordering::Release);
+        if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
+            self.state.set_status(STOPPED);
         }
         Ok(())
     }

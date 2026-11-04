@@ -73,19 +73,23 @@ export function createServer(
   }
   const address = normalizeListen(listen)
 
-  const server = new Server({
-    ...serverOptions,
-    listeners: [address],
-    // Native routes require an upstream; direct responses never use this one.
-    routes: [{ id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
-    readHandlerBody: true,
-    maxRequestBodyBytes,
-  })
+  function createNativeServer(): Server {
+    const native = new Server({
+      ...serverOptions,
+      listeners: [address],
+      // Native routes require an upstream; direct responses never use this one.
+      routes: [{ id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
+      readHandlerBody: true,
+      maxRequestBodyBytes,
+    })
+    native.setRequestHandler(async (request) => ({
+      ...(await handler(request)),
+      action: 'respond',
+    }))
+    return native
+  }
 
-  server.setRequestHandler(async (request) => ({
-    ...(await handler(request)),
-    action: 'respond',
-  }))
+  let server = createNativeServer()
 
   function listenOptions(): net.NetConnectOpts {
     if (address.startsWith('unix:')) return { path: address.slice(5) }
@@ -98,7 +102,7 @@ export function createServer(
     }
   }
 
-  function waitForListener(): Promise<void> {
+  function waitForListener(target: Server): Promise<void> {
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + 10_000
       const attempt = () => {
@@ -115,7 +119,7 @@ export function createServer(
         socket.once('error', () => {
           clearTimeout(timer)
           socket.destroy()
-          const status = server.status()
+          const status = target.status()
           if (status.state === 'failed' || status.state === 'stopped') {
             reject(new Error(status.error || `server ${status.state}`))
           } else if (Date.now() > deadline) {
@@ -133,26 +137,33 @@ export function createServer(
 
   async function start(): Promise<void> {
     if (started) throw new Error('server has already been started')
+    const target = server
     started = true
     try {
-      server.start()
-      await waitForListener()
+      target.start()
+      await waitForListener(target)
     } catch (error) {
       started = false
       // A failed readiness probe must not leave the native server running and
       // block an immediate retry.
-      await server.stop().catch(() => {})
+      await target.stop().catch(() => {})
+      server = createNativeServer()
       throw error
     }
   }
 
   async function close(): Promise<void> {
+    if (!started) return
     started = false
-    await server.stop()
+    const target = server
+    await target.stop()
+    server = createNativeServer()
   }
 
   return {
-    server,
+    get server() {
+      return server
+    },
     url: urlFor(address),
     start,
     stop: close,
