@@ -64,7 +64,7 @@
     "bench:gate": "pnpm run build && node bench/gate.mts",
     "bench:gate:debug": "node bench/gate.mts",
     "bench:native": "pnpm run build && node bench/native/run.mts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm run build:debug && tsc --noEmit"
   },
   "publishConfig": {
     "access": "public",
