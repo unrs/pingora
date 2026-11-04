@@ -10,24 +10,40 @@ npm install @pingora/http-server
 ## Usage
 
 ```js
-import { createServer } from '@pingora/http-server'
+const { createServer } = require('@pingora/http-server')
 
-const app = createServer({
-  listen: 3000,
-  maxRequestBodyBytes: 1_048_576,
-  handler: async (request) => ({
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      path: request.path,
-      bytes: request.body?.length ?? 0,
+async function main() {
+  const app = createServer({
+    listen: 3000,
+    maxRequestBodyBytes: 1_048_576,
+    handler: async (request) => ({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        path: request.path,
+        bytes: request.body ? request.body.length : 0,
+      }),
     }),
-  }),
-})
+  })
 
-await app.start()
-await app.close()
+  await app.start()
+
+  const shutdown = async () => {
+    await app.close()
+    process.exit(0)
+  }
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
 ```
+
+The CommonJS example runs on Node.js 12. Modern Node.js can use
+`import { createServer } from '@pingora/http-server'`.
 
 ## API
 

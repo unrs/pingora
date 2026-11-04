@@ -148,4 +148,10 @@ test('starts on a free port and serves GET and POST', async () => {
   const post = await fetch(`${app.url}/`, { method: 'POST', body: 'payload' })
   assert.equal(post.status, 200)
   assert.equal(await post.text(), 'payload')
+
+  const tooLarge = await fetch(`${app.url}/`, {
+    method: 'POST',
+    body: 'x'.repeat(2048),
+  })
+  assert.equal(tooLarge.status, 413)
 })

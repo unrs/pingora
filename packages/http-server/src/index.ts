@@ -178,27 +178,31 @@ export function createServer(
   }
 
   function start(): Promise<void> {
+    if (activeStart) throw new Error('server is already starting')
+    const controller =
+      typeof AbortController === 'function' ? new AbortController() : undefined
+    activeStart = controller
     return serialize(async () => {
-      if (started) throw new Error('server has already been started')
-      if (serverUsed) {
-        server = createNativeServer()
-        serverUsed = false
-      }
-      const target = server
-      const controller =
-        typeof AbortController === 'function' ? new AbortController() : undefined
-      activeStart = controller
-      started = true
       try {
-        target.start()
-        await waitForListener(target, controller?.signal)
-      } catch (error) {
-        started = false
-        // A failed readiness probe must not leave the native server running and
-        // block an immediate retry.
-        await target.stop().catch(() => {})
-        serverUsed = true
-        throw error
+        if (controller?.signal.aborted) throw new Error('server start aborted')
+        if (started) throw new Error('server has already been started')
+        if (serverUsed) {
+          server = createNativeServer()
+          serverUsed = false
+        }
+        const target = server
+        started = true
+        try {
+          target.start()
+          await waitForListener(target, controller?.signal)
+        } catch (error) {
+          started = false
+          // A failed readiness probe must not leave the native server running and
+          // block an immediate retry.
+          await target.stop().catch(() => {})
+          serverUsed = true
+          throw error
+        }
       } finally {
         activeStart = undefined
       }
