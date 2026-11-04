@@ -33,6 +33,12 @@ interface ListenConfig {
   url: string
 }
 
+function formatUrlHost(host: string): string {
+  if (host === '0.0.0.0') return '127.0.0.1'
+  if (host === '::') return '[::1]'
+  return host.includes(':') ? `[${host}]` : host
+}
+
 function parseListen(listen: string | number): ListenConfig {
   if (typeof listen === 'number') {
     if (!Number.isInteger(listen) || listen <= 0 || listen > 65535) {
@@ -70,15 +76,12 @@ function parseListen(listen: string | number): ListenConfig {
     throw new TypeError('IPv6 listen addresses must use [host]:port')
   }
   const connectHost = bracketed ? host.slice(1, -1) : host
-  const urlHost = connectHost === '0.0.0.0' ? '127.0.0.1' : connectHost === '::' ? '::1' : connectHost
-  const formattedHost = urlHost.includes(':') ? `[${urlHost}]` : urlHost
   return {
     address: listen,
     connect: { host: connectHost, port },
-    url: `http://${formattedHost}:${port}`,
+    url: `http://${formatUrlHost(connectHost)}:${port}`,
   }
 }
-
 
 export function createServer(handler: HttpServerOptions['handler']): HttpServer
 export function createServer(options: HttpServerOptions): HttpServer
@@ -117,7 +120,6 @@ export function createServer(
   }
 
   let server = createNativeServer()
-
 
   function waitForListener(target: Server): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -202,6 +204,7 @@ export function createServer(
     if (lifecycle === 'starting') {
       throw new Error('server is starting; await start() before close()')
     }
+    // lifecycle === 'closing' guarantees closing was assigned synchronously below.
     if (lifecycle === 'closing') return closing
     if (lifecycle !== 'running') return
 

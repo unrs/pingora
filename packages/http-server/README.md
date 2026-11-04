@@ -66,8 +66,7 @@ Options:
 | `handler` | required | Direct request handler. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Required finite buffered body limit. |
-| `handlerTimeoutMs` | native default (`1000`) | Bounds the body read and handler; a slow upload can return `408`. |
-| `server` | none | Remaining `pingora` `ServerOptions`. |
+| `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`). |
 
 The returned object exposes:
 
