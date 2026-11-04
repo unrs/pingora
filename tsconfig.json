@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@pingora/http-server": [
-        "./packages/http-server/src/index.ts"
+      "@pingora/*": [
+        "./packages/*/src/index.ts"
       ]
     },
     "types": [
