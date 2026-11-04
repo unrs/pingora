@@ -160,12 +160,6 @@ through `changesets/action/publish`.
 ```sh
 npm view pingora@<version> version
 npm view @pingora/http-server@<version> version
-npm view @pingora/binding-linux-x64-gnu@<version> version
-npm view @pingora/binding-linux-arm64-gnu@<version> version
-npm view @pingora/binding-linux-x64-musl@<version> version
-npm view @pingora/binding-linux-arm64-musl@<version> version
-npm view @pingora/binding-darwin-x64@<version> version
-npm view @pingora/binding-darwin-arm64@<version> version
 npm install pingora@<version>
 node -e "const { version } = require('pingora'); console.log(version())"
 git ls-remote --tags origin "pingora@<version>" "@pingora/http-server@<version>"
