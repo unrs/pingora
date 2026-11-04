@@ -2,6 +2,11 @@
   "extends": "@1stg/tsconfig/nodenext",
   "compilerOptions": {
     "noEmit": true,
+    "paths": {
+      "@pingora/http-server": [
+        "./packages/http-server/src/index.ts"
+      ]
+    },
     "types": [
       "node"
     ]
