@@ -43,8 +43,8 @@ pub struct RequestDecision {
     pub status: Option<u16>,
     /// Response headers for `respond`.
     pub headers: Option<HashMap<String, String>>,
-    /// Response body for `respond`.
-    pub body: Option<String>,
+    /// Response body for `respond`; a string or Buffer.
+    pub body: Option<Either<String, Buffer>>,
     /// Upstream peer for `upstream`.
     pub upstream: Option<Either<String, UpstreamOptions>>,
     /// Request headers added to a proxied request.

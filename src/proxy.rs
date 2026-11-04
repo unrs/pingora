@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{Buffer, Either};
 use pingora::http::{RequestHeader, ResponseHeader};
 use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
@@ -89,7 +89,11 @@ impl JsProxy {
             "respond" => {
                 let status = decision.status.unwrap_or(200);
                 let is_head = session.req_header().method == http::Method::HEAD;
-                let body = decision.body.unwrap_or_default();
+                let body = match decision.body {
+                    Some(Either::A(text)) => text.into_bytes(),
+                    Some(Either::B(buffer)) => buffer.to_vec(),
+                    None => Vec::new(),
+                };
                 let mut response = ResponseHeader::build(status, None)
                     .map_err(|error| format!("invalid response: {error}"))?;
                 for (name, value) in decision.headers.unwrap_or_default() {
