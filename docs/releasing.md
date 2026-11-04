@@ -159,21 +159,31 @@ through `changesets/action/publish`.
 ## Verifying a release
 
 ```sh
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
 # Run for a native release.
-npm view pingora@<pingora-version> version
-npm install pingora@<pingora-version>
-node -e "const { version } = require('pingora'); console.log(version())"
+(
+  cd "$tmp"
+  npm view pingora@<pingora-version> version
+  npm install pingora@<pingora-version>
+  node -e "const { version } = require('pingora'); console.log(version())"
+)
 git ls-remote --tags origin "pingora@<pingora-version>"
 
 # Run when the facade was released.
-npm view @pingora/http-server@<http-server-version> version
-npm install @pingora/http-server@<http-server-version>
-node -e "console.log(typeof require('@pingora/http-server').createServer)"
+(
+  cd "$tmp"
+  npm view @pingora/http-server@<http-server-version> version
+  npm install @pingora/http-server@<http-server-version>
+  node -e "console.log(typeof require('@pingora/http-server').createServer)"
+)
 git ls-remote --tags origin "@pingora/http-server@<http-server-version>"
 ```
 
-Check that `CHANGELOG.md` names the release and that the GitHub Actions run has
-`id-token` provenance.
+For a native release, check that the root `CHANGELOG.md` names the release. For
+a facade release, check `packages/http-server/CHANGELOG.md`. In both cases,
+check that the GitHub Actions run has `id-token` provenance.
 
 ## Troubleshooting
 
