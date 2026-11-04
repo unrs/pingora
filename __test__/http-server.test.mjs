@@ -3,13 +3,13 @@ import { createRequire } from 'node:module'
 
 import { onTestFinished, test } from 'vitest'
 
-import { createServer } from '../packages/http-server/dist/index.mjs'
+import { createServer } from '../packages/http-server/lib/index.mjs'
 import { freePort } from './helpers.mjs'
 
 const require = createRequire(import.meta.url)
 
 test('exposes a CommonJS entry', () => {
-  const cjs = require('../packages/http-server/dist/index.cjs')
+  const cjs = require('../packages/http-server/lib/index.cjs')
   assert.equal(typeof cjs.createServer, 'function')
 })
 

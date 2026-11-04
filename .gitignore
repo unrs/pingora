@@ -36,4 +36,4 @@ artifacts/
 #.idea/
 
 # Workspace package builds
-packages/*/dist
+packages/*/lib
