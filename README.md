@@ -297,7 +297,7 @@ interface RequestDecision {
   action?: 'continue' | 'respond' | 'upstream'
   status?: number
   headers?: Record<string, string>
-  body?: string
+  body?: string | Buffer
   upstream?: string | Upstream
   requestHeaders?: Record<string, string>
   removeRequestHeaders?: string[]

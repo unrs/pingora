@@ -47,6 +47,25 @@ test('rejects a chunked body over the buffered handler limit', async () => {
   assert.equal(handlerCalled, false)
 })
 
+test('returns a Buffer response body', async () => {
+  const proxy = await createProxy({
+    routes: [{ pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
+  })
+  onTestFinished(() => proxy.stop())
+
+  proxy.server.setRequestHandler(async () => ({
+    action: 'respond',
+    headers: { 'content-type': 'application/octet-stream' },
+    body: Buffer.from([0, 1, 255]),
+  }))
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  const response = await fetch(`http://127.0.0.1:${proxy.port}/binary`)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'application/octet-stream')
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), Buffer.from([0, 1, 255]))
+})
+
 test('buffers the request body before the handler', async () => {
   const upstream = await startUpstream((_req, res) => res.end('upstream'))
   onTestFinished(() => upstream.close())
