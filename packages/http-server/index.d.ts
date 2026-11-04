@@ -1,4 +1,4 @@
-import type { Server, ServerOptions, RequestView } from './index.js'
+import type { Server, ServerOptions, RequestView } from 'pingora'
 
 export interface HttpServerResponse {
   status?: number

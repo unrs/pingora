@@ -9,17 +9,11 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
-    "./http-server": {
-      "types": "./http-server.d.ts",
-      "default": "./http-server.js"
-    },
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
-    "index.d.ts",
-    "http-server.js",
-    "http-server.d.ts"
+    "index.d.ts"
   ],
   "license": "MIT",
   "repository": {

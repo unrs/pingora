@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 import { onTestFinished, test } from 'vitest'
 
-import { createServer } from '../http-server.js'
+import { createServer } from '../packages/http-server/index.js'
 import { freePort } from './helpers.mjs'
 
 test('rejects port 0', () => {

@@ -323,11 +323,10 @@ body as `request.body`. Such a handler must respond; body reading is bounded by
 
 ### HTTP server facade
 
-For direct request handling without an upstream, use the `pingora/http-server`
-subpath:
+For direct request handling without an upstream, install `@pingora/http-server`:
 
 ```js
-import { createServer } from 'pingora/http-server'
+import { createServer } from '@pingora/http-server'
 
 const app = createServer({
   listen: 3000,

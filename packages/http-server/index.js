@@ -2,7 +2,7 @@
 
 const net = require('net')
 
-const { Server } = require('./index.js')
+const { Server } = require('pingora')
 
 const DEFAULT_LISTEN = '127.0.0.1:8080'
 const DEFAULT_MAX_BODY = 1_048_576

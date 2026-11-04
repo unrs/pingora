@@ -1,0 +1,27 @@
+{
+  "name": "@pingora/http-server",
+  "version": "0.0.0",
+  "description": "Direct HTTP server facade for the pingora Node binding",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unrs/pingora.git",
+    "directory": "packages/http-server"
+  },
+  "dependencies": {
+    "pingora": "workspace:^"
+  },
+  "engines": {
+    "node": "^12.20.0 || ^14.18.0 || >=16.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
