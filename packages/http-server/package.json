@@ -22,6 +22,14 @@
     "lib"
   ],
   "sideEffects": false,
+  "keywords": [
+    "pingora",
+    "http",
+    "server",
+    "proxy",
+    "napi",
+    "rust"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

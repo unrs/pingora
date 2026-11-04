@@ -25,30 +25,60 @@ export interface HttpServer {
 
 const DEFAULT_LISTEN = '127.0.0.1:8080'
 const DEFAULT_MAX_BODY = 1_048_576
+const READY_TIMEOUT_MS = 10_000
 
-function normalizeListen(listen: string | number): string {
+interface ListenConfig {
+  address: string
+  connect: net.NetConnectOpts
+  url: string
+}
+
+function parseListen(listen: string | number): ListenConfig {
   if (typeof listen === 'number') {
     if (!Number.isInteger(listen) || listen <= 0 || listen > 65535) {
       throw new TypeError('listen port must be a positive integer below 65536')
     }
-    return `127.0.0.1:${listen}`
-  }
-  if (typeof listen === 'string' && listen.length > 0) {
-    if (!listen.startsWith('unix:')) {
-      const separator = listen.lastIndexOf(':')
-      const port = Number(listen.slice(separator + 1))
-      if (separator <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535) {
-        throw new TypeError('listen must be host:port with a valid port')
-      }
+    return {
+      address: `127.0.0.1:${listen}`,
+      connect: { host: '127.0.0.1', port: listen },
+      url: `http://127.0.0.1:${listen}`,
     }
-    return listen
   }
-  throw new TypeError('listen must be a port or address string')
+
+  if (typeof listen !== 'string' || listen.length === 0) {
+    throw new TypeError('listen must be a port or address string')
+  }
+
+  if (listen.startsWith('unix:')) {
+    const path = listen.slice(5)
+    if (!path) throw new TypeError('listen must include a Unix socket path')
+    return { address: listen, connect: { path }, url: listen }
+  }
+
+  if (listen.includes('://')) {
+    throw new TypeError('listen must be host:port or unix:/path')
+  }
+
+  const separator = listen.lastIndexOf(':')
+  const port = Number(listen.slice(separator + 1))
+  const host = listen.slice(0, separator)
+  if (separator <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new TypeError('listen must be host:port with a valid port')
+  }
+  const bracketed = host.startsWith('[') && host.endsWith(']')
+  if (host.includes(':') && !bracketed) {
+    throw new TypeError('IPv6 listen addresses must use [host]:port')
+  }
+  const connectHost = bracketed ? host.slice(1, -1) : host
+  const urlHost = connectHost === '0.0.0.0' ? '127.0.0.1' : connectHost === '::' ? '::1' : connectHost
+  const formattedHost = urlHost.includes(':') ? `[${urlHost}]` : urlHost
+  return {
+    address: listen,
+    connect: { host: connectHost, port },
+    url: `http://${formattedHost}:${port}`,
+  }
 }
 
-function urlFor(listen: string): string {
-  return listen.startsWith('unix:') ? listen : `http://${listen}`
-}
 
 export function createServer(handler: HttpServerOptions['handler']): HttpServer
 export function createServer(options: HttpServerOptions): HttpServer
@@ -70,14 +100,12 @@ export function createServer(
   ) {
     throw new TypeError('maxRequestBodyBytes must be a positive u32 integer')
   }
-  const address = normalizeListen(listen)
+  const { address, connect, url } = parseListen(listen)
 
   function createNativeServer(): Server {
     const native = new Server({
       ...serverOptions,
       listeners: [address],
-      // Native routes require an upstream; direct responses never use this one.
-      routes: [{ id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
       readHandlerBody: true,
       maxRequestBodyBytes,
     })
@@ -90,20 +118,10 @@ export function createServer(
 
   let server = createNativeServer()
 
-  function listenOptions(): net.NetConnectOpts {
-    if (address.startsWith('unix:')) return { path: address.slice(5) }
-    const separator = address.lastIndexOf(':')
-    let host = address.slice(0, separator)
-    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1)
-    return {
-      host,
-      port: Number(address.slice(separator + 1)),
-    }
-  }
 
   function waitForListener(target: Server): Promise<void> {
     return new Promise((resolve, reject) => {
-      const deadline = Date.now() + 10_000
+      const deadline = Date.now() + READY_TIMEOUT_MS
       let settled = false
       let socket: net.Socket | undefined
       let timer: NodeJS.Timeout | undefined
@@ -122,11 +140,12 @@ export function createServer(
       const attempt = () => {
         if (settled) return
         if (Date.now() > deadline) {
-          finish(new Error('server did not become ready'))
+          const reason = target.status().error
+          finish(new Error(reason || 'server did not become ready'))
           return
         }
 
-        const current = net.connect(listenOptions())
+        const current = net.connect(connect)
         socket = current
         timer = setTimeout(
           () => current.destroy(new Error('connect attempt timed out')),
@@ -159,39 +178,33 @@ export function createServer(
   let serverUsed = false
   let closing: Promise<void> | undefined
 
-  function start(): Promise<void> {
-    if (lifecycle === 'running') {
-      return Promise.reject(new Error('server has already been started'))
-    }
-    if (lifecycle !== 'idle') {
-      return Promise.reject(new Error('server lifecycle transition in progress'))
-    }
+  async function start(): Promise<void> {
+    if (lifecycle === 'running') throw new Error('server has already been started')
+    if (lifecycle !== 'idle') throw new Error('server lifecycle transition in progress')
     lifecycle = 'starting'
-    return (async () => {
+    try {
       if (serverUsed) {
         server = createNativeServer()
         serverUsed = false
       }
       const target = server
-      try {
-        target.start()
-        await waitForListener(target)
-        lifecycle = 'running'
-      } catch (error) {
-        await target.stop().catch(() => {})
-        serverUsed = true
-        lifecycle = 'idle'
-        throw error
-      }
-    })()
+      target.start()
+      await waitForListener(target)
+      lifecycle = 'running'
+    } catch (error) {
+      await server.stop().catch(() => {})
+      serverUsed = true
+      lifecycle = 'idle'
+      throw error
+    }
   }
 
-  function close(): Promise<void> {
+  async function close(): Promise<void> {
     if (lifecycle === 'starting') {
-      return Promise.reject(new Error('server is starting; await start() before close()'))
+      throw new Error('server is starting; await start() before close()')
     }
-    if (lifecycle === 'closing') return closing!
-    if (lifecycle !== 'running') return Promise.resolve()
+    if (lifecycle === 'closing') return closing
+    if (lifecycle !== 'running') return
 
     lifecycle = 'closing'
     const target = server
@@ -212,7 +225,7 @@ export function createServer(
     get server() {
       return server
     },
-    url: urlFor(address),
+    url,
     start,
     close,
   }

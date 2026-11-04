@@ -628,7 +628,8 @@ the maintainer can override any of them.
   at release time and is git-ignored. Platform `optionalDependencies` are added
   to a temporary root manifest only while publishing.
 - **Versioning:** Changesets. Pull requests carry a changeset; the release
-  workflow owns versioning, publishing, and the `vX.Y.Z` tag.
+  workflow owns versioning and publishing; workspace releases use
+  package-scoped Changesets tags (`name@X.Y.Z`).
 - **Tasks:** [just](https://github.com/casey/just). `just check` is the local
   gate; CI runs the underlying pnpm/cargo commands directly.
 - **Git hooks:** lefthook. Pre-commit runs `cargo fmt` and clippy for Rust

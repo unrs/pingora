@@ -66,11 +66,12 @@ Options:
 | `handler` | required | Direct request handler. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Required finite buffered body limit. |
+| `handlerTimeoutMs` | native default (`1000`) | Bounds the body read and handler; a slow upload can return `408`. |
 | `server` | none | Remaining `pingora` `ServerOptions`. |
 
 The returned object exposes:
 
-- `server` — current native `pingora` server
+- `server` — current native `pingora` server (replaced after close or a failed start)
 - `url`
 - `start(): Promise<void>`
 - `close(): Promise<void>`
@@ -83,5 +84,5 @@ native server. Lifecycle calls must be awaited and cannot overlap: calling
 
 - Request bodies are buffered, not streamed.
 - Response bodies are buffered; response streaming is not implemented yet.
-- The facade installs a placeholder route because native routes currently
-  require an upstream; direct handler responses never use it.
+- Body reading is bounded by `handlerTimeoutMs`; large/slow uploads can return
+  `408` before the handler runs.

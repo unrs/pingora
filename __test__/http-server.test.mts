@@ -28,7 +28,7 @@ test('rejects invalid body limits', () => {
 })
 
 test('rejects invalid ports', () => {
-  for (const listen of [0, 65536, '3000', ':3000']) {
+  for (const listen of [0, 65536, '3000', ':3000', 'unix:', 'http://127.0.0.1:3000', '::1:3000']) {
     assert.throws(
       () => createServer({ listen, handler: () => ({ body: 'x' }) }),
       /listen/,
