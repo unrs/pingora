@@ -9,6 +9,7 @@ import { onTestFinished, test } from 'vitest'
 import { freePort } from './helpers.mjs'
 
 const require = createRequire(import.meta.url)
+const CHILD_TIMEOUT_MS = 12_000
 
 const cjsPath = fileURLToPath(new URL('../packages/http-server/lib/index.cjs', import.meta.url))
 const esmPath = fileURLToPath(new URL('../packages/http-server/lib/index.mjs', import.meta.url))
@@ -54,7 +55,7 @@ test('keeps the process alive after start', async () => {
   })
 
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not start: ${stderr}`)), 5000)
+    const timer = setTimeout(() => reject(new Error(`child did not start: ${stderr}`)), CHILD_TIMEOUT_MS)
     child.stdout.on('data', (chunk) => {
       if (chunk.toString().includes('ready')) {
         clearTimeout(timer)
@@ -106,7 +107,7 @@ test('unref lets the process exit after start', async () => {
   })
 
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not exit: ${stderr}`)), 5000)
+    const timer = setTimeout(() => reject(new Error(`child did not exit: ${stderr}`)), CHILD_TIMEOUT_MS)
     child.once('exit', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()

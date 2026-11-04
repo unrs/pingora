@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import net from 'node:net'
 
 import { onTestFinished, test } from 'vitest'
+import { Server } from 'pingora'
 
 import { createServer } from '@pingora/http-server'
 import { freePort } from './helpers.mjs'
@@ -63,6 +64,20 @@ test('restarts after close', async () => {
   await app.close()
   await app.close()
 
+  await app.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.close()
+})
+
+test('delegates native start and stop through the facade', async () => {
+  const port = await freePort()
+  const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
+  onTestFinished(() => app.close())
+
+  assert.equal(app.server instanceof Server, true)
+  await app.server.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.server.stop()
   await app.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.close()

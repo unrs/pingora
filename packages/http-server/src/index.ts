@@ -107,6 +107,12 @@ export function createServer(
   }
   const { address, connect, url } = parseListen(listen)
 
+  const nativeStops = new WeakMap<Server, () => Promise<void>>()
+
+  function stopNative(target: Server): Promise<void> {
+    return nativeStops.get(target)?.() ?? target.stop()
+  }
+
   function createNativeServer(): Server {
     const native = new Server({
       ...serverOptions,
@@ -114,6 +120,7 @@ export function createServer(
       readHandlerBody: true,
       maxRequestBodyBytes,
     })
+    nativeStops.set(native, native.stop.bind(native))
     native.setRequestHandler(async (request) => ({
       ...(await handler(request)),
       action: 'respond',
@@ -121,7 +128,25 @@ export function createServer(
     return native
   }
 
+  function exposeServer(native: Server): Server {
+    const rawStop = nativeStops.get(native)!
+    const rawStart = native.start.bind(native)
+    return new Proxy(native, {
+      get(target, property) {
+        if (property === 'start') {
+          return () => (target === server ? start() : rawStart())
+        }
+        if (property === 'stop') {
+          return () => (target === server ? close() : rawStop())
+        }
+        const value = Reflect.get(target, property, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+  }
+
   let server = createNativeServer()
+  let exposedServer = exposeServer(server)
 
   function waitForListener(target: Server): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -189,6 +214,7 @@ export function createServer(
     try {
       if (serverUsed) {
         server = createNativeServer()
+        exposedServer = exposeServer(server)
         serverUsed = false
       }
       const target = server
@@ -200,7 +226,7 @@ export function createServer(
       keepAlive = setInterval(() => {}, 1 << 30)
       if (unref) keepAlive.unref()
     } catch (error) {
-      await server.stop().catch(() => {})
+      await stopNative(server).catch(() => {})
       serverUsed = true
       lifecycle = 'idle'
       throw error
@@ -219,7 +245,7 @@ export function createServer(
     const target = server
     const operation = (async () => {
       try {
-        await target.stop()
+        await stopNative(target)
       } finally {
         if (keepAlive) {
           clearInterval(keepAlive)
@@ -236,7 +262,7 @@ export function createServer(
 
   return {
     get server() {
-      return server
+      return exposedServer
     },
     url,
     start,

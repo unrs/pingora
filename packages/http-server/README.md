@@ -73,8 +73,9 @@ Options:
 
 The returned object exposes:
 
-- `server` — current native `pingora` server for status/metrics (replaced on the
-  next `start()` after close or a failed start; use `close()`, not `server.stop()`)
+- `server` — current native `pingora` server for status/metrics; its `start()` and
+  `stop()` delegate to the facade lifecycle (replaced on the next `start()` after
+  close or a failed start)
 - `url`
 - `start(): Promise<void>`
 - `close(): Promise<void>`
