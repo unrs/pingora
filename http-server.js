@@ -58,8 +58,14 @@ function createServer(options = {}) {
         })
         socket.once('error', () => {
           socket.destroy()
-          if (Date.now() > deadline) reject(new Error('server did not become ready'))
-          else setTimeout(attempt, 10)
+          const status = server.status()
+          if (status.state === 'failed' || status.state === 'stopped') {
+            reject(new Error(status.error || `server ${status.state}`))
+          } else if (Date.now() > deadline) {
+            reject(new Error('server did not become ready'))
+          } else {
+            setTimeout(attempt, 10)
+          }
         })
       }
       attempt()
