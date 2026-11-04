@@ -73,8 +73,8 @@ Options:
 
 The returned object exposes:
 
-- `server` — current native `pingora` server (replaced on the next `start()` after
-  close or a failed start)
+- `server` — current native `pingora` server for status/metrics (replaced on the
+  next `start()` after close or a failed start; use `close()`, not `server.stop()`)
 - `url`
 - `start(): Promise<void>`
 - `close(): Promise<void>`

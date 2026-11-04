@@ -77,40 +77,6 @@ test('keeps the process alive after start', async () => {
   })
 })
 
-test('stops holding the loop after a direct native stop', async () => {
-  const port = await freePort()
-  const child = spawn(
-    process.execPath,
-    [
-      '-e',
-      `const { createServer } = require('@pingora/http-server')
-       const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
-       app.start().then(() => app.server.stop()).catch((error) => {
-         console.error(error)
-         process.exit(1)
-       })`,
-    ],
-    {
-      cwd: fileURLToPath(new URL('..', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-  onTestFinished(() => child.kill())
-  let stderr = ''
-  child.stderr.on('data', (chunk) => {
-    stderr += chunk
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`child did not exit: ${stderr}`)), 5000)
-    child.once('exit', (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else reject(new Error(`child exited with ${code}: ${stderr}`))
-    })
-  })
-})
-
 test('unref lets the process exit after start', async () => {
   const port = await freePort()
   const child = spawn(

@@ -196,13 +196,8 @@ export function createServer(
       await waitForListener(target)
       lifecycle = 'running'
       // The native listener runs on its own thread and does not hold libuv's loop.
-      keepAlive = setInterval(() => {
-        const state = server.status().state
-        if (state === 'stopped' || state === 'failed') {
-          clearInterval(keepAlive)
-          keepAlive = undefined
-        }
-      }, 1000)
+      // Use close() to release this; server.stop() bypasses the facade lifecycle.
+      keepAlive = setInterval(() => {}, 1 << 30)
       if (unref) keepAlive.unref()
     } catch (error) {
       await server.stop().catch(() => {})
