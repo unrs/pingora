@@ -13,6 +13,7 @@ export interface HttpServerOptions {
   handler: (request: RequestView) => HttpServerResponse | Promise<HttpServerResponse>
   listen?: string | number
   maxRequestBodyBytes?: number
+  unref?: boolean
   server?: Omit<ServerOptions, 'listeners' | 'routes' | 'readHandlerBody' | 'maxRequestBodyBytes'>
 }
 
@@ -93,6 +94,7 @@ export function createServer(
     handler,
     listen = DEFAULT_LISTEN,
     maxRequestBodyBytes = DEFAULT_MAX_BODY,
+    unref = false,
     server: serverOptions = {},
   } = options
   if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
@@ -178,6 +180,7 @@ export function createServer(
   let lifecycle: Lifecycle = 'idle'
   let serverUsed = false
   let closing: Promise<void> | undefined
+  let keepAlive: NodeJS.Timeout | undefined
 
   async function start(): Promise<void> {
     if (lifecycle === 'running') throw new Error('server has already been started')
@@ -192,7 +195,13 @@ export function createServer(
       target.start()
       await waitForListener(target)
       lifecycle = 'running'
+      keepAlive = setInterval(() => {}, 1 << 30)
+      if (unref) keepAlive.unref()
     } catch (error) {
+      if (keepAlive) {
+        clearInterval(keepAlive)
+        keepAlive = undefined
+      }
       await server.stop().catch(() => {})
       serverUsed = true
       lifecycle = 'idle'
@@ -214,6 +223,10 @@ export function createServer(
       try {
         await target.stop()
       } finally {
+        if (keepAlive) {
+          clearInterval(keepAlive)
+          keepAlive = undefined
+        }
         serverUsed = true
         lifecycle = 'idle'
         closing = undefined

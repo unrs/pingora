@@ -10,7 +10,7 @@ npm install @pingora/http-server
 ## Usage
 
 ```js
-const { createServer } = require('@pingora/http-server')
+import { createServer } from '@pingora/http-server'
 
 async function main() {
   const app = createServer({
@@ -42,8 +42,11 @@ main().catch((error) => {
 })
 ```
 
-The CommonJS example runs on Node.js 12. Modern Node.js can use
-`import { createServer } from '@pingora/http-server'`.
+`start()` holds a ref'd timer so the Node.js process stays alive while the
+native listener is running. Set `unref: true` when embedding the server and
+another handle should own the process lifetime. The example uses ESM, supported
+by Node.js 12.20+; it avoids top-level await for that floor.
+
 
 ## API
 
@@ -66,6 +69,7 @@ Options:
 | `handler` | required | Direct request handler. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. |
+| `unref` | `false` | Do not keep the Node.js process alive after `start()`. |
 | `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`). |
 
 The returned object exposes:
