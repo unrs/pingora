@@ -13,7 +13,6 @@
   },
   "include": [
     "vitest.config.mts",
-    "vitest.watch.config.mts",
     "scripts/**/*.mts",
     "bench/**/*.mts",
     "packages/**/*.ts"
