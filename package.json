@@ -64,8 +64,8 @@
     "bench:gate": "pnpm run build && node bench/gate.ts",
     "bench:gate:debug": "node bench/gate.ts",
     "bench:native": "pnpm run build && node bench/native/run.ts",
-    "typecheck": "pnpm run build:debug && tsc --noEmit",
-    "typecov": "type-coverage"
+    "typecheck": "pnpm run build:debug && pnpm run build:packages && tsc --noEmit",
+    "typecov": "pnpm run build:debug && pnpm run build:packages && type-coverage --no-cache"
   },
   "publishConfig": {
     "access": "public",
@@ -93,7 +93,7 @@
   },
   "typeCoverage": {
     "atLeast": 100,
-    "cache": true,
+    "cache": false,
     "detail": true,
     "ignoreCatch": true,
     "ignoreFiles": "*.d.ts",

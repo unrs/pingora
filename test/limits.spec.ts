@@ -3,9 +3,10 @@ import http from 'node:http'
 import { test } from 'vitest'
 
 import { Server } from '../index.js'
+import type { ServerOptions } from '../index.js'
 import { createProxy, request, startUpstream, waitForProxy } from './helpers.js'
 
-async function proxyWith(upstream: { port: number }, options: Record<string, unknown> = {}) {
+async function proxyWith(upstream: { port: number }, options: Partial<ServerOptions> = {}) {
   const proxy = await createProxy({
     routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
     ...options,

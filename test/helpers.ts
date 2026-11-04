@@ -3,6 +3,7 @@ import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { Server } from '../index.js'
+import type { ServerOptions } from '../index.js'
 
 export async function freePort(): Promise<number> {
   const probe = net.createServer()
@@ -54,7 +55,7 @@ export async function waitForProxy(url: string, options?: RequestInit): Promise<
 
 export async function eventually<T>(
   predicate: () => T | Promise<T>,
-  message?: string,
+  message = 'condition not met',
 ): Promise<NonNullable<T>> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const value = await predicate()
@@ -89,7 +90,7 @@ export function request(
   })
 }
 
-export async function createProxy(options: Record<string, unknown> = {}): Promise<{
+export async function createProxy(options: Partial<ServerOptions> = {}): Promise<{
   server: Server
   port: number
   stop: () => Promise<void>

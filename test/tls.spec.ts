@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import http2 from 'node:http2'
 import https from 'node:https'
-import type { OutgoingHttpHeaders } from 'node:http'
+import type { IncomingHttpHeaders } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
@@ -18,7 +18,7 @@ const ca = readFileSync(caPath)
 function httpsRequest(port: number, path = '/'): Promise<{
   status?: number
   httpVersion: string
-  headers: OutgoingHttpHeaders
+  headers: IncomingHttpHeaders
   body: string
 }> {
   return new Promise((resolve, reject) => {
@@ -89,7 +89,7 @@ function http2Request(port: number, path = '/'): Promise<{
   })
 }
 
-async function createTlsProxy(options: Record<string, unknown>) {
+async function createTlsProxy(options: Partial<import('../index.js').ServerOptions>) {
   const port = await freePort()
   const server = new Server({
     listeners: [

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { onTestFinished, test } from 'vitest'
 
+import type { RouteOptions } from '../index.js'
 import { createProxy, startUpstream, waitForProxy } from './helpers.js'
 
 const certPath = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
@@ -43,7 +44,7 @@ async function startTlsUpstream(serverCert = cert, serverKey = key): Promise<{
 }
 
 async function withTlsProxy(
-  upstreams: (port: number) => unknown[],
+  upstreams: (port: number) => RouteOptions['upstreams'],
   run: (proxy: Awaited<ReturnType<typeof createProxy>>) => Promise<void>,
   serverCert = cert,
   serverKey = key,

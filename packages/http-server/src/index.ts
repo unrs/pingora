@@ -127,7 +127,7 @@ export function createServer(
 
   function exposeServer(native: Server): DelegatedServer {
     const rawStop = native.stop.bind(native)
-    const proxy: DelegatedServer = new Proxy<Server>(native, {
+    return new Proxy(native, {
       get(target, property: string | symbol) {
         if (property === 'start') {
           return () =>
@@ -146,7 +146,6 @@ export function createServer(
         return (...args: unknown[]) => Reflect.apply(method, target, args)
       },
     }) as unknown as DelegatedServer
-    return proxy
   }
 
   let server = createNativeServer()

@@ -16,7 +16,7 @@ const outboundAgent = new http.Agent({
   maxFreeSockets: 64,
 })
 
-type ServerHandle = http.Server | net.Server
+type ServerHandle = net.Server
 const servers: ServerHandle[] = []
 let pingora: Server | undefined
 let upstreamPort = 0
