@@ -26,8 +26,8 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      publish: ${{ steps.package-versions.outputs.publish }}
-      native: ${{ steps.package-versions.outputs.native }}
+      publish: ${{ steps.native-version.outputs.publish }}
+      native: ${{ steps.native-version.outputs.native }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,38 +63,33 @@ jobs:
           pr-title: 'chore: release pingora'
           version-script: pnpm run version
 
-      - name: Check package versions on npm
-        id: package-versions
+      - name: Check native version on npm
+        id: native-version
         if: steps.changesets.outputs.has-changesets == 'false'
         run: |
           set -euo pipefail
-          publish=false
-          native=false
-          for manifest in package.json packages/*/package.json; do
-            name=$(jq -r .name "$manifest")
-            version=$(jq -r .version "$manifest")
-            encoded_name=${name//\//%2f}
-            status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-              "https://registry.npmjs.org/${encoded_name}/${version}")
-            case "$status" in
-              200)
-                echo "${name}@${version} is already published."
-                ;;
-              404)
-                echo "${name}@${version} is not published yet."
-                publish=true
-                if [ "$manifest" = package.json ]; then
-                  native=true
-                fi
-                ;;
-              *)
-                echo "npm registry answered ${status} for ${name}@${version}" >&2
-                exit 1
-                ;;
-            esac
-          done
-          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
-          echo "native=${native}" >> "$GITHUB_OUTPUT"
+          # Changesets decides which JS packages to publish. The only extra
+          # decision here is whether the native artifacts must be rebuilt.
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          name=$(jq -r .name package.json)
+          version=$(jq -r .version package.json)
+          encoded_name=${name//\//%2f}
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+            "https://registry.npmjs.org/${encoded_name}/${version}")
+          case "$status" in
+            200)
+              echo "${name}@${version} is already published; skipping native build."
+              echo "native=false" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "${name}@${version} is not published; native build required."
+              echo "native=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "npm registry answered ${status} for ${name}@${version}" >&2
+              exit 1
+              ;;
+          esac
 
   build:
     name: Build ${{ matrix.target }}
