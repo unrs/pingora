@@ -12,6 +12,7 @@
     ]
   },
   "include": [
+    "tsdown.config.mts",
     "vitest.config.mts",
     "scripts/**/*.mts",
     "bench/**/*.mts",

@@ -39,8 +39,6 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown -w",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm --workspace-root run build:packages"
   }
 }
