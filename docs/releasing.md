@@ -168,6 +168,7 @@ git ls-remote --tags origin "pingora@<pingora-version>"
 # Run when the facade was released.
 npm view @pingora/http-server@<http-server-version> version
 npm install @pingora/http-server@<http-server-version>
+node -e "console.log(typeof require('@pingora/http-server').createServer)"
 git ls-remote --tags origin "@pingora/http-server@<http-server-version>"
 ```
 
