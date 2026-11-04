@@ -8,7 +8,7 @@ import { freePort } from './helpers.mjs'
 
 
 test('rejects invalid body limits', () => {
-  for (const maxRequestBodyBytes of [0, -1, 1.5, Infinity, NaN]) {
+  for (const maxRequestBodyBytes of [0, -1, 1.5, Infinity, NaN, 0x1_0000_0000]) {
     assert.throws(
       () => createServer({ listen: 3000, maxRequestBodyBytes, handler: () => ({ body: 'x' }) }),
       /maxRequestBodyBytes/,
@@ -48,6 +48,23 @@ test('stops the native server when the listener cannot start', async () => {
   const response = await fetch(`http://127.0.0.1:${port}/`)
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'ok')
+})
+
+test('restarts after stop and after a failed start', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  await assert.rejects(app.start(), /already been started/)
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.stop()
+  await app.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.close()
 })
 
 test('starts on a free port and serves GET and POST', async () => {

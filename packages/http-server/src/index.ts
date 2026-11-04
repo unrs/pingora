@@ -64,8 +64,12 @@ export function createServer(
     server: serverOptions = {},
   } = options
   if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
-  if (!Number.isSafeInteger(maxRequestBodyBytes) || maxRequestBodyBytes <= 0) {
-    throw new TypeError('maxRequestBodyBytes must be a positive integer')
+  if (
+    !Number.isSafeInteger(maxRequestBodyBytes) ||
+    maxRequestBodyBytes <= 0 ||
+    maxRequestBodyBytes > 0xffff_ffff
+  ) {
+    throw new TypeError('maxRequestBodyBytes must be a positive u32 integer')
   }
   const address = normalizeListen(listen)
 
@@ -125,11 +129,16 @@ export function createServer(
     })
   }
 
+  let started = false
+
   async function start(): Promise<void> {
+    if (started) throw new Error('server has already been started')
+    started = true
     try {
       server.start()
       await waitForListener()
     } catch (error) {
+      started = false
       // A failed readiness probe must not leave the native server running and
       // block an immediate retry.
       await server.stop().catch(() => {})
@@ -137,11 +146,16 @@ export function createServer(
     }
   }
 
+  async function close(): Promise<void> {
+    started = false
+    await server.stop()
+  }
+
   return {
     server,
     url: urlFor(address),
     start,
-    stop: () => server.stop(),
-    close: () => server.stop(),
+    stop: close,
+    close,
   }
 }

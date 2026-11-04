@@ -172,7 +172,7 @@ impl ServerState {
 #[napi(js_name = "Server")]
 pub struct JsServer {
     state: Arc<ServerState>,
-    started: AtomicBool,
+    started: Arc<AtomicBool>,
     join: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -306,7 +306,7 @@ impl JsServer {
                 exited: Mutex::new(false),
                 exit_cv: Condvar::new(),
             }),
-            started: AtomicBool::new(false),
+            started: Arc::new(AtomicBool::new(false)),
             join: Mutex::new(None),
         }
     }
@@ -328,6 +328,11 @@ impl JsServer {
                 "another pingora server is already running in this process",
             ));
         }
+
+        // Make a stopped server restartable.
+        *self.state.exited.lock().unwrap() = false;
+        *self.state.last_error.lock().unwrap() = None;
+        self.state.shutdown_tx.send_replace(false);
 
         // Pingora's listener service panics on invalid or busy addresses in a
         // spawned thread, so preflight here to keep start() fallible.
@@ -406,6 +411,7 @@ impl JsServer {
             return AsyncTask::new(StopTask {
                 join: None,
                 started: false,
+                started_flag: self.started.clone(),
                 state: self.state.clone(),
             });
         }
@@ -419,6 +425,7 @@ impl JsServer {
         AsyncTask::new(StopTask {
             join,
             started: true,
+            started_flag: self.started.clone(),
             state: self.state.clone(),
         })
     }
@@ -543,6 +550,7 @@ impl JsServer {
 pub struct StopTask {
     join: Option<JoinHandle<()>>,
     started: bool,
+    started_flag: Arc<AtomicBool>,
     state: Arc<ServerState>,
 }
 
@@ -566,6 +574,7 @@ impl Task for StopTask {
         if matches!(self.state.status(), STARTING | RUNNING | STOPPING) {
             self.state.set_status(STOPPED);
         }
+        self.started_flag.store(false, Ordering::Release);
         Ok(())
     }
 
