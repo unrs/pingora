@@ -17,9 +17,8 @@ export interface HttpServerOptions {
   server?: Omit<ServerOptions, 'listeners' | 'routes' | 'readHandlerBody' | 'maxRequestBodyBytes'>
 }
 
-export type DelegatedServer = Omit<Server, 'start' | 'stop'> & {
+export type DelegatedServer = Omit<Server, 'start'> & {
   start(): Promise<void>
-  stop(): Promise<void>
 }
 
 export interface HttpServer {
