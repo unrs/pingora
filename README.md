@@ -326,7 +326,7 @@ body as `request.body`. Such a handler must respond; body reading is bounded by
 For direct request handling without an upstream, install `@pingora/http-server`:
 
 ```js
-import { createServer } from '@pingora/http-server'
+const { createServer } = require('@pingora/http-server')
 
 const app = createServer({
   listen: 3000,
@@ -334,12 +334,19 @@ const app = createServer({
   handler: async (request) => ({
     status: 200,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ path: request.path, bytes: request.body?.length ?? 0 }),
+    body: JSON.stringify({
+      path: request.path,
+      bytes: request.body ? request.body.length : 0,
+    }),
   }),
 })
 
-await app.start()
-await app.close()
+app.start().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+
+// On shutdown: await app.close()
 ```
 
 The facade enables `readHandlerBody`, forces every handler result to a synthetic
