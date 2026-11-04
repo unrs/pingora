@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -19,6 +19,7 @@ pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
     read_handler_body: bool,
+    handler_timeout: Duration,
 }
 
 impl ProxyCtx {
@@ -36,11 +37,17 @@ impl Drop for ProxyCtx {
 }
 
 impl JsProxy {
-    pub fn new(state: Arc<SharedState>, limits: Limits, read_handler_body: bool) -> Self {
+    pub fn new(
+        state: Arc<SharedState>,
+        limits: Limits,
+        read_handler_body: bool,
+        handler_timeout: Duration,
+    ) -> Self {
         Self {
             state,
             limits,
             read_handler_body,
+            handler_timeout,
         }
     }
 
@@ -179,9 +186,47 @@ impl ProxyHttp for JsProxy {
 
         if let Some(handler) = self.state.handler() {
             let body = if self.read_handler_body {
+                if session
+                    .req_header()
+                    .headers
+                    .get(http::header::EXPECT)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
+                {
+                    session.downstream_session.write_continue_response().await?;
+                }
                 let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
+                let deadline = Instant::now() + self.handler_timeout;
                 let mut body = Vec::new();
-                while let Some(chunk) = session.downstream_session.read_request_body().await? {
+                loop {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        session
+                            .respond_error_with_body(
+                                408,
+                                Bytes::from_static(b"request body timeout"),
+                            )
+                            .await?;
+                        return Ok(true);
+                    }
+                    let chunk = match tokio::time::timeout(
+                        remaining,
+                        session.downstream_session.read_request_body(),
+                    )
+                    .await
+                    {
+                        Ok(chunk) => chunk?,
+                        Err(_) => {
+                            session
+                                .respond_error_with_body(
+                                    408,
+                                    Bytes::from_static(b"request body timeout"),
+                                )
+                                .await?;
+                            return Ok(true);
+                        }
+                    };
+                    let Some(chunk) = chunk else { break };
                     if body.len() as u64 + chunk.len() as u64 > max {
                         session
                             .respond_error_with_body(

@@ -268,6 +268,9 @@ impl JsServer {
                 Arc::new(SharedState::new(Vec::new(), None).expect("empty route table"))
             }
         };
+        if options.read_handler_body.unwrap_or(false) && options.max_request_body_bytes.is_none() {
+            init_error.get_or_insert("readHandlerBody requires maxRequestBodyBytes".to_string());
+        }
         let (shutdown_tx, _) = watch::channel(false);
 
         Self {
@@ -625,6 +628,7 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
             state.shared.clone(),
             state.limits.clone(),
             state.read_handler_body,
+            state.handler_timeout,
         ),
     );
     for listener in &state.listeners {
