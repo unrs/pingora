@@ -140,8 +140,7 @@ export function createServer(
       const attempt = () => {
         if (settled) return
         if (Date.now() > deadline) {
-          const reason = target.status().error
-          finish(new Error(reason || 'server did not become ready'))
+          finish(new Error(target.status().error || 'server did not become ready'))
           return
         }
 
@@ -163,8 +162,7 @@ export function createServer(
           if (status.state === 'failed' || status.state === 'stopped') {
             finish(new Error(status.error || `server ${status.state}`))
           } else if (Date.now() > deadline) {
-            const reason = target.status().error
-            finish(new Error(reason || 'server did not become ready'))
+            finish(new Error(target.status().error || 'server did not become ready'))
           } else {
             retry = setTimeout(attempt, 10)
           }
