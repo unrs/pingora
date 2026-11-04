@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import https from 'node:https'
-import type { AddressInfo } from 'node:net'
 import { readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -34,8 +33,10 @@ async function startTlsUpstream(serverCert = cert, serverKey = key): Promise<{
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => resolve())
   })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('upstream has no TCP address')
   return {
-    port: (server.address() as AddressInfo).port,
+    port: address.port,
     connection,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   }

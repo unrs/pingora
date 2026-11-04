@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import http from 'node:http'
 import net from 'node:net'
-import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -46,8 +45,10 @@ async function startUpgradeUpstream() {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => resolve())
   })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('upstream has no TCP address')
   return {
-    port: (server.address() as AddressInfo).port,
+    port: address.port,
     close: () => {
       for (const socket of sockets) socket.destroy()
       server.closeAllConnections?.()

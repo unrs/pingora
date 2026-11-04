@@ -17,8 +17,6 @@ const outboundAgent = new http.Agent({
 })
 
 type ServerHandle = http.Server | net.Server
-type AddressInfoLike = { port: number }
-
 const servers: ServerHandle[] = []
 let pingora: Server | undefined
 let upstreamPort = 0
@@ -31,7 +29,7 @@ function listen(server: ServerHandle): Promise<number> {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       servers.push(server)
-      const address = server.address() as AddressInfoLike | string | null
+      const address = server.address()
       if (!address || typeof address === 'string') {
         reject(new Error('failed to bind benchmark server'))
         return

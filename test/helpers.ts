@@ -1,5 +1,4 @@
 import http from 'node:http'
-import type { AddressInfo } from 'node:net'
 import net from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -33,7 +32,8 @@ export async function startUpstream(
     server.once('error', reject)
     server.listen(port, '127.0.0.1', resolve)
   })
-  const address = server.address() as AddressInfo
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('upstream has no TCP address')
   return {
     port: address.port,
     connection,
