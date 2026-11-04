@@ -346,6 +346,11 @@ The facade enables `readHandlerBody`, forces every handler result to a synthetic
 response, waits for the listener, and accepts string or Buffer bodies. Response
 streaming is not implemented yet; large responses are buffered.
 
+When global `AbortController` is available, `close()` aborts an in-flight
+`start()` immediately. Node.js versions without it keep the serialized behavior
+and wait for the lifecycle transition; applications that need immediate
+cancellation can install an `AbortController` polyfill.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md) for vulnerability reporting and

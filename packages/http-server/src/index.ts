@@ -101,30 +101,61 @@ export function createServer(
     }
   }
 
-  function waitForListener(target: Server): Promise<void> {
+  function waitForListener(target: Server, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + 10_000
+      let settled = false
+      let socket: net.Socket | undefined
+      let timer: NodeJS.Timeout | undefined
+      let retry: NodeJS.Timeout | undefined
+
+      const finish = (error?: Error) => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        if (retry) clearTimeout(retry)
+        socket?.destroy()
+        signal?.removeEventListener('abort', abort)
+        if (error) reject(error)
+        else resolve()
+      }
+
+      const abort = () => finish(new Error('server start aborted'))
+
+      if (signal?.aborted) {
+        abort()
+        return
+      }
+      signal?.addEventListener('abort', abort, { once: true })
+
       const attempt = () => {
-        const socket = net.connect(listenOptions())
-        const timer = setTimeout(
-          () => socket.destroy(new Error('connect attempt timed out')),
+        if (settled) return
+        if (Date.now() > deadline) {
+          finish(new Error('server did not become ready'))
+          return
+        }
+
+        const current = net.connect(listenOptions())
+        socket = current
+        timer = setTimeout(
+          () => current.destroy(new Error('connect attempt timed out')),
           Math.max(0, deadline - Date.now()),
         )
-        socket.once('connect', () => {
-          clearTimeout(timer)
-          socket.destroy()
-          resolve()
-        })
-        socket.once('error', () => {
-          clearTimeout(timer)
-          socket.destroy()
+        current.once('connect', () => finish())
+        current.once('error', () => {
+          if (settled) return
+          if (timer) {
+            clearTimeout(timer)
+            timer = undefined
+          }
+          current.destroy()
           const status = target.status()
           if (status.state === 'failed' || status.state === 'stopped') {
-            reject(new Error(status.error || `server ${status.state}`))
+            finish(new Error(status.error || `server ${status.state}`))
           } else if (Date.now() > deadline) {
-            reject(new Error('server did not become ready'))
+            finish(new Error('server did not become ready'))
           } else {
-            setTimeout(attempt, 10)
+            retry = setTimeout(attempt, 10)
           }
         })
       }
@@ -134,6 +165,7 @@ export function createServer(
 
   let started = false
   let serverUsed = false
+  let activeStart: AbortController | undefined
   let transition: Promise<void> = Promise.resolve()
 
   function serialize(operation: () => Promise<void>): Promise<void> {
@@ -153,10 +185,13 @@ export function createServer(
         serverUsed = false
       }
       const target = server
+      const controller =
+        typeof AbortController === 'function' ? new AbortController() : undefined
+      activeStart = controller
       started = true
       try {
         target.start()
-        await waitForListener(target)
+        await waitForListener(target, controller?.signal)
       } catch (error) {
         started = false
         // A failed readiness probe must not leave the native server running and
@@ -164,11 +199,14 @@ export function createServer(
         await target.stop().catch(() => {})
         serverUsed = true
         throw error
+      } finally {
+        if (activeStart === controller) activeStart = undefined
       }
     })
   }
 
   function close(): Promise<void> {
+    activeStart?.abort()
     return serialize(async () => {
       if (!started) return
       started = false
