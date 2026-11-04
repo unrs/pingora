@@ -107,7 +107,7 @@ app.start().then(() => console.log('ready')).catch((error) => {
 
 test('releases the keepalive after app.server.stop()', async () => {
   const port = await freePort()
-  const { child } = spawnFacade(`const { createServer } = require('@pingora/http-server')
+  const { child, stderr } = spawnFacade(`const { createServer } = require('@pingora/http-server')
 const app = createServer({ listen: ${port}, handler: () => ({ body: 'alive' }) })
 app.start().then(() => app.server.stop()).catch((error) => {
   console.error(error)
