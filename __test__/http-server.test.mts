@@ -102,7 +102,7 @@ test('ignores stale stop tasks', async () => {
   await app.close()
 })
 
-test('does not let a superseded start disturb a later lifecycle', async () => {
+test('serializes concurrent start and close', async () => {
   const port = await freePort()
   const blocker = await new Promise<net.Server>((resolve, reject) => {
     const socket = net.createServer()
@@ -118,8 +118,7 @@ test('does not let a superseded start disturb a later lifecycle', async () => {
   const starting = app.start()
   const closing = app.close()
   await new Promise<void>((resolve) => blocker.close(() => resolve()))
-  await assert.rejects(starting)
-  await closing
+  await Promise.allSettled([starting, closing])
 
   await app.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')

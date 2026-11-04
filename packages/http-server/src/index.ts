@@ -134,39 +134,48 @@ export function createServer(
 
   let started = false
   let serverUsed = false
-  let lifecycle = 0
+  let transition: Promise<void> = Promise.resolve()
 
-  async function start(): Promise<void> {
-    if (started) throw new Error('server has already been started')
-    if (serverUsed) {
-      server = createNativeServer()
-      serverUsed = false
-    }
-    const target = server
-    const run = ++lifecycle
-    started = true
-    try {
-      target.start()
-      await waitForListener(target)
-      if (run !== lifecycle) throw new Error('start was superseded by close')
-    } catch (error) {
-      if (run !== lifecycle) throw error
-      started = false
-      // A failed readiness probe must not leave the native server running and
-      // block an immediate retry.
-      await target.stop().catch(() => {})
-      serverUsed = true
-      throw error
-    }
+  function serialize(operation: () => Promise<void>): Promise<void> {
+    const result = transition.then(operation, operation)
+    transition = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
   }
 
-  async function close(): Promise<void> {
-    ++lifecycle
-    if (!started) return
-    started = false
-    const target = server
-    serverUsed = true
-    await target.stop()
+  function start(): Promise<void> {
+    return serialize(async () => {
+      if (started) throw new Error('server has already been started')
+      if (serverUsed) {
+        server = createNativeServer()
+        serverUsed = false
+      }
+      const target = server
+      started = true
+      try {
+        target.start()
+        await waitForListener(target)
+      } catch (error) {
+        started = false
+        // A failed readiness probe must not leave the native server running and
+        // block an immediate retry.
+        await target.stop().catch(() => {})
+        serverUsed = true
+        throw error
+      }
+    })
+  }
+
+  function close(): Promise<void> {
+    return serialize(async () => {
+      if (!started) return
+      started = false
+      const target = server
+      serverUsed = true
+      await target.stop()
+    })
   }
 
   return {
