@@ -39,6 +39,7 @@ test('rejects invalid ports', () => {
 test('retries after a failed start', async () => {
   const port = await freePort()
   const blocker = await occupy(port)
+  onTestFinished(() => closeServer(blocker))
   const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
   onTestFinished(() => app.close())
 
@@ -70,6 +71,7 @@ test('restarts after close', async () => {
 test('rejects close while start is in progress', async () => {
   const port = await freePort()
   const blocker = await occupy(port)
+  onTestFinished(() => closeServer(blocker))
   const app = createServer({ listen: port, handler: () => ({ body: 'ok' }) })
   onTestFinished(() => app.close())
 
