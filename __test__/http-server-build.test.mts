@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -27,6 +28,27 @@ async function exercise(createServer: Function) {
     await app.close()
   }
 }
+
+test('resolves through the package exports map', () => {
+  const cwd = fileURLToPath(new URL('..', import.meta.url))
+  const cjs = spawnSync(
+    process.execPath,
+    ['-e', "const m = require('@pingora/http-server'); if (typeof m.createServer !== 'function') process.exit(1)"],
+    { cwd, encoding: 'utf8' },
+  )
+  assert.equal(cjs.status, 0, cjs.stderr)
+
+  const esm = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      "const m = await import('@pingora/http-server'); if (typeof m.createServer !== 'function') process.exit(1)",
+    ],
+    { cwd, encoding: 'utf8' },
+  )
+  assert.equal(esm.status, 0, esm.stderr)
+})
 
 test('serves from the CommonJS artifact', async () => {
   assert.equal(existsSync(cjsPath), true, 'missing lib/index.cjs')
