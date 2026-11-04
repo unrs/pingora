@@ -180,7 +180,6 @@ export function createServer(
 
   function start(): Promise<void> {
     if (starting) return Promise.reject(new Error('server is already starting'))
-    if (started) return Promise.reject(new Error('server has already been started'))
     starting = true
     const controller =
       typeof AbortController === 'function' ? new AbortController() : undefined
@@ -188,6 +187,7 @@ export function createServer(
     return serialize(async () => {
       try {
         if (controller?.signal.aborted) throw new Error('server start aborted')
+        if (started) throw new Error('server has already been started')
         if (serverUsed) {
           server = createNativeServer()
           serverUsed = false

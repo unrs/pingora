@@ -139,6 +139,23 @@ test('rejects a second start while starting', async () => {
   await app.close()
 })
 
+test('allows a start queued after close', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const closing = app.close()
+  const restarting = app.start()
+  await closing
+  await restarting
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
+  await app.close()
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({
