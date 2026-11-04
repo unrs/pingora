@@ -75,6 +75,7 @@ test('delegates native start and stop through the facade', async () => {
   onTestFinished(() => app.close())
 
   assert.equal(app.server instanceof Server, true)
+  assert.equal(app.server.constructor, Server)
   await app.server.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.server.stop()

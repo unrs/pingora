@@ -107,12 +107,6 @@ export function createServer(
   }
   const { address, connect, url } = parseListen(listen)
 
-  const nativeStops = new WeakMap<Server, () => Promise<void>>()
-
-  function stopNative(target: Server): Promise<void> {
-    return nativeStops.get(target)?.() ?? target.stop()
-  }
-
   function createNativeServer(): Server {
     const native = new Server({
       ...serverOptions,
@@ -120,7 +114,6 @@ export function createServer(
       readHandlerBody: true,
       maxRequestBodyBytes,
     })
-    nativeStops.set(native, native.stop.bind(native))
     native.setRequestHandler(async (request) => ({
       ...(await handler(request)),
       action: 'respond',
@@ -129,18 +122,24 @@ export function createServer(
   }
 
   function exposeServer(native: Server): Server {
-    const rawStop = nativeStops.get(native)!
-    const rawStart = native.start.bind(native)
+    const rawStop = native.stop.bind(native)
     return new Proxy(native, {
       get(target, property) {
         if (property === 'start') {
-          return () => (target === server ? start() : rawStart())
+          return () =>
+            target === server
+              ? start()
+              : Promise.reject(
+                  new Error('this server handle was replaced; use app.start()'),
+                )
         }
         if (property === 'stop') {
           return () => (target === server ? close() : rawStop())
         }
         const value = Reflect.get(target, property, target)
-        return typeof value === 'function' ? value.bind(target) : value
+        return property === 'constructor' || typeof value !== 'function'
+          ? value
+          : value.bind(target)
       },
     })
   }
@@ -222,11 +221,11 @@ export function createServer(
       await waitForListener(target)
       lifecycle = 'running'
       // The native listener runs on its own thread and does not hold libuv's loop.
-      // Use close() to release this; server.stop() bypasses the facade lifecycle.
+      // close() releases this; server.stop() delegates to close().
       keepAlive = setInterval(() => {}, 1 << 30)
       if (unref) keepAlive.unref()
     } catch (error) {
-      await stopNative(server).catch(() => {})
+      await server.stop().catch(() => {})
       serverUsed = true
       lifecycle = 'idle'
       throw error
@@ -245,7 +244,7 @@ export function createServer(
     const target = server
     const operation = (async () => {
       try {
-        await stopNative(target)
+        await target.stop()
       } finally {
         if (keepAlive) {
           clearInterval(keepAlive)
