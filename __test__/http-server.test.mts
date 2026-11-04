@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import net from 'node:net'
 
 import { onTestFinished, test } from 'vitest'
 
@@ -13,6 +14,31 @@ test('rejects invalid ports', () => {
       /listen/,
     )
   }
+})
+
+test('stops the native server when the listener cannot start', async () => {
+  const port = await freePort()
+  const blocker = await new Promise<net.Server>((resolve, reject) => {
+    const socket = net.createServer()
+    socket.once('error', reject)
+    socket.listen(port, '127.0.0.1', () => resolve(socket))
+  })
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  try {
+    await assert.rejects(app.start())
+  } finally {
+    await new Promise<void>((resolve) => blocker.close(() => resolve()))
+  }
+
+  await app.start()
+  const response = await fetch(`http://127.0.0.1:${port}/`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'ok')
 })
 
 test('starts on a free port and serves GET and POST', async () => {

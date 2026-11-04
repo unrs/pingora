@@ -123,8 +123,15 @@ export function createServer(
   }
 
   async function start(): Promise<void> {
-    server.start()
-    await waitForListener()
+    try {
+      server.start()
+      await waitForListener()
+    } catch (error) {
+      // A failed readiness probe must not leave the native server running and
+      // block an immediate retry.
+      await server.stop().catch(() => {})
+      throw error
+    }
   }
 
   return {
