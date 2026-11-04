@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { onTestFinished, test } from 'vitest'
 
 import { Server } from '../index.js'
+import type { ServerOptions } from '../index.js'
 import { freePort, startUpstream, waitForProxy } from './helpers.js'
 
 const cert = fileURLToPath(new URL('./fixtures/cert.pem', import.meta.url))
@@ -89,7 +90,7 @@ function http2Request(port: number, path = '/'): Promise<{
   })
 }
 
-async function createTlsProxy(options: Partial<import('../index.js').ServerOptions>) {
+async function createTlsProxy(options: Partial<ServerOptions>) {
   const port = await freePort()
   const server = new Server({
     listeners: [
