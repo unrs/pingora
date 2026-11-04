@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 
 import { onTestFinished, test } from 'vitest'
 
-import { createServer } from '../packages/http-server/index.js'
+import { createServer } from '../packages/http-server/dist/index.mjs'
 import { freePort } from './helpers.mjs'
+
+const require = createRequire(import.meta.url)
+
+test('exposes a CommonJS entry', () => {
+  const cjs = require('../packages/http-server/dist/index.cjs')
+  assert.equal(typeof cjs.createServer, 'function')
+})
 
 test('rejects port 0', () => {
   assert.throws(() => createServer({ listen: 0, handler: () => ({ body: 'x' }) }), /positive integer/)

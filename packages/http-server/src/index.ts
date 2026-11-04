@@ -1,13 +1,34 @@
-'use strict'
+import net from 'net'
 
-const net = require('net')
+import { Server } from 'pingora'
+import type { RequestView, ServerOptions } from 'pingora'
 
-const { Server } = require('pingora')
+
+export interface HttpServerResponse {
+  status?: number
+  headers?: Record<string, string>
+  body?: string | Buffer
+}
+
+export interface HttpServerOptions {
+  handler: (request: RequestView) => HttpServerResponse | Promise<HttpServerResponse>
+  listen?: string | number
+  maxRequestBodyBytes?: number
+  server?: Omit<ServerOptions, 'listeners' | 'routes' | 'readHandlerBody' | 'maxRequestBodyBytes'>
+}
+
+export interface HttpServer {
+  server: Server
+  url: string
+  start(): Promise<void>
+  stop(): Promise<void>
+  close(): Promise<void>
+}
 
 const DEFAULT_LISTEN = '127.0.0.1:8080'
 const DEFAULT_MAX_BODY = 1_048_576
 
-function normalizeListen(listen) {
+function normalizeListen(listen: string | number): string {
   if (typeof listen === 'number') {
     if (!Number.isInteger(listen) || listen <= 0) {
       throw new TypeError('listen port must be a positive integer')
@@ -26,11 +47,13 @@ function normalizeListen(listen) {
   throw new TypeError('listen must be a port or address string')
 }
 
-function urlFor(listen) {
+function urlFor(listen: string): string {
   return listen.startsWith('unix:') ? listen : `http://${listen}`
 }
 
-function createServer(options = {}) {
+export function createServer(handler: HttpServerOptions["handler"]): HttpServer
+export function createServer(options: HttpServerOptions): HttpServer
+export function createServer(options: HttpServerOptions | HttpServerOptions["handler"] = {} as HttpServerOptions): HttpServer {
   if (typeof options === 'function') options = { handler: options }
   const { handler, listen = DEFAULT_LISTEN, maxRequestBodyBytes = DEFAULT_MAX_BODY, server: serverOptions = {} } = options
   if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
@@ -39,9 +62,7 @@ function createServer(options = {}) {
   const server = new Server({
     ...serverOptions,
     listeners: [address],
-    routes: serverOptions.routes || [
-      { id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] },
-    ],
+    routes: [{ id: '__http_server', pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
     readHandlerBody: true,
     maxRequestBodyBytes,
   })
@@ -51,7 +72,7 @@ function createServer(options = {}) {
     ...(await handler(request)),
   }))
 
-  function listenOptions() {
+  function listenOptions(): net.NetConnectOpts {
     if (address.startsWith('unix:')) return { path: address.slice(5) }
     const separator = address.lastIndexOf(':')
     let host = address.slice(0, separator)
@@ -62,7 +83,7 @@ function createServer(options = {}) {
     }
   }
 
-  function waitForListener() {
+  function waitForListener(): Promise<void> {
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + 10_000
       const attempt = () => {
@@ -87,7 +108,7 @@ function createServer(options = {}) {
     })
   }
 
-  async function start() {
+  async function start(): Promise<void> {
     server.start()
     await waitForListener()
   }
@@ -101,4 +122,4 @@ function createServer(options = {}) {
   }
 }
 
-module.exports = { createServer }
+

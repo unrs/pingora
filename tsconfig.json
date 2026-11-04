@@ -10,7 +10,7 @@
     "vitest.config.mts",
     "scripts/**/*.mts",
     "bench/**/*.mts",
-    "packages/**/*.d.ts"
+    "packages/**/*.ts"
   ],
   "exclude": [
     "node_modules",
