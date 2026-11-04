@@ -148,6 +148,7 @@ export function createServer(
     try {
       target.start()
       await waitForListener(target)
+      if (run !== lifecycle) throw new Error('start was superseded by close')
     } catch (error) {
       if (run !== lifecycle) throw error
       started = false
