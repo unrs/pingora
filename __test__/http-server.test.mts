@@ -61,7 +61,7 @@ test('restarts after stop and after a failed start', async () => {
   await app.start()
   await assert.rejects(app.start(), /already been started/)
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
-  await app.stop()
+  await app.close()
   await app.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'ok')
   await app.close()
@@ -75,10 +75,10 @@ test('does not let an idle stop clear a later start', async () => {
   })
   onTestFinished(() => app.close())
 
-  const idleStop = app.stop()
+  const idleStop = app.close()
   await app.start()
   await idleStop
-  await app.stop()
+  await app.close()
   await app.start()
   await app.close()
 })
@@ -92,12 +92,12 @@ test('ignores stale stop tasks', async () => {
   onTestFinished(() => app.close())
 
   await app.start()
-  const firstStop = app.stop()
-  const staleStop = app.stop()
+  const firstStop = app.close()
+  const staleStop = app.close()
   await firstStop
   await app.start()
   await staleStop
-  await app.stop()
+  await app.close()
   await app.start()
   await app.close()
 })

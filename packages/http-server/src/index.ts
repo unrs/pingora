@@ -20,7 +20,6 @@ export interface HttpServer {
   server: Server
   url: string
   start(): Promise<void>
-  stop(): Promise<void>
   close(): Promise<void>
 }
 
@@ -134,9 +133,14 @@ export function createServer(
   }
 
   let started = false
+  let serverUsed = false
 
   async function start(): Promise<void> {
     if (started) throw new Error('server has already been started')
+    if (serverUsed) {
+      server = createNativeServer()
+      serverUsed = false
+    }
     const target = server
     started = true
     try {
@@ -147,7 +151,7 @@ export function createServer(
       // A failed readiness probe must not leave the native server running and
       // block an immediate retry.
       await target.stop().catch(() => {})
-      server = createNativeServer()
+      serverUsed = true
       throw error
     }
   }
@@ -156,8 +160,8 @@ export function createServer(
     if (!started) return
     started = false
     const target = server
+    serverUsed = true
     await target.stop()
-    server = createNativeServer()
   }
 
   return {
@@ -166,7 +170,6 @@ export function createServer(
     },
     url: urlFor(address),
     start,
-    stop: close,
     close,
   }
 }
