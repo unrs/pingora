@@ -175,7 +175,7 @@ jobs:
     needs:
       - release
       - build
-    if: always() && needs.release.outputs.publish == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.publish == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -215,12 +215,12 @@ jobs:
           pnpm napi create-npm-dirs
           pnpm napi artifacts
 
+      - name: Build JS packages
+        run: pnpm build:packages
+
       - name: Publish platform packages
         if: needs.release.outputs.native == 'true'
         run: pnpm napi pre-publish --no-gh-release --tagstyle npm --npm-dir npm
-
-      - name: Build JS packages
-        run: pnpm build:packages
 
       - name: Publish packages
         # The publish action runs `changeset publish` itself, pushes the tag, and
