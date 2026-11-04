@@ -321,6 +321,55 @@ Set `readHandlerBody` with a finite `maxRequestBodyBytes` to expose the buffered
 body as `request.body`. Such a handler must respond; body reading is bounded by
 `handlerTimeoutMs` and returns `408` on timeout.
 
+### HTTP server facade
+
+For direct request handling without an upstream, install `@pingora/http-server`:
+
+```js
+import { createServer } from '@pingora/http-server'
+
+async function main() {
+  const app = createServer({
+    listen: 3000,
+    maxRequestBodyBytes: 1_048_576,
+    handler: async (request) => ({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        path: request.path,
+        bytes: request.body ? request.body.length : 0,
+      }),
+    }),
+  })
+
+  await app.start()
+
+  const shutdown = async () => {
+    await app.close()
+    process.exit(0)
+  }
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+```
+
+`start()` holds a ref'd timer so the Node.js process stays alive while the
+native listener is running. Set `unref: true` when embedding the server and
+another handle should own the process lifetime. The example uses ESM, supported
+by Node.js 12.20+; it avoids top-level await for that floor.
+
+The facade enables `readHandlerBody`, forces every handler result to a synthetic
+response, waits for the listener, and accepts string or Buffer bodies. Response
+streaming is not implemented yet; large responses are buffered.
+
+Lifecycle calls must be awaited and cannot overlap: calling `close()` while
+`start()` is pending rejects, and vice versa.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md) for vulnerability reporting and

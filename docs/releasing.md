@@ -7,7 +7,8 @@ the repository.
 
 ## Packages
 
-One release publishes seven packages, all at the same version:
+The release workflow publishes eight packages. `pingora` and its platform bindings
+share the native version; `@pingora/http-server` is versioned independently.
 
 | Package                            | Contents                              |
 | ---------------------------------- | ------------------------------------- |
@@ -18,11 +19,12 @@ One release publishes seven packages, all at the same version:
 | `@pingora/binding-linux-arm64-musl`| Linux arm64 (musl) native addon       |
 | `@pingora/binding-darwin-x64`      | macOS Intel native addon              |
 | `@pingora/binding-darwin-arm64`    | macOS Apple Silicon native addon      |
+| `@pingora/http-server`             | Direct HTTP server facade (TypeScript) |
 
 The repository does **not** list the platform packages in
 `optionalDependencies`. At publish time `napi pre-publish` publishes the generated
 platform packages and adds them to the root manifest; `changeset publish` then
-publishes `pingora`. Local development uses the `.node` file produced by
+publishes the root package and any other unpublished workspace packages. Local development uses the `.node` file produced by
 `napi build`.
 
 ## Adding a changeset
@@ -45,16 +47,19 @@ pull request with a changeset
   -> release.yml creates/updates the "Version Packages" pull request
   -> merge that pull request
   -> release.yml sees no pending changesets
-  -> reads package.json version
   -> asks https://registry.npmjs.org/pingora/<version>
-       already present: stop
-       missing: build, publish, tag
+       already present: skip native build
+       missing: build native artifacts
+  -> changesets/action/publish publishes every workspace version missing on npm
+  -> tags and GitHub releases are created by Changesets
 ```
 
-The workflow checks the npm registry directly rather than comparing git tags or
-commits. That makes the check safe to retry after a failed run:
+The workflow checks the root native version on npm only to decide whether native
+artifacts must be rebuilt. The JS package versions are decided by Changesets
+itself. That makes the check safe to retry after a failed run:
 
-- if the version is already on npm, nothing is published again;
+- if the root native version is already on npm, native rebuilding is skipped;
+- Changesets still publishes any other workspace version missing from npm;
 - if a previous run failed before publishing, the next push to `main` tries
   again.
 
@@ -79,23 +84,32 @@ cargo set-version --workspace "$(node -p 'require("./package.json").version')"
 - Run `just init` locally to install `cargo-edit` along with the other
   development dependencies.
 
-The version pull request should contain `package.json`, `Cargo.toml`,
-`Cargo.lock`, `CHANGELOG.md`, and the deleted changeset files.
+The version pull request should contain the root `package.json`, `Cargo.toml`,
+`Cargo.lock`, `CHANGELOG.md`, and the deleted changeset files. When
+`@pingora/http-server` changes, it also contains
+`packages/http-server/package.json` and `packages/http-server/CHANGELOG.md`.
 
 ## Publishing
 
 After the version pull request is merged, `release.yml`:
 
-1. builds six native targets;
-2. uploads the generated `index.js` and `index.d.ts` from the Linux x64 build;
-3. runs `napi create-npm-dirs` and `napi artifacts`;
-4. runs `napi pre-publish`, which publishes each `@pingora/binding-*` package
-   and adds the platform packages to the root manifest (existing versions are
-   skipped);
-5. runs `changesets/action/publish`, which executes `changeset publish`,
-   publishes `pingora`, creates the `vX.Y.Z` tag (this repository is a single
-   root package, which is the tag format Changesets uses), pushes the tag, and
-   creates the GitHub release.
+1. builds the six native targets only when the root native version is missing
+   on npm;
+2. uploads the generated `index.js` and `index.d.ts` from the Linux x64 build
+   when native is being rebuilt;
+3. runs `napi create-npm-dirs` and `napi artifacts` when native is being
+   rebuilt;
+4. runs `pnpm build:packages` for the workspace JS packages;
+5. runs `napi pre-publish` for the platform packages when native is being
+   rebuilt (existing versions are skipped);
+6. runs `changesets/action/publish`, which executes `changeset publish`,
+   publishes every unpublished workspace version, pushes tags, and creates the
+   GitHub releases.
+
+With pnpm workspaces, Changesets uses package-scoped tags:
+`pingora@X.Y.Z` for the root package and `@pingora/http-server@X.Y.Z` for the
+facade. Older releases used the historical `vX.Y.Z` tag; new releases should be
+verified with the package-scoped tag.
 
 Provenance attestations are attached to all packages.
 
@@ -111,7 +125,7 @@ first release that uses it.
 
 ### 2. Configure trusted publishing
 
-For **each** of the seven packages, open the package settings on npmjs.com and
+For **each** of the eight packages, open the package settings on npmjs.com and
 add a trusted publisher under **Settings → Trusted publishing**:
 
 | Field             | Value          |
@@ -139,20 +153,37 @@ The `release` job needs `contents: write` and `pull-requests: write`; the
 `actions/setup-node` is intentionally **not** given `registry-url`: that option
 writes an `.npmrc` entry that expects `NODE_AUTH_TOKEN` and can take precedence
 over OIDC. The workflow installs pnpm via `pnpm/action-setup` (the version comes
-from `packageManager` in `package.json`) and publishes with `pnpm publish`.
+from `packageManager` in `package.json`) and publishes with `changeset publish`
+through `changesets/action/publish`.
 
 ## Verifying a release
 
 ```sh
-npm view pingora@<version> version
-npm view @pingora/binding-linux-x64-gnu@<version> version
-npm install pingora@<version>
-node -e "const { version } = require('pingora'); console.log(version())"
-git ls-remote --tags origin "v<version>"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Run for a native release.
+(
+  cd "$tmp"
+  npm view pingora@<pingora-version> version
+  npm install pingora@<pingora-version>
+  node -e "const { version } = require('pingora'); console.log(version())"
+)
+git ls-remote --tags origin "pingora@<pingora-version>"
+
+# Run when the facade was released.
+(
+  cd "$tmp"
+  npm view @pingora/http-server@<http-server-version> version
+  npm install @pingora/http-server@<http-server-version>
+  node -e "console.log(typeof require('@pingora/http-server').createServer)"
+)
+git ls-remote --tags origin "@pingora/http-server@<http-server-version>"
 ```
 
-Check that `CHANGELOG.md` names the release and that the GitHub Actions run has
-`id-token` provenance.
+For a native release, check that the root `CHANGELOG.md` names the release. For
+a facade release, check `packages/http-server/CHANGELOG.md`. In both cases,
+check that the GitHub Actions run has `id-token` provenance.
 
 ## Troubleshooting
 

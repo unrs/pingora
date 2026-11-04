@@ -7,9 +7,11 @@
     ]
   },
   "include": [
+    "tsdown.config.mts",
     "vitest.config.mts",
     "scripts/**/*.mts",
-    "bench/**/*.mts"
+    "bench/**/*.mts",
+    "packages/**/*.ts"
   ],
   "exclude": [
     "node_modules",
