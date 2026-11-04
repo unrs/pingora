@@ -195,13 +195,16 @@ export function createServer(
       target.start()
       await waitForListener(target)
       lifecycle = 'running'
-      keepAlive = setInterval(() => {}, 1 << 30)
+      // The native listener runs on its own thread and does not hold libuv's loop.
+      keepAlive = setInterval(() => {
+        const state = server.status().state
+        if (state === 'stopped' || state === 'failed') {
+          clearInterval(keepAlive)
+          keepAlive = undefined
+        }
+      }, 1000)
       if (unref) keepAlive.unref()
     } catch (error) {
-      if (keepAlive) {
-        clearInterval(keepAlive)
-        keepAlive = undefined
-      }
       await server.stop().catch(() => {})
       serverUsed = true
       lifecycle = 'idle'

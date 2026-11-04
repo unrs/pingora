@@ -47,7 +47,6 @@ native listener is running. Set `unref: true` when embedding the server and
 another handle should own the process lifetime. The example uses ESM, supported
 by Node.js 12.20+; it avoids top-level await for that floor.
 
-
 ## API
 
 ### `createServer(handler | options)`
