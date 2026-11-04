@@ -125,6 +125,20 @@ test('serializes concurrent start and close', async () => {
   await app.close()
 })
 
+test('rejects a second start while starting', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () => ({ body: 'ok' }),
+  })
+  onTestFinished(() => app.close())
+
+  const starting = app.start()
+  await assert.rejects(app.start(), /already starting/)
+  await starting
+  await app.close()
+})
+
 test('starts on a free port and serves GET and POST', async () => {
   const port = await freePort()
   const app = createServer({
