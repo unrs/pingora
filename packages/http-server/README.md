@@ -65,12 +65,13 @@ Options:
 | --- | --- | --- |
 | `handler` | required | Direct request handler. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
-| `maxRequestBodyBytes` | `1048576` | Required finite buffered body limit. |
+| `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. |
 | `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`). |
 
 The returned object exposes:
 
-- `server` — current native `pingora` server (replaced after close or a failed start)
+- `server` — current native `pingora` server (replaced on the next `start()` after
+  close or a failed start)
 - `url`
 - `start(): Promise<void>`
 - `close(): Promise<void>`
