@@ -3,6 +3,7 @@ packages:
   - packages/*
 
 allowBuilds:
+  esbuild: true
   lefthook: true
 
 # Platform packages are published by this repository's release workflow and
