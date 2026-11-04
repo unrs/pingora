@@ -1,9 +1,10 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use napi::bindgen_prelude::Buffer;
 use pingora::http::{RequestHeader, ResponseHeader};
 use pingora::proxy::{ProxyHttp, Session};
 use pingora::upstreams::peer::HttpPeer;
@@ -17,6 +18,8 @@ use crate::state::{request_host, SharedState};
 pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
+    read_handler_body: bool,
+    handler_timeout: Duration,
 }
 
 impl ProxyCtx {
@@ -34,8 +37,18 @@ impl Drop for ProxyCtx {
 }
 
 impl JsProxy {
-    pub fn new(state: Arc<SharedState>, limits: Limits) -> Self {
-        Self { state, limits }
+    pub fn new(
+        state: Arc<SharedState>,
+        limits: Limits,
+        read_handler_body: bool,
+        handler_timeout: Duration,
+    ) -> Self {
+        Self {
+            state,
+            limits,
+            read_handler_body,
+            handler_timeout,
+        }
     }
 
     async fn apply_decision(
@@ -172,9 +185,83 @@ impl ProxyHttp for JsProxy {
         }
 
         if let Some(handler) = self.state.handler() {
-            let view =
-                RequestView::from_session(session, route.as_ref().map(|route| route.id.as_str()));
+            let body = if self.read_handler_body {
+                if session
+                    .req_header()
+                    .headers
+                    .get(http::header::EXPECT)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
+                {
+                    session.downstream_session.write_continue_response().await?;
+                }
+                let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
+                let deadline = Instant::now() + self.handler_timeout;
+                let mut body = Vec::new();
+                loop {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        session
+                            .respond_error_with_body(
+                                408,
+                                Bytes::from_static(b"request body timeout"),
+                            )
+                            .await?;
+                        return Ok(true);
+                    }
+                    let chunk = match tokio::time::timeout(
+                        remaining,
+                        session.downstream_session.read_request_body(),
+                    )
+                    .await
+                    {
+                        Ok(chunk) => chunk?,
+                        Err(_) => {
+                            session
+                                .respond_error_with_body(
+                                    408,
+                                    Bytes::from_static(b"request body timeout"),
+                                )
+                                .await?;
+                            return Ok(true);
+                        }
+                    };
+                    let Some(chunk) = chunk else { break };
+                    if body.len() as u64 + chunk.len() as u64 > max {
+                        session
+                            .respond_error_with_body(
+                                413,
+                                Bytes::from_static(b"request body too large"),
+                            )
+                            .await?;
+                        return Ok(true);
+                    }
+                    body.extend_from_slice(&chunk);
+                }
+                Some(Buffer::from(body))
+            } else {
+                None
+            };
+            let view = RequestView::from_session(
+                session,
+                route.as_ref().map(|route| route.id.as_str()),
+                body,
+            );
             match handler.call(view).await {
+                Ok(decision)
+                    if self.read_handler_body
+                        && !decision
+                            .action
+                            .as_deref()
+                            .unwrap_or("continue")
+                            .eq_ignore_ascii_case("respond") =>
+                {
+                    return Self::handler_failed(
+                        session,
+                        "readHandlerBody requires the handler to respond",
+                    )
+                    .await;
+                }
                 Ok(decision) => match self.apply_decision(session, ctx, decision).await {
                     Ok(true) => return Ok(true),
                     Ok(false) if ctx.route.is_none() && ctx.upstream.is_none() => {

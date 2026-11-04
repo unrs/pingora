@@ -14,6 +14,90 @@ import {
   waitForProxy,
 } from './helpers.mjs'
 
+test('rejects a chunked body over the buffered handler limit', async () => {
+  const proxy = await createProxy({
+    readHandlerBody: true,
+    maxRequestBodyBytes: 4,
+    routes: [{ pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  let handlerCalled = false
+  proxy.server.setRequestHandler(async () => {
+    handlerCalled = true
+    return { action: 'respond', body: 'ok' }
+  })
+
+  const status = await new Promise((resolve, reject) => {
+    const req = http.request(
+      `http://127.0.0.1:${proxy.port}/echo`,
+      { method: 'POST', headers: { 'transfer-encoding': 'chunked' } },
+      (res) => {
+        res.resume()
+        resolve(res.statusCode)
+      },
+    )
+    req.on('error', reject)
+    req.write('1234')
+    req.end('5')
+  })
+
+  assert.equal(status, 413)
+  assert.equal(handlerCalled, false)
+})
+
+test('buffers the request body before the handler', async () => {
+  const upstream = await startUpstream((_req, res) => res.end('upstream'))
+  onTestFinished(() => upstream.close())
+
+  const proxy = await createProxy({
+    readHandlerBody: true,
+    maxRequestBodyBytes: 1024,
+    routes: [{ pathPrefix: '/', upstreams: [`127.0.0.1:${upstream.port}`] }],
+  })
+  onTestFinished(() => proxy.stop())
+
+  let body
+  proxy.server.setRequestHandler(async (request) => {
+    body = request.body?.toString()
+    return { action: 'respond', status: 200, body: body ?? '' }
+  })
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  const response = await fetch(`http://127.0.0.1:${proxy.port}/echo`, {
+    method: 'POST',
+    body: 'payload',
+  })
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'payload')
+  assert.equal(body, 'payload')
+})
+
+test('requires a finite limit for buffered handler bodies', async () => {
+  await assert.rejects(
+    createProxy({ readHandlerBody: true, routes: [] }),
+    /maxRequestBodyBytes/,
+  )
+})
+
+test('rejects a body over the buffered handler limit', async () => {
+  const proxy = await createProxy({
+    readHandlerBody: true,
+    maxRequestBodyBytes: 4,
+    routes: [{ pathPrefix: '/', upstreams: ['127.0.0.1:1'] }],
+  })
+  onTestFinished(() => proxy.stop())
+
+  await waitForProxy(`http://127.0.0.1:${proxy.port}/ready`)
+  proxy.server.setRequestHandler(async () => ({ action: 'respond', body: 'ok' }))
+  const response = await fetch(`http://127.0.0.1:${proxy.port}/echo`, {
+    method: 'POST',
+    body: '12345',
+  })
+  assert.equal(response.status, 413)
+})
+
 test('passes a request view and returns a synthetic response', async () => {
   const upstream = await startUpstream((_req, res) => res.end('upstream'))
   onTestFinished(() => upstream.close())

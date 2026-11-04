@@ -68,6 +68,7 @@ minor before removal.
 | `logLevel`                   | `string`   | Default log filter, e.g. `pingora=info`.                 |
 | `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
+| `readHandlerBody`            | `boolean`  | Buffer the request body for the handler; requires `maxRequestBodyBytes` and the route must respond. Defaults to `false`. |
 | `healthCheckIntervalMs`      | `number`   | Active plain-TCP, TLS, and Unix-socket (Unix only) probe interval; `0` disables. Defaults to `0`. |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
@@ -289,6 +290,7 @@ interface RequestView {
   scheme: string
   httpVersion: string
   routeId?: string
+  body?: Buffer // when readHandlerBody is true
 }
 
 interface RequestDecision {
@@ -314,6 +316,9 @@ replaced with U+FFFD, so every forwarded value is visible to the handler.
 Handler errors and timeouts return `500`; malformed header mutations are left
 to Pingora's validation. A timeout is controlled by `handlerTimeoutMs`.
 Handlers are optional: requests take the all-Rust path when none is installed.
+Set `readHandlerBody` with a finite `maxRequestBodyBytes` to expose the buffered
+body as `request.body`. Such a handler must respond; body reading is bounded by
+`handlerTimeoutMs` and returns `408` on timeout.
 
 ## Security
 
