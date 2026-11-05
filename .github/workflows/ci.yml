@@ -86,6 +86,9 @@ jobs:
       - name: Type coverage
         run: pnpm run typecov
 
+      - name: Build server benchmark image
+        run: docker build -f bench/server/Dockerfile -t pingora-server-bench .
+
       - name: Rust tests
         run: pnpm run test:rust
 
