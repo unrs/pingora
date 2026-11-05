@@ -145,7 +145,6 @@ struct ServerState {
     handler_timeout: Duration,
     health_check_interval: Duration,
     read_handler_body: bool,
-    handler_only_on_unmatched: bool,
     log_level: String,
     log_format: LogFormat,
     init_error: Option<String>,
@@ -199,7 +198,6 @@ impl JsServer {
             metrics_address: None,
             health_check_interval_ms: None,
             read_handler_body: None,
-            handler_only_on_unmatched: None,
         });
 
         let limits = Limits {
@@ -301,7 +299,6 @@ impl JsServer {
                     options.health_check_interval_ms.unwrap_or(0).into(),
                 ),
                 read_handler_body: options.read_handler_body.unwrap_or(false),
-                handler_only_on_unmatched: options.handler_only_on_unmatched.unwrap_or(false),
                 init_error,
                 shutdown_tx,
                 status: AtomicU8::new(IDLE),
@@ -631,7 +628,6 @@ fn run_server(state: Arc<ServerState>) -> Result<(), String> {
             state.shared.clone(),
             state.limits.clone(),
             state.read_handler_body,
-            state.handler_only_on_unmatched,
             state.handler_timeout,
         ),
     );

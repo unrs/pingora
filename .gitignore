@@ -35,8 +35,5 @@ artifacts/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Workspace package builds
-packages/*/lib
-
 # type-coverage cache
 .type-coverage
