@@ -12,6 +12,7 @@ type BenchResponse = Response<unknown, Record<string, unknown>>
 const port = Number(process.env.PORT ?? 8080)
 const app = express()
 app.disable('x-powered-by')
+app.disable('etag')
 
 app.get('/plaintext', (_request: BenchRequest, response: BenchResponse) => {
   response.type('text/plain').send('Hello, World!')

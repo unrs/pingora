@@ -28,6 +28,8 @@ class AppModule {}
 
 const port = Number(process.env.PORT ?? 8080)
 const app: INestApplication<unknown> = await NestFactory.create(AppModule, { logger: false })
+const express = app.getHttpAdapter().getInstance() as { disable(name: string): void }
+express.disable('etag')
 await app.listen(port, '0.0.0.0')
 process.once('SIGTERM', () => {
   void app.close().then(() => process.exit(0))
