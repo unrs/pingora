@@ -19,3 +19,4 @@ RUN npx tsc --ignoreConfig bench/server/apps/nestjs.ts \
   --esModuleInterop \
   --skipLibCheck \
   --types node
+USER node
