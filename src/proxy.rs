@@ -141,6 +141,19 @@ impl JsProxy {
         Ok(true)
     }
 
+    fn request_may_have_body(session: &Session) -> bool {
+        let request = session.req_header();
+        let headers = &request.headers;
+        let has_length = headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.trim() != "0");
+        if has_length || headers.contains_key(http::header::TRANSFER_ENCODING) {
+            return true;
+        }
+        !matches!(request.method, http::Method::GET | http::Method::HEAD)
+    }
+
     async fn handler_failed(session: &mut Session, reason: &str) -> pingora::Result<bool> {
         log::error!("request handler failed: {reason}");
         session
@@ -215,7 +228,7 @@ impl ProxyHttp for JsProxy {
             if self.handler_only_on_unmatched && ctx.route.is_some() {
                 return Ok(false);
             }
-            let body = if self.read_handler_body {
+            let body = if self.read_handler_body && Self::request_may_have_body(session) {
                 if session
                     .req_header()
                     .headers
