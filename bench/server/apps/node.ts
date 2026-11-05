@@ -14,7 +14,7 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify({ message: 'Hello, World!' }))
     return
   }
-  const user = /^\/users\/([^/?]+)/.exec(path)
+  const user = /^\/users\/([^/]+)$/.exec(path)
   if (user) {
     response.setHeader('content-type', 'application/json')
     response.end(JSON.stringify({ id: user[1] }))

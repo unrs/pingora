@@ -109,6 +109,7 @@ function runtimeImage(): string {
   return match?.[1] ?? 'unknown'
 }
 
+// Both manifests use exact pins; a range on either side would report a false mismatch.
 function assertVersionParity(): void {
   const root = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -211,8 +212,8 @@ function processRss(service: string): number | null {
     if (!id) return null
     const script =
       'for p in /proc/[0-9]*; do ' +
-      'cmd=$(tr "\\0" " " < "$p/cmdline" 2>/dev/null) || continue; ' +
-      'case "$cmd" in node*|*/node*) ;; *) continue ;; esac; ' +
+      'cmd=$(tr "\\0" "\\n" < "$p/cmdline" 2>/dev/null | head -n 1) || continue; ' +
+      'case "${cmd##*/}" in node) ;; *) continue ;; esac; ' +
       'sed -n "s/^VmRSS:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$p/status"; ' +
       'done'
     const values = dockerOutput('exec', id, 'sh', '-c', script)
