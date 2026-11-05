@@ -77,7 +77,9 @@ const app = createServer({
 
 A matching native route is handled entirely in Rust and skips the handler. The
 handler is the fallback for requests no native route matched, and may be omitted
-when every route is native.
+when every route is native. If routes are added at runtime to a handler-only
+server, set `server.handlerOnlyOnUnmatched: true` to opt those routes into the
+native fast path.
 
 Options:
 
@@ -88,7 +90,7 @@ Options:
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. |
 | `unref` | `false` | Do not keep the Node.js process alive after `start()`. |
-| `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`). |
+| `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`) and `handlerOnlyOnUnmatched` (defaults to `true` when `routes` is non-empty). |
 
 The returned object exposes:
 
