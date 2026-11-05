@@ -65,10 +65,6 @@ jobs:
             jq -r '.results[] | .target as $target | .measurements[] | "| \($target) | \(.workload) | \(.rps) | \(.p50Ms) | \(.p95Ms) | \(.p99Ms) | \(.cpuPercent // "n/a") | \(.memoryMiB // "n/a") | \(.rssMiB // "n/a") |"' server-benchmark.json
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Dump container logs
-        if: failure()
-        run: docker compose -f bench/server/docker-compose.yml logs --no-color
-
       - name: Stop containers
         if: always()
         run: docker compose -f bench/server/docker-compose.yml down

@@ -71,7 +71,8 @@ function docker(...args: string[]): void {
 function dockerOutput(...args: string[]): string {
   const result = spawnSync(dockerBin, args, { encoding: 'utf8' })
   if (result.status !== 0) {
-    throw new Error(`${dockerBin} ${args.join(' ')} failed: ${result.stderr}`)
+    const detail = [result.stderr.trim(), result.stdout.trim()].filter(Boolean).join('\n')
+    throw new Error(`${dockerBin} ${args.join(' ')} failed: ${detail}`)
   }
   return result.stdout.trim()
 }
@@ -99,6 +100,28 @@ function hostMetadata() {
     memoryMiB: Math.round(totalmem() / 1048576),
     kernel,
     node: process.version,
+  }
+}
+
+function runtimeImage(): string {
+  const dockerfile = readFileSync(new URL('./Dockerfile', import.meta.url), 'utf8')
+  const match = /^FROM\s+(\S+)/m.exec(dockerfile)
+  return match?.[1] ?? 'unknown'
+}
+
+// Both manifests use exact pins; a range on either side would report a false mismatch.
+function assertVersionParity(): void {
+  const root = JSON.parse(
+    readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+  ) as { devDependencies?: Record<string, string> }
+  const bench = JSON.parse(
+    readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+  ) as { dependencies?: Record<string, string> }
+  for (const [name, version] of Object.entries(bench.dependencies ?? {})) {
+    const rootVersion = root.devDependencies?.[name]
+    if (rootVersion !== undefined && rootVersion !== version) {
+      throw new Error(`bench/server ${name} ${version} does not match root devDependency ${rootVersion}`)
+    }
   }
 }
 
@@ -189,12 +212,13 @@ function processRss(service: string): number | null {
     if (!id) return null
     const script =
       'for p in /proc/[0-9]*; do ' +
-      'comm=$(cat "$p/comm" 2>/dev/null) || continue; ' +
-      'case "$comm" in node*) ;; *) continue ;; esac; ' +
+      'cmd=$(tr "\\0" "\\n" < "$p/cmdline" 2>/dev/null | head -n 1) || continue; ' +
+      'case "${cmd##*/}" in node) ;; *) continue ;; esac; ' +
       'sed -n "s/^VmRSS:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$p/status"; ' +
       'done'
     const values = dockerOutput('exec', id, 'sh', '-c', script)
       .split('\n')
+      .filter((line) => line.trim() !== '')
       .map(Number)
       .filter((value) => Number.isFinite(value))
     return values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / 1024
@@ -231,6 +255,7 @@ type Measurement = Awaited<ReturnType<typeof measure>>
 type TargetResult = { target: string; service: string; measurements: Measurement[] }
 
 async function main() {
+  assertVersionParity()
   docker('compose', '-f', compose, 'down')
   const results: TargetResult[] = targets.map((target) => ({
     target: target.name,
@@ -258,6 +283,11 @@ async function main() {
         byService.get(target.service)?.measurements.push(measurement)
       }
     }
+  } catch (error) {
+    try {
+      docker('compose', '-f', compose, 'logs', '--no-color')
+    } catch {}
+    throw error
   } finally {
     if (process.env.BENCH_SERVER_KEEP !== '1') {
       try {
@@ -275,7 +305,7 @@ async function main() {
     limits: { cpus: cpusLimit, memory: memoryLimit },
     host: hostMetadata(),
     versions: frameworkVersions(),
-    runtime: { node: '24-bookworm-slim', type: 'docker' },
+    runtime: { image: runtimeImage(), type: 'docker' },
     results,
   }
   const serialized = JSON.stringify(result, null, 2)
