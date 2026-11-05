@@ -1,7 +1,7 @@
-FROM node:24-bookworm-slim
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
 WORKDIR /app
-COPY bench/server/package.json ./package.json
-RUN npm install --no-audit --no-fund
+COPY bench/server/package.json bench/server/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY index.js index.d.ts pingora.linux-x64-gnu.node ./
 RUN mkdir -p node_modules/pingora \
   && cp index.js index.d.ts pingora.linux-x64-gnu.node node_modules/pingora/ \

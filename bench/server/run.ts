@@ -187,30 +187,33 @@ function processRss(service: string): number | null {
   try {
     const id = dockerOutput('compose', '-f', compose, 'ps', '-q', service)
     if (!id) return null
-    const rows = dockerOutput('top', id, '-eo', 'pid,rss,comm').split('\n').slice(1)
-    for (const row of rows) {
-      const match = /^\s*\d+\s+(\d+)\s+(.+)$/.exec(row)
-      if (match && /node/i.test(match[2])) return Number(match[1]) / 1024
-    }
-    return null
+    const script =
+      'for p in /proc/[0-9]*; do ' +
+      '[ "$(cat "$p/comm" 2>/dev/null)" = node ] || continue; ' +
+      'sed -n "s/^VmRSS:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$p/status"; ' +
+      'done'
+    const values = dockerOutput('exec', id, 'sh', '-c', script)
+      .split('\n')
+      .map(Number)
+      .filter((value) => Number.isFinite(value))
+    return values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / 1024
   } catch {
     return null
   }
 }
 
-async function measure(service: string, workload: Workload) {
+async function measure(service: string, workload: Workload, order: number) {
   const path = cgroupPath(service)
   const before = cgroupUsage(path)
-  const started = Date.now()
   const result = runLoadgen(`http://${service}:8080${workload.path}`)
-  const elapsedMs = Date.now() - started
   const after = cgroupUsage(path)
   const cpuPercent =
     before?.cpuUsec !== undefined && after?.cpuUsec !== undefined
-      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / elapsedMs) * 100)
+      ? Math.max(0, ((after.cpuUsec - before.cpuUsec) / 1000 / result.elapsedMs) * 100)
       : null
   return {
     workload: workload.name,
+    order,
     requests: result.requests,
     errors: result.errors,
     rps: result.rps,
@@ -228,18 +231,31 @@ type TargetResult = { target: string; service: string; measurements: Measurement
 
 async function main() {
   docker('compose', '-f', compose, 'down')
-  docker('compose', '-f', compose, 'build', 'http-server', 'loadgen')
-  docker('compose', '-f', compose, 'up', '-d', '--no-build')
-
-  const results: TargetResult[] = []
+  const results: TargetResult[] = targets.map((target) => ({
+    target: target.name,
+    service: target.service,
+    measurements: [],
+  }))
+  const byService = new Map(results.map((result) => [result.service, result]))
   try {
+    docker('compose', '-f', compose, 'build', 'http-server', 'loadgen')
+    docker('compose', '-f', compose, 'up', '-d', '--no-build')
+
     for (const target of targets) {
       await waitFor(target.port)
-      const measurements: Measurement[] = []
-      for (const workload of workloads) {
-        measurements.push(await measure(target.service, workload))
+      if (warmupMs > 0) {
+        runLoadgen(`http://${target.service}:8080/plaintext`, warmupMs)
       }
-      results.push({ target: target.name, service: target.service, measurements })
+    }
+
+    for (const [workloadIndex, workload] of workloads.entries()) {
+      const order = targets.map(
+        (_, index) => targets[(index + workloadIndex) % targets.length],
+      )
+      for (const [position, target] of order.entries()) {
+        const measurement = await measure(target.service, workload, position)
+        byService.get(target.service)?.measurements.push(measurement)
+      }
     }
   } finally {
     if (process.env.BENCH_SERVER_KEEP !== '1') {

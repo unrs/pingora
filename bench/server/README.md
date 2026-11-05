@@ -22,9 +22,12 @@ server image, starts every target, waits for `/plaintext`, and measures
 Compose network. Each container is limited to `${BENCH_SERVER_CPUS:-1}` CPU and
 `${BENCH_SERVER_MEMORY:-512m}` memory. A 500 ms warmup runs before each target; set
 `BENCH_SERVER_WARMUP_MS=0` to skip it. Results include requests, errors, req/s,
-p50/p95/p99 latency, CPU%, cgroup memory, and RSS;
+p50/p95/p99 latency, CPU%, cgroup memory, and RSS from the container node process;
 `BENCH_SERVER_OUTPUT` writes the JSON to a file.
 
+`@pingora/http-server` invokes a JavaScript handler for every request, so these
+numbers include the Rust-to-Node bridge; they are not a measurement of raw
+Pingora throughput. Node frameworks handle the same work inside one process.
 `@pingora/http-server` runs with one native thread. NestJS uses the default
 Express adapter; it is compiled with `tsc` at image build because decorators are
 not erasable TypeScript, while every other app runs directly with Node 24 type
