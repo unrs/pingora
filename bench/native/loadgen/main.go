@@ -21,7 +21,6 @@ type result struct {
 	ElapsedMs int64   `json:"elapsedMs"`
 	RPS       int     `json:"rps"`
 	P50Ms     float64 `json:"p50Ms"`
-	P95Ms     float64 `json:"p95Ms"`
 	P99Ms     float64 `json:"p99Ms"`
 }
 
@@ -120,7 +119,6 @@ func main() {
 		ElapsedMs: elapsed.Milliseconds(),
 		RPS:       int(float64(len(samples)) / elapsed.Seconds()),
 		P50Ms:     percentile(samples, 0.50),
-		P95Ms:     percentile(samples, 0.95),
 		P99Ms:     percentile(samples, 0.99),
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {

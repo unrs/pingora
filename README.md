@@ -69,7 +69,6 @@ minor before removal.
 | `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
 | `readHandlerBody`            | `boolean`  | Buffer the request body for the handler; requires `maxRequestBodyBytes` and the route must respond. Defaults to `false`. |
-| `handlerOnlyOnUnmatched`     | `boolean`  | Call the JS handler only when no native route matched. Defaults to `false`. |
 | `healthCheckIntervalMs`      | `number`   | Active plain-TCP, TLS, and Unix-socket (Unix only) probe interval; `0` disables. Defaults to `0`. |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
@@ -175,12 +174,7 @@ interface Route {
   pathPrefix?: string
   methods?: string[]
   matchHeaders?: Record<string, string>
-  upstreams?: Array<string | Upstream>
-  respond?: {
-    status?: number
-    headers?: Record<string, string>
-    body?: string | Buffer
-  }
+  upstreams: Array<string | Upstream>
   strategy?: 'round_robin' | 'weighted_round_robin' | 'least_connections' | 'random' | 'first'
   requestHeaders?: Record<string, string>
   removeRequestHeaders?: string[]
@@ -199,8 +193,7 @@ interface Upstream {
 }
 ```
 
-A route with `respond` is served entirely in Rust and skips the JS handler; its
-`upstreams` may be omitted and must not be combined with `respond`. `weighted_round_robin` uses smooth weighted round-robin; weights must be
+`weighted_round_robin` uses smooth weighted round-robin; weights must be
 positive. `least_connections` selects the upstream with the fewest active
 requests. Route selection is implemented by the binding in `src/router.rs`, not
 by Pingora's `pingora-load-balancing` crate. That crate still has UDS gaps, so
@@ -327,55 +320,6 @@ Handlers are optional: requests take the all-Rust path when none is installed.
 Set `readHandlerBody` with a finite `maxRequestBodyBytes` to expose the buffered
 body as `request.body`. Such a handler must respond; body reading is bounded by
 `handlerTimeoutMs` and returns `408` on timeout.
-
-### HTTP server facade
-
-For direct request handling without an upstream, install `@pingora/http-server`:
-
-```js
-import { createServer } from '@pingora/http-server'
-
-async function main() {
-  const app = createServer({
-    listen: 3000,
-    maxRequestBodyBytes: 1_048_576,
-    handler: async (request) => ({
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        path: request.path,
-        bytes: request.body ? request.body.length : 0,
-      }),
-    }),
-  })
-
-  await app.start()
-
-  const shutdown = async () => {
-    await app.close()
-    process.exit(0)
-  }
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
-}
-
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
-```
-
-`start()` holds a ref'd timer so the Node.js process stays alive while the
-native listener is running. Set `unref: true` when embedding the server and
-another handle should own the process lifetime. The example uses ESM, supported
-by Node.js 12.20+; it avoids top-level await for that floor.
-
-The facade enables `readHandlerBody`, forces every handler result to a synthetic
-response, waits for the listener, and accepts string or Buffer bodies. Response
-streaming is not implemented yet; large responses are buffered.
-
-Lifecycle calls must be awaited and cannot overlap: calling `close()` while
-`start()` is pending rejects, and vice versa.
 
 ## Security
 

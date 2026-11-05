@@ -19,7 +19,6 @@ pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
     read_handler_body: bool,
-    handler_only_on_unmatched: bool,
     handler_timeout: Duration,
 }
 
@@ -42,14 +41,12 @@ impl JsProxy {
         state: Arc<SharedState>,
         limits: Limits,
         read_handler_body: bool,
-        handler_only_on_unmatched: bool,
         handler_timeout: Duration,
     ) -> Self {
         Self {
             state,
             limits,
             read_handler_body,
-            handler_only_on_unmatched,
             handler_timeout,
         }
     }
@@ -91,54 +88,44 @@ impl JsProxy {
             }
             "respond" => {
                 let status = decision.status.unwrap_or(200);
-                let headers = decision.headers.unwrap_or_default().into_iter().collect();
+                let is_head = session.req_header().method == http::Method::HEAD;
                 let body = match decision.body {
                     Some(Either::A(text)) => text.into_bytes(),
                     Some(Either::B(buffer)) => buffer.to_vec(),
                     None => Vec::new(),
                 };
-                Self::write_response(session, status, headers, Bytes::from(body)).await
+                let mut response = ResponseHeader::build(status, None)
+                    .map_err(|error| format!("invalid response: {error}"))?;
+                for (name, value) in decision.headers.unwrap_or_default() {
+                    response
+                        .insert_header(name, value)
+                        .map_err(|error| format!("invalid response header: {error}"))?;
+                }
+                if status != 204 && status != 304 {
+                    response
+                        .set_content_length(body.len())
+                        .map_err(|error| format!("invalid response body: {error}"))?;
+                }
+                session
+                    .write_response_header(Box::new(response), false)
+                    .await
+                    .map_err(|error| format!("failed to write response: {error}"))?;
+                // 205 framing is left to Pingora: cloudflare/pingora#1055.
+                let body = if is_head || matches!(status, 204 | 304) {
+                    None
+                } else {
+                    Some(Bytes::from(body))
+                };
+                session
+                    .write_response_body(body, true)
+                    .await
+                    .map_err(|error| format!("failed to write response body: {error}"))?;
+                Ok(true)
             }
             other => Err(format!(
                 "invalid request decision action `{other}` (expected continue, respond, or upstream)"
             )),
         }
-    }
-
-    async fn write_response(
-        session: &mut Session,
-        status: u16,
-        headers: Vec<(String, String)>,
-        body: Bytes,
-    ) -> Result<bool, String> {
-        let is_head = session.req_header().method == http::Method::HEAD;
-        let mut response = ResponseHeader::build(status, None)
-            .map_err(|error| format!("invalid response: {error}"))?;
-        for (name, value) in headers {
-            response
-                .insert_header(name, value)
-                .map_err(|error| format!("invalid response header: {error}"))?;
-        }
-        if status != 204 && status != 304 {
-            response
-                .set_content_length(body.len())
-                .map_err(|error| format!("invalid response body: {error}"))?;
-        }
-        session
-            .write_response_header(Box::new(response), false)
-            .await
-            .map_err(|error| format!("failed to write response: {error}"))?;
-        // 205 framing is left to Pingora: cloudflare/pingora#1055.
-        let body = if is_head || matches!(status, 204 | 304) {
-            None
-        } else {
-            Some(body)
-        };
-        session
-            .write_response_body(body, true)
-            .await
-            .map_err(|error| format!("failed to write response body: {error}"))?;
-        Ok(true)
     }
 
     async fn handler_failed(session: &mut Session, reason: &str) -> pingora::Result<bool> {
@@ -199,39 +186,41 @@ impl ProxyHttp for JsProxy {
         if let Some(route) = route.as_ref() {
             route.metrics.request_started();
             ctx.route = Some(route.clone());
-            if let Some(respond) = route.respond.as_ref() {
-                return Self::write_response(
-                    session,
-                    respond.status,
-                    respond.headers.clone(),
-                    respond.body.clone(),
-                )
-                .await
-                .map_err(|error| Error::explain(ErrorType::InternalError, error));
-            }
         }
 
         if let Some(handler) = self.state.handler() {
-            if self.handler_only_on_unmatched && ctx.route.is_some() {
-                return Ok(false);
-            }
             let body = if self.read_handler_body {
+                if session
+                    .req_header()
+                    .headers
+                    .get(http::header::EXPECT)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
+                {
+                    session.downstream_session.write_continue_response().await?;
+                }
+                let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
+                let deadline = Instant::now() + self.handler_timeout;
                 let mut body = Vec::new();
-                if !session.downstream_session.is_body_empty() {
-                    if session
-                        .req_header()
-                        .headers
-                        .get(http::header::EXPECT)
-                        .and_then(|value| value.to_str().ok())
-                        .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
-                    {
-                        session.downstream_session.write_continue_response().await?;
+                loop {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        session
+                            .respond_error_with_body(
+                                408,
+                                Bytes::from_static(b"request body timeout"),
+                            )
+                            .await?;
+                        return Ok(true);
                     }
-                    let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
-                    let deadline = Instant::now() + self.handler_timeout;
-                    loop {
-                        let remaining = deadline.saturating_duration_since(Instant::now());
-                        if remaining.is_zero() {
+                    let chunk = match tokio::time::timeout(
+                        remaining,
+                        session.downstream_session.read_request_body(),
+                    )
+                    .await
+                    {
+                        Ok(chunk) => chunk?,
+                        Err(_) => {
                             session
                                 .respond_error_with_body(
                                     408,
@@ -240,35 +229,18 @@ impl ProxyHttp for JsProxy {
                                 .await?;
                             return Ok(true);
                         }
-                        let chunk = match tokio::time::timeout(
-                            remaining,
-                            session.downstream_session.read_request_body(),
-                        )
-                        .await
-                        {
-                            Ok(chunk) => chunk?,
-                            Err(_) => {
-                                session
-                                    .respond_error_with_body(
-                                        408,
-                                        Bytes::from_static(b"request body timeout"),
-                                    )
-                                    .await?;
-                                return Ok(true);
-                            }
-                        };
-                        let Some(chunk) = chunk else { break };
-                        if body.len() as u64 + chunk.len() as u64 > max {
-                            session
-                                .respond_error_with_body(
-                                    413,
-                                    Bytes::from_static(b"request body too large"),
-                                )
-                                .await?;
-                            return Ok(true);
-                        }
-                        body.extend_from_slice(&chunk);
+                    };
+                    let Some(chunk) = chunk else { break };
+                    if body.len() as u64 + chunk.len() as u64 > max {
+                        session
+                            .respond_error_with_body(
+                                413,
+                                Bytes::from_static(b"request body too large"),
+                            )
+                            .await?;
+                        return Ok(true);
                     }
+                    body.extend_from_slice(&chunk);
                 }
                 Some(Buffer::from(body))
             } else {

@@ -154,24 +154,6 @@ test('negotiates HTTP/2 over TLS and exposes https to the handler', async () => 
   assert.equal(response.body, 'https')
 })
 
-test('passes an empty Buffer for bodyless HTTP/2 requests', async () => {
-  const proxy = await createTlsProxy({
-    readHandlerBody: true,
-    maxRequestBodyBytes: 1024,
-  })
-  onTestFinished(() => proxy.stop())
-
-  proxy.server.setRequestHandler((request) => ({
-    action: 'respond',
-    body: request.body === undefined ? 'undefined' : String(request.body.length),
-  }))
-
-  await waitForHttps(proxy.port)
-  const response = await http2Request(proxy.port)
-  assert.equal(response.alpn, 'h2')
-  assert.equal(response.body, '0')
-})
-
 test('rejects invalid TLS certificate paths at start', async () => {
   const port = await freePort()
   const server = new Server({

@@ -37,11 +37,6 @@ proxy; later releases can add server-side primitives on the same native core.
 | ---------------------- | ---------------------------------------------------------------- | ----------- |
 | `pingora`              | Reverse-proxy facade and main entry point                        | 0.1.0       |
 | `@pingora/binding-*`   | Prebuilt native addon for each supported platform                | 0.1.0       |
-| `@pingora/http-server` | Programmable HTTP server framework built on the same integration | Post-1.0    |
-
-`@pingora/http-server` is illustrative rather than final: it represents the
-intent to expose Pingora's server-side service model (custom apps, connection
-handling, protocol-level hooks) once the proxy facade is stable.
 
 ## 2. Non-goals
 
@@ -55,9 +50,6 @@ These are deliberately out of scope for the first stable release:
   works on request metadata and headers. Body hooks are a later exploration.
 - **A process manager or CLI.** Supervision (systemd, containers, PM2) remains
   the deployment tool's job.
-- **An Express-style web framework before the proxy is stable.** The server
-  framework (`@pingora/http-server`) is a post-1.0 package, not a reason to blur
-  the proxy API.
 - **Windows support before 1.0.** Pingora's Windows support is still
   experimental; the binding has no Windows CI lane or prebuilt target. Windows
   users can use WSL; native support is revisited when upstream support and CI
@@ -80,7 +72,6 @@ These are deliberately out of scope for the first stable release:
 | D6  | Programmatic graceful shutdown via a custom Pingora `ShutdownSignalWatch`; `stop()` joins the thread off the JS thread.        | Pingora's built-in watcher only listens for OS signals; a watch channel lets Node request shutdown without killing the process.  | Proposed |
 | D7  | Ship the napi-rs-generated CommonJS loader; rely on Node's ESM interop for `import` consumers.                                 | One generated entry keeps the runtime floor at Node 12.20 because napi-postinstall requires it, and still supports named ESM imports on modern Node.       | Proposed |
 | D8  | Tier 1 platforms: Linux x64/arm64 (glibc), macOS x64/arm64. Tier 2: Linux musl. Windows later.                                  | Matches Pingora's practical deployment target and keeps the prebuild matrix manageable.                                           | Proposed |
-| D9  | Grow into a package family: `pingora` for the proxy and `@pingora/http-server` for the later server framework.                | Both packages share one native integration; keeping the proxy API stable first lets the framework build on a proven core.        | Proposed |
 
 ### Why not bind Pingora's `ProxyHttp` directly?
 
@@ -491,26 +482,6 @@ numbers are documented, and a security checklist has been signed off.
 without a Rust toolchain, the API is documented, and the release workflow has
 been rehearsed.
 
-### Post-1.0 — Server framework (`@pingora/http-server`)
-
-**Goal:** reuse the native Pingora integration for server-side applications, not
-only reverse proxying.
-
-- [ ] Decide whether the package exposes Pingora's low-level service model
-      (custom apps, connection handling, protocol hooks) or a higher-level Node
-      HTTP framework.
-- [ ] Extract the shared native lifecycle and configuration layer into a
-      workspace crate used by both packages.
-- [ ] Define the server API, request/response model, and graceful shutdown
-      semantics.
-- [ ] Package and publish it independently from `pingora`, with its own trusted
-      publisher configuration.
-- [ ] Keep the proxy package free of framework-specific dependencies.
-
-**Exit criteria:** a separately installable `@pingora/http-server` package with
-its own API docs, tests, and release pipeline, sharing no unstable internals with
-the proxy facade.
-
 ## 8. Testing strategy
 
 | Layer                | Tooling                              | What it covers                                                        |
@@ -615,10 +586,6 @@ the maintainer can override any of them.
 5. **Zero-downtime upgrade.** Should the binding expose Pingora's upgrade socket
    workflow, given that Node apps usually rely on process managers and rolling
    restarts? _Recommendation: defer until after 1.0._
-6. **Server framework.** Should `@pingora/http-server` expose Pingora's
-   low-level service model (custom apps, connection handling), or a higher-level
-   Node HTTP framework? What belongs in the first version after 1.0?
-   _Recommendation: design it only after the proxy API is stable._
 
 ## 12. Repository conventions
 

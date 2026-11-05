@@ -26,8 +26,7 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      publish: ${{ steps.native-version.outputs.publish }}
-      native: ${{ steps.native-version.outputs.native }}
+      publish: ${{ steps.package-version.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,18 +58,15 @@ jobs:
         id: changesets
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          commit-message: 'chore: release packages'
-          pr-title: 'chore: release packages'
+          commit-message: 'chore: release pingora'
+          pr-title: 'chore: release pingora'
           version-script: pnpm run version
 
-      - name: Check native version on npm
-        id: native-version
+      - name: Check package version on npm
+        id: package-version
         if: steps.changesets.outputs.has-changesets == 'false'
         run: |
           set -euo pipefail
-          # Changesets decides which JS packages to publish. The only extra
-          # decision here is whether the native artifacts must be rebuilt.
-          echo "publish=true" >> "$GITHUB_OUTPUT"
           name=$(jq -r .name package.json)
           version=$(jq -r .version package.json)
           encoded_name=${name//\//%2f}
@@ -78,12 +74,11 @@ jobs:
             "https://registry.npmjs.org/${encoded_name}/${version}")
           case "$status" in
             200)
-              echo "${name}@${version} is already published; skipping native build."
-              echo "native=false" >> "$GITHUB_OUTPUT"
+              echo "${name}@${version} is already published."
               ;;
             404)
-              echo "${name}@${version} is not published; native build required."
-              echo "native=true" >> "$GITHUB_OUTPUT"
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+              echo "${name}@${version} is not published yet."
               ;;
             *)
               echo "npm registry answered ${status} for ${name}@${version}" >&2
@@ -94,7 +89,7 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     needs: release
-    if: needs.release.outputs.native == 'true'
+    if: needs.release.outputs.publish == 'true'
     runs-on: ${{ matrix.host }}
     strategy:
       fail-fast: false
@@ -172,10 +167,8 @@ jobs:
 
   publish:
     name: Publish to npm
-    needs:
-      - release
-      - build
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.publish == 'true' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    needs: build
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -196,30 +189,23 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download bindings
-        if: needs.release.outputs.native == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
           merge-multiple: true
 
       - name: Download generated loader
-        if: needs.release.outputs.native == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: js-binding
           path: .
 
       - name: Assemble platform packages
-        if: needs.release.outputs.native == 'true'
         run: |
           pnpm napi create-npm-dirs
           pnpm napi artifacts
 
-      - name: Build JS packages
-        run: pnpm build:packages
-
       - name: Publish platform packages
-        if: needs.release.outputs.native == 'true'
         run: pnpm napi pre-publish --no-gh-release --tagstyle npm --npm-dir npm
 
       - name: Publish packages

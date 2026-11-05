@@ -7,11 +7,9 @@
     ]
   },
   "include": [
-    "tsdown.config.mts",
     "vitest.config.mts",
     "scripts/**/*.mts",
     "bench/**/*.ts",
-    "packages/**/*.ts",
     "test/**/*.ts"
   ],
   "exclude": [

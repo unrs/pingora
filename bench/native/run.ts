@@ -160,13 +160,7 @@ async function waitFor(port: number): Promise<void> {
   throw new Error(`target ${port} did not become ready`)
 }
 
-function runLoadgen(url: string): {
-  requests: number
-  rps: number
-  p50Ms: number
-  p95Ms: number
-  p99Ms: number
-} {
+function runLoadgen(url: string): { requests: number; rps: number; p50Ms: number; p99Ms: number } {
   const output = dockerOutput(
     'compose',
     '-f',
@@ -182,13 +176,7 @@ function runLoadgen(url: string): {
     '-concurrency',
     String(concurrency),
   )
-  return JSON.parse(output) as {
-    requests: number
-    rps: number
-    p50Ms: number
-    p95Ms: number
-    p99Ms: number
-  }
+  return JSON.parse(output) as { requests: number; rps: number; p50Ms: number; p99Ms: number }
 }
 
 async function measure(url: string, port: number, label: string, mode: string) {
@@ -209,7 +197,6 @@ async function measure(url: string, port: number, label: string, mode: string) {
     requests: result.requests,
     rps: result.rps,
     p50Ms: result.p50Ms,
-    p95Ms: result.p95Ms,
     p99Ms: result.p99Ms,
     cpuPercent,
     memoryMiB: after?.memoryMiB ?? null,
