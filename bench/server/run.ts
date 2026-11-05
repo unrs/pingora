@@ -189,7 +189,8 @@ function processRss(service: string): number | null {
     if (!id) return null
     const script =
       'for p in /proc/[0-9]*; do ' +
-      '[ "$(cat "$p/comm" 2>/dev/null)" = node ] || continue; ' +
+      'comm=$(cat "$p/comm" 2>/dev/null) || continue; ' +
+      'case "$comm" in node*) ;; *) continue ;; esac; ' +
       'sed -n "s/^VmRSS:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$p/status"; ' +
       'done'
     const values = dockerOutput('exec', id, 'sh', '-c', script)
