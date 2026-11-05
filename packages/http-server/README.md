@@ -75,17 +75,19 @@ const app = createServer({
 })
 ```
 
-A matching native route is handled entirely in Rust and skips the handler. The
-handler is the fallback for requests no native route matched, and may be omitted
-when every route is native. If routes are added at runtime to a handler-only
-server, set `server.handlerOnlyOnUnmatched: true` to opt those routes into the
-native fast path.
+Static `respond` routes always write the native response before the handler.
+Upstream routes skip the handler only when `server.handlerOnlyOnUnmatched` is
+true; otherwise the handler runs and can override them. The facade sets that
+option to `true` when initial `routes` are configured and to `false` for a
+handler-only server. If routes are added at runtime to a handler-only server,
+set `server.handlerOnlyOnUnmatched: true` to opt them into the native fast path.
+The handler may be omitted when every route is native.
 
 Options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `handler` | none | JS fallback for requests not matched by a native route. |
+| `handler` | none | JS fallback; static routes bypass it, and upstream routes bypass it only when `handlerOnlyOnUnmatched` is true. |
 | `routes` | `[]` | Native static or upstream routes. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. |
