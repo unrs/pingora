@@ -1,7 +1,7 @@
 import net from 'net'
 
 import { Server } from 'pingora'
-import type { RequestView, ServerOptions } from 'pingora'
+import type { RequestView, RouteOptions, ServerOptions } from 'pingora'
 
 export interface HttpServerResponse {
   status?: number
@@ -10,7 +10,9 @@ export interface HttpServerResponse {
 }
 
 export interface HttpServerOptions {
-  handler: (request: RequestView) => HttpServerResponse | Promise<HttpServerResponse>
+  handler?: (request: RequestView) => HttpServerResponse | Promise<HttpServerResponse>
+  /** Native routes; matching responses skip the JS handler. */
+  routes?: RouteOptions[]
   listen?: string | number
   maxRequestBodyBytes?: number
   unref?: boolean
@@ -88,20 +90,23 @@ function parseListen(listen: string | number): ListenConfig {
   }
 }
 
-export function createServer(handler: HttpServerOptions['handler']): HttpServer
+export function createServer(handler: NonNullable<HttpServerOptions['handler']>): HttpServer
 export function createServer(options: HttpServerOptions): HttpServer
 export function createServer(
-  options: HttpServerOptions | HttpServerOptions['handler'],
+  options: HttpServerOptions | NonNullable<HttpServerOptions['handler']>,
 ): HttpServer {
   if (typeof options === 'function') options = { handler: options }
   const {
     handler,
+    routes = [],
     listen = DEFAULT_LISTEN,
     maxRequestBodyBytes = DEFAULT_MAX_BODY,
     unref = false,
     server: serverOptions = {},
   } = options
-  if (typeof handler !== 'function') throw new TypeError('createServer requires a handler function')
+  if (typeof handler !== 'function' && routes.length === 0) {
+    throw new TypeError('createServer requires a handler function or at least one route')
+  }
   if (
     !Number.isSafeInteger(maxRequestBodyBytes) ||
     maxRequestBodyBytes <= 0 ||
@@ -115,13 +120,16 @@ export function createServer(
     const native = new Server({
       ...serverOptions,
       listeners: [address],
-      readHandlerBody: true,
+      routes,
+      readHandlerBody: typeof handler === 'function',
       maxRequestBodyBytes,
     })
-    native.setRequestHandler(async (request) => ({
-      ...(await handler(request)),
-      action: 'respond',
-    }))
+    if (handler) {
+      native.setRequestHandler(async (request) => ({
+        ...(await handler(request)),
+        action: 'respond',
+      }))
+    }
     return native
   }
 

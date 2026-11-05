@@ -78,7 +78,7 @@ pnpm bench:server
 BENCH_SERVER_DURATION_MS=10000 BENCH_SERVER_CONCURRENCY=32 pnpm bench:server
 ```
 
-NestJS is precompiled with `tsc` at image build for decorator metadata; every other app uses Node 24 native type stripping. Published versions are pinned in `bench/server/package.json`. `@pingora/http-server` invokes a JavaScript handler for every request, so these results include the Rust-to-Node bridge and do not represent raw Pingora throughput; the Node frameworks handle the workload in-process. The runner records
+NestJS is precompiled with `tsc` at image build for decorator metadata; every other app uses Node 24 native type stripping. Published versions are pinned in `bench/server/package.json`. `@pingora/http-server` serves `/plaintext` and `/json` through native routes; `/users/:id` uses the JS fallback and includes the Rust-to-Node bridge. The native rows measure the Rust response path, not a pure framework comparison. The runner records
 framework versions, Node/runtime metadata, host metadata, requests, errors,
 req/s, p50/p95/p99 latency, CPU%, cgroup memory, and RSS. A 500 ms warmup runs
 before each target; `BENCH_SERVER_WARMUP_MS=0` skips it. NestJS uses its default Express

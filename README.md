@@ -174,7 +174,12 @@ interface Route {
   pathPrefix?: string
   methods?: string[]
   matchHeaders?: Record<string, string>
-  upstreams: Array<string | Upstream>
+  upstreams?: Array<string | Upstream>
+  respond?: {
+    status?: number
+    headers?: Record<string, string>
+    body?: string | Buffer
+  }
   strategy?: 'round_robin' | 'weighted_round_robin' | 'least_connections' | 'random' | 'first'
   requestHeaders?: Record<string, string>
   removeRequestHeaders?: string[]
@@ -193,7 +198,8 @@ interface Upstream {
 }
 ```
 
-`weighted_round_robin` uses smooth weighted round-robin; weights must be
+A route with `respond` is served entirely in Rust and skips the JS handler; its
+`upstreams` may be omitted. `weighted_round_robin` uses smooth weighted round-robin; weights must be
 positive. `least_connections` selects the upstream with the fewest active
 requests. Route selection is implemented by the binding in `src/router.rs`, not
 by Pingora's `pingora-load-balancing` crate. That crate still has UDS gaps, so

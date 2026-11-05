@@ -20,7 +20,7 @@ use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 use x509_parser::prelude::FromDer;
 
-use crate::options::{RouteOptions, UpstreamOptions};
+use crate::options::{ResponseOptions, RouteOptions, UpstreamOptions};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Strategy {
@@ -78,6 +78,13 @@ pub enum UpstreamAddress {
 }
 
 #[derive(Debug, Clone)]
+pub struct StaticResponse {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Upstream {
     pub address: UpstreamAddress,
     pub tls: bool,
@@ -99,6 +106,7 @@ pub struct Route {
     pub methods: Vec<String>,
     pub match_headers: Vec<(HeaderName, String)>,
     pub upstreams: Vec<Upstream>,
+    pub respond: Option<StaticResponse>,
     pub strategy: Strategy,
     pub request_headers: Vec<(String, String)>,
     pub remove_request_headers: Vec<String>,
@@ -388,15 +396,18 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
     let remove_response_headers =
         parse_header_names(options.remove_response_headers, "removeResponseHeaders")?;
 
-    if options.upstreams.is_empty() {
-        return Err(format!("route `{id}` must have at least one upstream"));
-    }
-
+    let respond = options.respond.map(parse_response).transpose()?;
     let upstreams = options
         .upstreams
+        .unwrap_or_default()
         .into_iter()
         .map(parse_upstream)
         .collect::<Result<Vec<_>, _>>()?;
+    if upstreams.is_empty() && respond.is_none() {
+        return Err(format!(
+            "route `{id}` must have at least one upstream or a respond body"
+        ));
+    }
 
     let strategy = match options.strategy.as_deref().unwrap_or("round_robin") {
         "round_robin" => Strategy::RoundRobin,
@@ -426,6 +437,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
         methods,
         match_headers,
         upstreams,
+        respond,
         strategy,
         request_headers,
         remove_request_headers,
@@ -435,6 +447,24 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
         metrics: crate::state::Metrics::default(),
         counter: AtomicUsize::new(0),
         weighted: Mutex::new(vec![0; upstream_count]),
+    })
+}
+
+fn parse_response(options: ResponseOptions) -> Result<StaticResponse, String> {
+    let status = options.status.unwrap_or(200);
+    if http::StatusCode::from_u16(status).is_err() {
+        return Err(format!("invalid respond status {status}"));
+    }
+    let headers = parse_headers(options.headers, "respond.headers")?;
+    let body = match options.body {
+        Some(Either::A(text)) => text.into_bytes(),
+        Some(Either::B(buffer)) => buffer.to_vec(),
+        None => Vec::new(),
+    };
+    Ok(StaticResponse {
+        status,
+        headers,
+        body,
     })
 }
 
@@ -757,7 +787,8 @@ mod tests {
                 path_prefix: Some("/api".to_string()),
                 methods: Some(vec!["get".to_string()]),
                 match_headers: None,
-                upstreams: upstreams.into_iter().map(Either::A).collect(),
+                upstreams: Some(upstreams.into_iter().map(Either::A).collect()),
+                respond: None,
                 strategy: Some(strategy.to_string()),
                 request_headers: None,
                 remove_request_headers: None,
@@ -768,6 +799,39 @@ mod tests {
             "generated".to_string(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn static_response_route_needs_no_upstreams() {
+        let route = parse_route(
+            RouteOptions {
+                id: Some("static".to_string()),
+                host: None,
+                path: Some("/health".to_string()),
+                path_prefix: None,
+                methods: None,
+                match_headers: None,
+                upstreams: None,
+                respond: Some(ResponseOptions {
+                    status: Some(204),
+                    headers: None,
+                    body: None,
+                }),
+                strategy: None,
+                request_headers: None,
+                remove_request_headers: None,
+                response_headers: None,
+                remove_response_headers: None,
+                timeout_ms: None,
+            },
+            "generated".to_string(),
+        )
+        .unwrap();
+        assert!(route.upstreams.is_empty());
+        assert_eq!(
+            route.respond.as_ref().map(|response| response.status),
+            Some(204)
+        );
     }
 
     #[test]

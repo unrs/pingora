@@ -126,3 +126,47 @@ test('serves GET, POST, and rejects an over-limit body', async () => {
   })
   assert.equal(tooLarge.status, 413)
 })
+
+test('serves native routes without invoking the handler', async () => {
+  const port = await freePort()
+  let calls = 0
+  const app = createServer({
+    listen: port,
+    routes: [
+      {
+        path: '/native',
+        respond: { headers: { 'content-type': 'text/plain' }, body: 'native' },
+      },
+    ],
+    handler: () => {
+      calls += 1
+      return { body: 'js' }
+    },
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const native = await fetch(`http://127.0.0.1:${port}/native`)
+  assert.equal(native.status, 200)
+  assert.equal(native.headers.get('content-type'), 'text/plain')
+  assert.equal(await native.text(), 'native')
+  assert.equal(calls, 0)
+
+  const dynamic = await fetch(`http://127.0.0.1:${port}/dynamic`)
+  assert.equal(await dynamic.text(), 'js')
+  assert.equal(calls, 1)
+})
+
+test('starts with only native routes', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    routes: [{ path: '/native', respond: { body: 'native' } }],
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const response = await fetch(`http://127.0.0.1:${port}/native`)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'native')
+})

@@ -88,44 +88,54 @@ impl JsProxy {
             }
             "respond" => {
                 let status = decision.status.unwrap_or(200);
-                let is_head = session.req_header().method == http::Method::HEAD;
+                let headers = decision.headers.unwrap_or_default().into_iter().collect();
                 let body = match decision.body {
                     Some(Either::A(text)) => text.into_bytes(),
                     Some(Either::B(buffer)) => buffer.to_vec(),
                     None => Vec::new(),
                 };
-                let mut response = ResponseHeader::build(status, None)
-                    .map_err(|error| format!("invalid response: {error}"))?;
-                for (name, value) in decision.headers.unwrap_or_default() {
-                    response
-                        .insert_header(name, value)
-                        .map_err(|error| format!("invalid response header: {error}"))?;
-                }
-                if status != 204 && status != 304 {
-                    response
-                        .set_content_length(body.len())
-                        .map_err(|error| format!("invalid response body: {error}"))?;
-                }
-                session
-                    .write_response_header(Box::new(response), false)
-                    .await
-                    .map_err(|error| format!("failed to write response: {error}"))?;
-                // 205 framing is left to Pingora: cloudflare/pingora#1055.
-                let body = if is_head || matches!(status, 204 | 304) {
-                    None
-                } else {
-                    Some(Bytes::from(body))
-                };
-                session
-                    .write_response_body(body, true)
-                    .await
-                    .map_err(|error| format!("failed to write response body: {error}"))?;
-                Ok(true)
+                Self::write_response(session, status, headers, body).await
             }
             other => Err(format!(
                 "invalid request decision action `{other}` (expected continue, respond, or upstream)"
             )),
         }
+    }
+
+    async fn write_response(
+        session: &mut Session,
+        status: u16,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Result<bool, String> {
+        let is_head = session.req_header().method == http::Method::HEAD;
+        let mut response = ResponseHeader::build(status, None)
+            .map_err(|error| format!("invalid response: {error}"))?;
+        for (name, value) in headers {
+            response
+                .insert_header(name, value)
+                .map_err(|error| format!("invalid response header: {error}"))?;
+        }
+        if status != 204 && status != 304 {
+            response
+                .set_content_length(body.len())
+                .map_err(|error| format!("invalid response body: {error}"))?;
+        }
+        session
+            .write_response_header(Box::new(response), false)
+            .await
+            .map_err(|error| format!("failed to write response: {error}"))?;
+        // 205 framing is left to Pingora: cloudflare/pingora#1055.
+        let body = if is_head || matches!(status, 204 | 304) {
+            None
+        } else {
+            Some(Bytes::from(body))
+        };
+        session
+            .write_response_body(body, true)
+            .await
+            .map_err(|error| format!("failed to write response body: {error}"))?;
+        Ok(true)
     }
 
     async fn handler_failed(session: &mut Session, reason: &str) -> pingora::Result<bool> {
@@ -186,6 +196,16 @@ impl ProxyHttp for JsProxy {
         if let Some(route) = route.as_ref() {
             route.metrics.request_started();
             ctx.route = Some(route.clone());
+            if let Some(respond) = route.respond.as_ref() {
+                return Self::write_response(
+                    session,
+                    respond.status,
+                    respond.headers.clone(),
+                    respond.body.clone(),
+                )
+                .await
+                .map_err(|error| Error::explain(ErrorType::InternalError, error));
+            }
         }
 
         if let Some(handler) = self.state.handler() {
