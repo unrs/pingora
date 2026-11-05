@@ -27,13 +27,15 @@ if (!Number.isFinite(warmupMs) || warmupMs < 0) {
   )
 }
 
+type WorkloadName = 'plaintext' | 'json' | 'path-param'
+type Mode = 'native' | 'js' | 'in-process'
 type Target = {
   name: string
   service: string
   port: number
-  modes?: Record<string, string>
+  modes?: Partial<Record<WorkloadName, Exclude<Mode, 'in-process'>>>
 }
-type Workload = { name: string; path: string }
+type Workload = { name: WorkloadName; path: string }
 type LoadgenResult = {
   requests: number
   errors: number
@@ -237,7 +239,7 @@ function processRss(service: string): number | null {
   }
 }
 
-async function measure(service: string, workload: Workload, order: number, mode: string) {
+async function measure(service: string, workload: Workload, order: number, mode: Mode) {
   const path = cgroupPath(service)
   const before = cgroupUsage(path)
   const result = runLoadgen(`http://${service}:8080${workload.path}`)
@@ -290,7 +292,7 @@ async function main() {
         (_, index) => targets[(index + workloadIndex) % targets.length],
       )
       for (const [position, target] of order.entries()) {
-        const mode = target.modes?.[workload.name] ?? 'in-process'
+        const mode: Mode = target.modes?.[workload.name] ?? 'in-process'
         const measurement = await measure(target.service, workload, position, mode)
         byService.get(target.service)?.measurements.push(measurement)
       }
