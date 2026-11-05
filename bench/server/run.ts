@@ -187,11 +187,12 @@ function processRss(service: string): number | null {
   try {
     const id = dockerOutput('compose', '-f', compose, 'ps', '-q', service)
     if (!id) return null
-    const pid = Number(dockerOutput('inspect', '-f', '{{.State.Pid}}', id))
-    if (!Number.isInteger(pid) || pid <= 0) return null
-    const status = readFileSync(`/proc/${pid}/status`, 'utf8')
-    const match = /^VmRSS:\s+(\d+) kB/m.exec(status)
-    return match ? Number(match[1]) / 1024 : null
+    const rows = dockerOutput('top', id, '-eo', 'pid,rss,comm').split('\n').slice(1)
+    for (const row of rows) {
+      const match = /^\s*\d+\s+(\d+)\s+(.+)$/.exec(row)
+      if (match && /node/i.test(match[2])) return Number(match[1]) / 1024
+    }
+    return null
   } catch {
     return null
   }
