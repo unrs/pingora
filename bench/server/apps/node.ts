@@ -3,7 +3,9 @@ import http from 'node:http'
 const port = Number(process.env.PORT ?? 8080)
 
 const server = http.createServer((request, response) => {
-  const path = request.url ?? '/'
+  const rawPath = request.url ?? '/'
+  const queryStart = rawPath.indexOf('?')
+  const path = queryStart === -1 ? rawPath : rawPath.slice(0, queryStart)
   if (path === '/plaintext') {
     response.setHeader('content-type', 'text/plain')
     response.end('Hello, World!')
