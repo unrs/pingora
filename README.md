@@ -200,7 +200,7 @@ interface Upstream {
 ```
 
 A route with `respond` is served entirely in Rust and skips the JS handler; its
-`upstreams` may be omitted. `weighted_round_robin` uses smooth weighted round-robin; weights must be
+`upstreams` may be omitted and must not be combined with `respond`. `weighted_round_robin` uses smooth weighted round-robin; weights must be
 positive. `least_connections` selects the upstream with the fewest active
 requests. Route selection is implemented by the binding in `src/router.rs`, not
 by Pingora's `pingora-load-balancing` crate. That crate still has UDS gaps, so

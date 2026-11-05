@@ -404,6 +404,11 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
         .into_iter()
         .map(parse_upstream)
         .collect::<Result<Vec<_>, _>>()?;
+    if respond.is_some() && !upstreams.is_empty() {
+        return Err(format!(
+            "route `{id}` cannot combine respond with upstreams"
+        ));
+    }
     if upstreams.is_empty() && respond.is_none() {
         return Err(format!(
             "route `{id}` must have at least one upstream or a respond body"
@@ -453,7 +458,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
 
 fn parse_response(options: ResponseOptions) -> Result<StaticResponse, String> {
     let status = options.status.unwrap_or(200);
-    if status < 200 || http::StatusCode::from_u16(status).is_err() {
+    if !(200..=599).contains(&status) || http::StatusCode::from_u16(status).is_err() {
         return Err(format!("invalid respond status {status}"));
     }
     let headers = parse_headers(options.headers, "respond.headers")?;

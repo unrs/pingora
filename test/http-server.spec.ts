@@ -234,3 +234,56 @@ test('accepts thenables from another realm', async () => {
   await app.start()
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'vm')
 })
+
+
+test('serves native status, headers, binary body, and HEAD', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    routes: [
+      {
+        path: '/native',
+        respond: {
+          status: 201,
+          headers: { 'x-native': 'yes', 'content-type': 'application/octet-stream' },
+          body: Buffer.from([0, 1, 255]),
+        },
+      },
+    ],
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const response = await fetch(`http://127.0.0.1:${port}/native`)
+  assert.equal(response.status, 201)
+  assert.equal(response.headers.get('x-native'), 'yes')
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), Buffer.from([0, 1, 255]))
+
+  const head = await fetch(`http://127.0.0.1:${port}/native`, { method: 'HEAD' })
+  assert.equal(head.status, 201)
+  assert.equal(head.headers.get('content-length'), '3')
+  assert.equal(await head.text(), '')
+})
+
+test('rejects invalid native route configuration', async () => {
+  const port = await freePort()
+  assert.throws(
+    () => createServer({ listen: port }),
+    /requires a handler function or at least one route/,
+  )
+
+  const missingTarget = createServer({ listen: port, routes: [{ path: '/' }] })
+  await assert.rejects(missingTarget.start(), /at least one upstream or a respond body/)
+
+  const badStatus = createServer({
+    listen: port,
+    routes: [{ path: '/', respond: { status: 600 } }],
+  })
+  await assert.rejects(badStatus.start(), /invalid respond status/)
+
+  const both = createServer({
+    listen: port,
+    routes: [{ path: '/', respond: { body: 'ok' }, upstreams: ['127.0.0.1:1'] }],
+  })
+  await assert.rejects(both.start(), /cannot combine respond with upstreams/)
+})

@@ -42,7 +42,7 @@ interface ListenConfig {
 
 function isThenable(value: unknown): value is PromiseLike<HttpServerResponse> {
   return (
-    typeof value === 'object' &&
+    (typeof value === 'object' || typeof value === 'function') &&
     value !== null &&
     typeof (value as { then?: unknown }).then === 'function'
   )
