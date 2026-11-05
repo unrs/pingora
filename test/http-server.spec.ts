@@ -235,7 +235,6 @@ test('accepts thenables from another realm', async () => {
   assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'vm')
 })
 
-
 test('serves native status, headers, binary body, and HEAD', async () => {
   const port = await freePort()
   const app = createServer({

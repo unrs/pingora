@@ -227,7 +227,7 @@ function processRss(service: string): number | null {
   }
 }
 
-async function measure(service: string, workload: Workload, order: number) {
+async function measure(service: string, workload: Workload, order: number, mode: string) {
   const path = cgroupPath(service)
   const before = cgroupUsage(path)
   const result = runLoadgen(`http://${service}:8080${workload.path}`)
@@ -238,6 +238,7 @@ async function measure(service: string, workload: Workload, order: number) {
       : null
   return {
     workload: workload.name,
+    mode,
     order,
     requests: result.requests,
     errors: result.errors,
@@ -279,7 +280,13 @@ async function main() {
         (_, index) => targets[(index + workloadIndex) % targets.length],
       )
       for (const [position, target] of order.entries()) {
-        const measurement = await measure(target.service, workload, position)
+        const mode =
+          target.name === '@pingora/http-server'
+            ? workload.name === 'path-param'
+              ? 'js'
+              : 'native'
+            : 'in-process'
+        const measurement = await measure(target.service, workload, position, mode)
         byService.get(target.service)?.measurements.push(measurement)
       }
     }
