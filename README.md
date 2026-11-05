@@ -171,7 +171,7 @@ process-wide and happens on the first server start.
 interface Route {
   id?: string
   host?: string | string[] // exact, "*.example.com", or "*"
-  path?: string // exact path
+  path?: string // exact, `/users/:id`, or trailing `/files/*` (match only)
   pathPrefix?: string
   methods?: string[]
   matchHeaders?: Record<string, string>

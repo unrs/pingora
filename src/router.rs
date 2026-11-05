@@ -98,11 +98,99 @@ pub struct Upstream {
     pub health: Arc<UpstreamHealth>,
 }
 
+#[derive(Debug, Clone)]
+enum PathSegment {
+    Literal(String),
+    Param,
+    Wildcard,
+}
+
+#[derive(Debug, Clone)]
+pub struct PathPattern {
+    exact: Option<String>,
+    segments: Vec<PathSegment>,
+}
+
+impl PathPattern {
+    fn parse(value: String) -> Result<Self, String> {
+        if !value.contains(':') && !value.contains('*') {
+            return Ok(Self {
+                exact: Some(value),
+                segments: Vec::new(),
+            });
+        }
+        if !value.starts_with('/') {
+            return Err(format!("route path pattern `{value}` must start with `/`"));
+        }
+        let parts: Vec<&str> = value.split('/').collect();
+        let mut segments = Vec::with_capacity(parts.len());
+        let last = parts.len() - 1;
+        for (index, part) in parts.into_iter().enumerate() {
+            if index == 0 {
+                continue;
+            }
+            if part == "*" {
+                if index != last {
+                    return Err(format!(
+                        "route path pattern `{value}` has a non-trailing `*`"
+                    ));
+                }
+                segments.push(PathSegment::Wildcard);
+            } else if let Some(name) = part.strip_prefix(':') {
+                if name.is_empty() {
+                    return Err(format!(
+                        "route path pattern `{value}` has an empty parameter"
+                    ));
+                }
+                segments.push(PathSegment::Param);
+            } else if part.contains(':') || part.contains('*') {
+                return Err(format!(
+                    "route path pattern `{value}` has an invalid segment `{part}`"
+                ));
+            } else {
+                segments.push(PathSegment::Literal(part.to_string()));
+            }
+        }
+        Ok(Self {
+            exact: None,
+            segments,
+        })
+    }
+
+    fn matches(&self, path: &str) -> bool {
+        if let Some(exact) = &self.exact {
+            return path == exact;
+        }
+        let parts: Vec<&str> = path.split('/').collect();
+        if parts.first() != Some(&"") {
+            return false;
+        }
+        let mut index = 1;
+        for segment in &self.segments {
+            match segment {
+                PathSegment::Wildcard => return true,
+                PathSegment::Literal(expected) => {
+                    if parts.get(index) != Some(&expected.as_str()) {
+                        return false;
+                    }
+                }
+                PathSegment::Param => {
+                    if parts.get(index).is_none_or(|part| part.is_empty()) {
+                        return false;
+                    }
+                }
+            }
+            index += 1;
+        }
+        index == parts.len()
+    }
+}
+
 #[derive(Debug)]
 pub struct Route {
     pub id: String,
     pub hosts: Vec<HostPattern>,
-    pub path: Option<String>,
+    pub path: Option<PathPattern>,
     pub path_prefix: Option<String>,
     pub methods: Vec<String>,
     pub match_headers: Vec<(HeaderName, String)>,
@@ -126,7 +214,7 @@ impl Route {
         }
 
         if let Some(expected) = &self.path {
-            if path != expected {
+            if !expected.matches(path) {
                 return false;
             }
         }
@@ -438,7 +526,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
     Ok(Route {
         id,
         hosts,
-        path: options.path,
+        path: options.path.map(PathPattern::parse).transpose()?,
         path_prefix: options.path_prefix,
         methods,
         match_headers,
@@ -805,6 +893,43 @@ mod tests {
             "generated".to_string(),
         )
         .unwrap()
+    }
+
+    fn route_with_pattern(path: &str) -> Route {
+        parse_route(
+            RouteOptions {
+                id: Some("pattern".to_string()),
+                host: None,
+                path: Some(path.to_string()),
+                path_prefix: None,
+                methods: None,
+                match_headers: None,
+                upstreams: Some(vec![Either::A("127.0.0.1:9000".to_string())]),
+                respond: None,
+                strategy: None,
+                request_headers: None,
+                remove_request_headers: None,
+                response_headers: None,
+                remove_response_headers: None,
+                timeout_ms: None,
+            },
+            "generated".to_string(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn matches_path_parameters_and_trailing_wildcards() {
+        let user = route_with_pattern("/users/:id");
+        let get = |path: &str| RequestHeader::build("GET", path.as_bytes(), None).unwrap();
+        assert!(user.matches(&get("/users/42"), "example.com", "/users/42"));
+        assert!(!user.matches(&get("/users/"), "example.com", "/users/"));
+        assert!(!user.matches(&get("/users/42/extra"), "example.com", "/users/42/extra"));
+
+        let files = route_with_pattern("/files/*");
+        assert!(files.matches(&get("/files/"), "example.com", "/files/"));
+        assert!(files.matches(&get("/files/a/b"), "example.com", "/files/a/b"));
+        assert!(!files.matches(&get("/other/a"), "example.com", "/other/a"));
     }
 
     #[test]

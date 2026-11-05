@@ -61,6 +61,8 @@ by Node.js 12.20+; it avoids top-level await for that floor.
 }
 ```
 
+Route `path` patterns support `:param` segments and a trailing `*` for matching; captured values are not exposed or rewritten yet.
+
 Native routes can answer without entering JavaScript:
 
 ```js
@@ -89,7 +91,7 @@ Options:
 | Option | Default | Description |
 | --- | --- | --- |
 | `handler` | none | JS fallback; static routes bypass it, and upstream routes bypass it only when `handlerOnlyOnUnmatched` is true. |
-| `routes` | `[]` | Native static or upstream routes. |
+| `routes` | `[]` | Native static or upstream routes; `path` supports `:params` and a trailing `*`. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
 | `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. Native routes answer before reading the body; only declared `Content-Length` values are rejected up front. |
 | `unref` | `false` | Do not keep the Node.js process alive after `start()`. |
