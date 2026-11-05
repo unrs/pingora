@@ -216,37 +216,22 @@ impl ProxyHttp for JsProxy {
                 return Ok(false);
             }
             let body = if self.read_handler_body {
-                if session
-                    .req_header()
-                    .headers
-                    .get(http::header::EXPECT)
-                    .and_then(|value| value.to_str().ok())
-                    .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
-                {
-                    session.downstream_session.write_continue_response().await?;
-                }
-                let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
-                let deadline = Instant::now() + self.handler_timeout;
                 let mut body = Vec::new();
-                loop {
-                    let remaining = deadline.saturating_duration_since(Instant::now());
-                    if remaining.is_zero() {
-                        session
-                            .respond_error_with_body(
-                                408,
-                                Bytes::from_static(b"request body timeout"),
-                            )
-                            .await?;
-                        return Ok(true);
-                    }
-                    let chunk = match tokio::time::timeout(
-                        remaining,
-                        session.downstream_session.read_request_body(),
-                    )
-                    .await
+                if !session.downstream_session.is_body_empty() {
+                    if session
+                        .req_header()
+                        .headers
+                        .get(http::header::EXPECT)
+                        .and_then(|value| value.to_str().ok())
+                        .is_some_and(|value| value.eq_ignore_ascii_case("100-continue"))
                     {
-                        Ok(chunk) => chunk?,
-                        Err(_) => {
+                        session.downstream_session.write_continue_response().await?;
+                    }
+                    let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
+                    let deadline = Instant::now() + self.handler_timeout;
+                    loop {
+                        let remaining = deadline.saturating_duration_since(Instant::now());
+                        if remaining.is_zero() {
                             session
                                 .respond_error_with_body(
                                     408,
@@ -255,18 +240,35 @@ impl ProxyHttp for JsProxy {
                                 .await?;
                             return Ok(true);
                         }
-                    };
-                    let Some(chunk) = chunk else { break };
-                    if body.len() as u64 + chunk.len() as u64 > max {
-                        session
-                            .respond_error_with_body(
-                                413,
-                                Bytes::from_static(b"request body too large"),
-                            )
-                            .await?;
-                        return Ok(true);
+                        let chunk = match tokio::time::timeout(
+                            remaining,
+                            session.downstream_session.read_request_body(),
+                        )
+                        .await
+                        {
+                            Ok(chunk) => chunk?,
+                            Err(_) => {
+                                session
+                                    .respond_error_with_body(
+                                        408,
+                                        Bytes::from_static(b"request body timeout"),
+                                    )
+                                    .await?;
+                                return Ok(true);
+                            }
+                        };
+                        let Some(chunk) = chunk else { break };
+                        if body.len() as u64 + chunk.len() as u64 > max {
+                            session
+                                .respond_error_with_body(
+                                    413,
+                                    Bytes::from_static(b"request body too large"),
+                                )
+                                .await?;
+                            return Ok(true);
+                        }
+                        body.extend_from_slice(&chunk);
                     }
-                    body.extend_from_slice(&chunk);
                 }
                 Some(Buffer::from(body))
             } else {

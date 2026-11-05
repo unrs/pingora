@@ -286,3 +286,17 @@ test('rejects invalid native route configuration', async () => {
   })
   await assert.rejects(both.start(), /cannot combine respond with upstreams/)
 })
+
+test('passes an empty Buffer for bodyless requests', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: (request) => ({
+      body: request.body === undefined ? 'undefined' : `length:${request.body.length}`,
+    }),
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'length:0')
+})
