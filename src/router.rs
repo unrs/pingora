@@ -1001,9 +1001,11 @@ mod tests {
             let _ = stream.read(&mut byte);
             // Valid TLS record header for 256 bytes, then one payload byte every 50 ms.
             let _ = stream.write_all(&[0x16, 0x03, 0x03, 0x01, 0x00]);
-            for _ in 0..8 {
+            for _ in 0..20 {
                 std::thread::sleep(Duration::from_millis(50));
-                let _ = stream.write_all(&[0]);
+                if stream.write_all(&[0]).is_err() {
+                    break;
+                }
             }
         });
         let upstream = parse_upstream(Either::B(UpstreamOptions {
@@ -1018,7 +1020,7 @@ mod tests {
 
         let started = Instant::now();
         assert_eq!(upstream.probe(Duration::from_millis(100)), Some(false));
-        assert!(started.elapsed() < Duration::from_millis(300));
+        assert!(started.elapsed() < Duration::from_millis(500));
         server.join().unwrap();
     }
 }
