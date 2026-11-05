@@ -18,6 +18,12 @@ services:
       - "127.0.0.1:18107:8080"
     command: ["node", "bench/server/apps/http-server.ts"]
 
+  hybrid:
+    <<: *app
+    ports:
+      - "127.0.0.1:18108:8080"
+    command: ["node", "bench/server/apps/hybrid.ts"]
+
   node:
     <<: *app
     image: pingora-server-bench

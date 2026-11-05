@@ -4,7 +4,12 @@
     "noEmit": true,
     "types": [
       "node"
-    ]
+    ],
+    "paths": {
+      "pingora": [
+        "./index.d.ts"
+      ]
+    }
   },
   "include": [
     "tsdown.config.mts",

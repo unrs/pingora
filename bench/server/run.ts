@@ -28,7 +28,7 @@ if (!Number.isFinite(warmupMs) || warmupMs < 0) {
 }
 
 type WorkloadName = 'plaintext' | 'json' | 'path-param'
-type Mode = 'native' | 'js' | 'in-process'
+type Mode = 'native' | 'js' | 'proxy-js' | 'in-process'
 type Target = {
   name: string
   service: string
@@ -54,6 +54,12 @@ const targets: Target[] = [
   { name: 'nestjs', service: 'nestjs', port: 18104 },
   { name: 'hono', service: 'hono', port: 18105 },
   { name: 'elysia', service: 'elysia', port: 18106 },
+  {
+    name: 'hybrid (poc)',
+    service: 'hybrid',
+    port: 18108,
+    modes: { plaintext: 'native', json: 'native', 'path-param': 'proxy-js' },
+  },
   {
     name: '@pingora/http-server',
     service: 'http-server',

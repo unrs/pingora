@@ -26,7 +26,9 @@ p50/p95/p99 latency, CPU%, cgroup memory, and RSS from the container node proces
 `BENCH_SERVER_OUTPUT` writes the JSON to a file.
 
 Express and NestJS disable `ETag` and `X-Powered-By` so the response work stays
-comparable. The `@pingora/http-server` entry uses native routes for `/plaintext` and `/json`,
+comparable. The `hybrid (poc)` entry uses native routes for `/plaintext` and `/json`, then
+reverse-proxies `/users/:id` to an internal Node UDS server, showing the cost of
+the fallback hop. The `@pingora/http-server` entry uses native routes for `/plaintext` and `/json`,
 so those results measure the Rust response path. `/users/:id` uses the JS
 fallback and includes the Rust-to-Node bridge; that row is not a measurement of
 raw Pingora throughput.
