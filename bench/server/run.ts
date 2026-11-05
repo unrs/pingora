@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url'
 
 const compose = join(dirname(fileURLToPath(import.meta.url)), 'docker-compose.yml')
 const dockerBin = process.env.BENCH_SERVER_DOCKER ?? 'docker'
-const inCI = process.env.GITHUB_ACTIONS === 'true'
 const durationMs = Number(process.env.BENCH_SERVER_DURATION_MS ?? 2_000)
 const warmupMs = Number(process.env.BENCH_SERVER_WARMUP_MS ?? 500)
 const concurrency = positiveInteger(
@@ -242,7 +241,7 @@ async function main() {
       results.push({ target: target.name, service: target.service, measurements })
     }
   } finally {
-    if (!inCI) {
+    if (process.env.BENCH_SERVER_KEEP !== '1') {
       try {
         docker('compose', '-f', compose, 'down')
       } catch {}

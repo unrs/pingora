@@ -89,6 +89,9 @@ jobs:
       - name: Build server benchmark image
         run: docker build -f bench/server/Dockerfile -t pingora-server-bench .
 
+      - name: Server benchmark smoke
+        run: BENCH_SERVER_DURATION_MS=500 BENCH_SERVER_CONCURRENCY=4 BENCH_SERVER_WARMUP_MS=100 node bench/server/run.ts
+
       - name: Rust tests
         run: pnpm run test:rust
 
