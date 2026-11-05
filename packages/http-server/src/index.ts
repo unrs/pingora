@@ -1,7 +1,7 @@
 import net from 'net'
 
 import { Server } from 'pingora'
-import type { RequestView, RouteOptions, ServerOptions } from 'pingora'
+import type { RequestDecision, RequestView, RouteOptions, ServerOptions } from 'pingora'
 
 export interface HttpServerResponse {
   status?: number
@@ -126,10 +126,14 @@ export function createServer(
       maxRequestBodyBytes,
     })
     if (handler) {
-      native.setRequestHandler(async (request) => ({
-        ...(await handler(request)),
+      const respond = (response: HttpServerResponse): RequestDecision => ({
+        ...response,
         action: 'respond',
-      }))
+      })
+      native.setRequestHandler((request) => {
+        const response = handler(request)
+        return response instanceof Promise ? response.then(respond) : respond(response)
+      })
     }
     return native
   }
