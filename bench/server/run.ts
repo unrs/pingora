@@ -27,7 +27,12 @@ if (!Number.isFinite(warmupMs) || warmupMs < 0) {
   )
 }
 
-type Target = { name: string; service: string; port: number }
+type Target = {
+  name: string
+  service: string
+  port: number
+  modes?: Record<string, string>
+}
 type Workload = { name: string; path: string }
 type LoadgenResult = {
   requests: number
@@ -47,7 +52,12 @@ const targets: Target[] = [
   { name: 'nestjs', service: 'nestjs', port: 18104 },
   { name: 'hono', service: 'hono', port: 18105 },
   { name: 'elysia', service: 'elysia', port: 18106 },
-  { name: '@pingora/http-server', service: 'http-server', port: 18107 },
+  {
+    name: '@pingora/http-server',
+    service: 'http-server',
+    port: 18107,
+    modes: { plaintext: 'native', json: 'native', 'path-param': 'js' },
+  },
 ]
 const workloads: Workload[] = [
   { name: 'plaintext', path: '/plaintext' },
@@ -280,12 +290,7 @@ async function main() {
         (_, index) => targets[(index + workloadIndex) % targets.length],
       )
       for (const [position, target] of order.entries()) {
-        const mode =
-          target.name === '@pingora/http-server'
-            ? workload.name === 'path-param'
-              ? 'js'
-              : 'native'
-            : 'in-process'
+        const mode = target.modes?.[workload.name] ?? 'in-process'
         const measurement = await measure(target.service, workload, position, mode)
         byService.get(target.service)?.measurements.push(measurement)
       }

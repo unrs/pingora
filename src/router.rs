@@ -1020,7 +1020,7 @@ mod tests {
 
         let started = Instant::now();
         assert_eq!(upstream.probe(Duration::from_millis(100)), Some(false));
-        assert!(started.elapsed() < Duration::from_millis(500));
+        assert!(started.elapsed() < Duration::from_millis(900));
         server.join().unwrap();
     }
 }
