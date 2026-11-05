@@ -216,9 +216,8 @@ impl ProxyHttp for JsProxy {
                 return Ok(false);
             }
             let body = if self.read_handler_body {
-                if session.downstream_session.is_body_empty() {
-                    Some(Buffer::from(Vec::new()))
-                } else {
+                let mut body = Vec::new();
+                if !session.downstream_session.is_body_empty() {
                     if session
                         .req_header()
                         .headers
@@ -230,7 +229,6 @@ impl ProxyHttp for JsProxy {
                     }
                     let max = self.limits.max_request_body_bytes.unwrap_or(u64::MAX);
                     let deadline = Instant::now() + self.handler_timeout;
-                    let mut body = Vec::new();
                     loop {
                         let remaining = deadline.saturating_duration_since(Instant::now());
                         if remaining.is_zero() {
@@ -271,8 +269,8 @@ impl ProxyHttp for JsProxy {
                         }
                         body.extend_from_slice(&chunk);
                     }
-                    Some(Buffer::from(body))
                 }
+                Some(Buffer::from(body))
             } else {
                 None
             };
