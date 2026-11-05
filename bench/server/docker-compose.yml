@@ -16,50 +16,50 @@ services:
       dockerfile: bench/server/Dockerfile
     ports:
       - "127.0.0.1:18107:8080"
-    command: ["npx", "tsx", "bench/server/apps/http-server.ts"]
+    command: ["node", "bench/server/apps/http-server.ts"]
 
   node:
     <<: *app
     image: pingora-server-bench
     ports:
       - "127.0.0.1:18100:8080"
-    command: ["npx", "tsx", "bench/server/apps/node.ts"]
+    command: ["node", "bench/server/apps/node.ts"]
 
   express:
     <<: *app
     ports:
       - "127.0.0.1:18101:8080"
-    command: ["npx", "tsx", "bench/server/apps/express.ts"]
+    command: ["node", "bench/server/apps/express.ts"]
 
   fastify:
     <<: *app
     ports:
       - "127.0.0.1:18102:8080"
-    command: ["npx", "tsx", "bench/server/apps/fastify.ts"]
+    command: ["node", "bench/server/apps/fastify.ts"]
 
   koa:
     <<: *app
     ports:
       - "127.0.0.1:18103:8080"
-    command: ["npx", "tsx", "bench/server/apps/koa.ts"]
+    command: ["node", "bench/server/apps/koa.ts"]
 
   nestjs:
     <<: *app
     ports:
       - "127.0.0.1:18104:8080"
-    command: ["npx", "tsx", "bench/server/apps/nestjs.ts"]
+    command: ["node", "build/nestjs.js"]
 
   hono:
     <<: *app
     ports:
       - "127.0.0.1:18105:8080"
-    command: ["npx", "tsx", "bench/server/apps/hono.ts"]
+    command: ["node", "bench/server/apps/hono.ts"]
 
   elysia:
     <<: *app
     ports:
       - "127.0.0.1:18106:8080"
-    command: ["npx", "tsx", "bench/server/apps/elysia.ts"]
+    command: ["node", "bench/server/apps/elysia.ts"]
 
   loadgen:
     build: ../native/loadgen

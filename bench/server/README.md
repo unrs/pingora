@@ -26,5 +26,7 @@ p50/p95/p99 latency, CPU%, cgroup memory, and RSS;
 `BENCH_SERVER_OUTPUT` writes the JSON to a file.
 
 `@pingora/http-server` runs with one native thread. NestJS uses the default
-Express adapter. Elysia runs through `@elysiajs/node`; Bun-only Elysia numbers
+Express adapter; it is compiled with `tsc` at image build because decorators are
+not erasable TypeScript, while every other app runs directly with Node 24 type
+stripping. Elysia runs through `@elysiajs/node`; Bun-only Elysia numbers
 are deliberately not mixed into this table.
