@@ -97,7 +97,7 @@ impl JsProxy {
                     Some(Either::B(buffer)) => buffer.to_vec(),
                     None => Vec::new(),
                 };
-                Self::write_response(session, status, headers, body).await
+                Self::write_response(session, status, headers, Bytes::from(body)).await
             }
             other => Err(format!(
                 "invalid request decision action `{other}` (expected continue, respond, or upstream)"
@@ -109,7 +109,7 @@ impl JsProxy {
         session: &mut Session,
         status: u16,
         headers: Vec<(String, String)>,
-        body: Vec<u8>,
+        body: Bytes,
     ) -> Result<bool, String> {
         let is_head = session.req_header().method == http::Method::HEAD;
         let mut response = ResponseHeader::build(status, None)
@@ -132,7 +132,7 @@ impl JsProxy {
         let body = if is_head || matches!(status, 204 | 304) {
             None
         } else {
-            Some(Bytes::from(body))
+            Some(body)
         };
         session
             .write_response_body(body, true)
@@ -199,17 +199,15 @@ impl ProxyHttp for JsProxy {
         if let Some(route) = route.as_ref() {
             route.metrics.request_started();
             ctx.route = Some(route.clone());
-            if self.handler_only_on_unmatched || self.state.handler().is_none() {
-                if let Some(respond) = route.respond.as_ref() {
-                    return Self::write_response(
-                        session,
-                        respond.status,
-                        respond.headers.clone(),
-                        respond.body.clone(),
-                    )
-                    .await
-                    .map_err(|error| Error::explain(ErrorType::InternalError, error));
-                }
+            if let Some(respond) = route.respond.as_ref() {
+                return Self::write_response(
+                    session,
+                    respond.status,
+                    respond.headers.clone(),
+                    respond.body.clone(),
+                )
+                .await
+                .map_err(|error| Error::explain(ErrorType::InternalError, error));
             }
         }
 

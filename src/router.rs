@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use bytes::Bytes;
 use http::uri::Authority;
 use http::{HeaderName, HeaderValue, Method};
 use napi::bindgen_prelude::Either;
@@ -81,7 +82,7 @@ pub enum UpstreamAddress {
 pub struct StaticResponse {
     pub status: u16,
     pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
+    pub body: Bytes,
 }
 
 #[derive(Debug, Clone)]
@@ -457,9 +458,9 @@ fn parse_response(options: ResponseOptions) -> Result<StaticResponse, String> {
     }
     let headers = parse_headers(options.headers, "respond.headers")?;
     let body = match options.body {
-        Some(Either::A(text)) => text.into_bytes(),
-        Some(Either::B(buffer)) => buffer.to_vec(),
-        None => Vec::new(),
+        Some(Either::A(text)) => Bytes::from(text.into_bytes()),
+        Some(Either::B(buffer)) => Bytes::from(buffer.to_vec()),
+        None => Bytes::new(),
     };
     Ok(StaticResponse {
         status,
