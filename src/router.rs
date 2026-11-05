@@ -452,7 +452,7 @@ pub fn parse_route(options: RouteOptions, generated_id: String) -> Result<Route,
 
 fn parse_response(options: ResponseOptions) -> Result<StaticResponse, String> {
     let status = options.status.unwrap_or(200);
-    if http::StatusCode::from_u16(status).is_err() {
+    if status < 200 || http::StatusCode::from_u16(status).is_err() {
         return Err(format!("invalid respond status {status}"));
     }
     let headers = parse_headers(options.headers, "respond.headers")?;
@@ -832,6 +832,34 @@ mod tests {
             route.respond.as_ref().map(|response| response.status),
             Some(204)
         );
+    }
+
+    #[test]
+    fn rejects_informational_static_status() {
+        let result = parse_route(
+            RouteOptions {
+                id: Some("static".to_string()),
+                host: None,
+                path: Some("/health".to_string()),
+                path_prefix: None,
+                methods: None,
+                match_headers: None,
+                upstreams: None,
+                respond: Some(ResponseOptions {
+                    status: Some(100),
+                    headers: None,
+                    body: None,
+                }),
+                strategy: None,
+                request_headers: None,
+                remove_request_headers: None,
+                response_headers: None,
+                remove_response_headers: None,
+                timeout_ms: None,
+            },
+            "generated".to_string(),
+        );
+        assert!(result.is_err());
     }
 
     #[test]

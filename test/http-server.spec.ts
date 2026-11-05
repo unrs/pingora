@@ -5,7 +5,7 @@ import { onTestFinished, test } from 'vitest'
 import { Server } from '../index.js'
 
 import { createServer } from '@pingora/http-server'
-import { freePort } from './helpers.js'
+import { freePort, startUpstream } from './helpers.js'
 
 async function occupy(port: number): Promise<net.Server> {
   return new Promise((resolve, reject) => {
@@ -169,4 +169,30 @@ test('starts with only native routes', async () => {
   const response = await fetch(`http://127.0.0.1:${port}/native`)
   assert.equal(response.status, 200)
   assert.equal(await response.text(), 'native')
+})
+
+
+test('does not call the fallback handler for matched upstream routes', async () => {
+  const upstream = await startUpstream((_request, response) => response.end('upstream'))
+  onTestFinished(() => upstream.close())
+  const port = await freePort()
+  let calls = 0
+  const app = createServer({
+    listen: port,
+    routes: [{ path: '/proxy', upstreams: [`127.0.0.1:${upstream.port}`] }],
+    handler: () => {
+      calls += 1
+      return { body: 'js' }
+    },
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  const proxied = await fetch(`http://127.0.0.1:${port}/proxy`)
+  assert.equal(await proxied.text(), 'upstream')
+  assert.equal(calls, 0)
+
+  const fallback = await fetch(`http://127.0.0.1:${port}/other`)
+  assert.equal(await fallback.text(), 'js')
+  assert.equal(calls, 1)
 })

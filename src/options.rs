@@ -46,6 +46,9 @@ pub struct ServerOptions {
     /// Buffer the request body before calling the handler. The route cannot
     /// proxy after this option consumes the body; use it for direct responses.
     pub read_handler_body: Option<bool>,
+    /// Call the JS handler only when no native route matched. Defaults to false
+    /// so the proxy handler keeps seeing every request.
+    pub handler_only_on_unmatched: Option<bool>,
 }
 
 #[napi(object)]

@@ -121,6 +121,7 @@ export function createServer(
       ...serverOptions,
       listeners: [address],
       routes,
+      handlerOnlyOnUnmatched: true,
       readHandlerBody: typeof handler === 'function',
       maxRequestBodyBytes,
     })

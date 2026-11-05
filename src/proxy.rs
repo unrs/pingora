@@ -19,6 +19,7 @@ pub struct JsProxy {
     state: Arc<SharedState>,
     limits: Limits,
     read_handler_body: bool,
+    handler_only_on_unmatched: bool,
     handler_timeout: Duration,
 }
 
@@ -41,12 +42,14 @@ impl JsProxy {
         state: Arc<SharedState>,
         limits: Limits,
         read_handler_body: bool,
+        handler_only_on_unmatched: bool,
         handler_timeout: Duration,
     ) -> Self {
         Self {
             state,
             limits,
             read_handler_body,
+            handler_only_on_unmatched,
             handler_timeout,
         }
     }
@@ -209,6 +212,9 @@ impl ProxyHttp for JsProxy {
         }
 
         if let Some(handler) = self.state.handler() {
+            if self.handler_only_on_unmatched && ctx.route.is_some() {
+                return Ok(false);
+            }
             let body = if self.read_handler_body {
                 if session
                     .req_header()
