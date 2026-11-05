@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import net from 'node:net'
+import vm from 'node:vm'
 
 import { onTestFinished, test } from 'vitest'
 import { Server } from '../index.js'
@@ -195,4 +196,41 @@ test('does not call the fallback handler for matched upstream routes', async () 
   const fallback = await fetch(`http://127.0.0.1:${port}/other`)
   assert.equal(await fallback.text(), 'js')
   assert.equal(calls, 1)
+})
+
+
+test('keeps the handler for routes added at runtime to a handler-only server', async () => {
+  const upstream = await startUpstream((_request, response) => response.end('upstream'))
+  onTestFinished(() => upstream.close())
+  const port = await freePort()
+  let calls = 0
+  const app = createServer({
+    listen: port,
+    handler: () => {
+      calls += 1
+      return { body: 'js' }
+    },
+  })
+  onTestFinished(() => app.close())
+  app.server.addRoute({ path: '/runtime', upstreams: [`127.0.0.1:${upstream.port}`] })
+
+  await app.start()
+  const response = await fetch(`http://127.0.0.1:${port}/runtime`)
+  assert.equal(await response.text(), 'js')
+  assert.equal(calls, 1)
+})
+
+test('accepts thenables from another realm', async () => {
+  const port = await freePort()
+  const app = createServer({
+    listen: port,
+    handler: () =>
+      vm.runInNewContext('Promise.resolve({ body: "vm" })') as PromiseLike<{
+        body: string
+      }>,
+  })
+  onTestFinished(() => app.close())
+
+  await app.start()
+  assert.equal(await (await fetch(`http://127.0.0.1:${port}/`)).text(), 'vm')
 })

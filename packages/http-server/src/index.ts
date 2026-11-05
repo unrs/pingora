@@ -10,7 +10,7 @@ export interface HttpServerResponse {
 }
 
 export interface HttpServerOptions {
-  handler?: (request: RequestView) => HttpServerResponse | Promise<HttpServerResponse>
+  handler?: (request: RequestView) => HttpServerResponse | PromiseLike<HttpServerResponse>
   /** Native routes; matching responses skip the JS handler. */
   routes?: RouteOptions[]
   listen?: string | number
@@ -38,6 +38,14 @@ interface ListenConfig {
   address: string
   connect: net.NetConnectOpts
   url: string
+}
+
+function isThenable(value: unknown): value is PromiseLike<HttpServerResponse> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  )
 }
 
 function formatUrlHost(host: string): string {
@@ -121,7 +129,8 @@ export function createServer(
       ...serverOptions,
       listeners: [address],
       routes,
-      handlerOnlyOnUnmatched: true,
+      handlerOnlyOnUnmatched:
+        serverOptions.handlerOnlyOnUnmatched ?? routes.length > 0,
       readHandlerBody: typeof handler === 'function',
       maxRequestBodyBytes,
     })
@@ -132,7 +141,8 @@ export function createServer(
       })
       native.setRequestHandler((request) => {
         const response = handler(request)
-        return response instanceof Promise ? response.then(respond) : respond(response)
+        if (isThenable(response)) return Promise.resolve(response).then(respond)
+        return respond(response)
       })
     }
     return native

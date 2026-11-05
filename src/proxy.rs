@@ -199,15 +199,17 @@ impl ProxyHttp for JsProxy {
         if let Some(route) = route.as_ref() {
             route.metrics.request_started();
             ctx.route = Some(route.clone());
-            if let Some(respond) = route.respond.as_ref() {
-                return Self::write_response(
-                    session,
-                    respond.status,
-                    respond.headers.clone(),
-                    respond.body.clone(),
-                )
-                .await
-                .map_err(|error| Error::explain(ErrorType::InternalError, error));
+            if self.handler_only_on_unmatched || self.state.handler().is_none() {
+                if let Some(respond) = route.respond.as_ref() {
+                    return Self::write_response(
+                        session,
+                        respond.status,
+                        respond.headers.clone(),
+                        respond.body.clone(),
+                    )
+                    .await
+                    .map_err(|error| Error::explain(ErrorType::InternalError, error));
+                }
             }
         }
 
