@@ -24,9 +24,9 @@ per-request file reads. Access logging is disabled for the proxies.
 nginx/OpenResty use four workers, HAProxy uses `nbthread 4`, and Pingora uses
 `BENCH_NATIVE_THREADS` (default `min(4, availableParallelism)`).
 
-This harness is not a replacement for a native load generator. It reports Node
-client throughput and p50/p99 latency; CPU/RSS and external load-generator
-numbers still need to be captured for the published report.
+The Go load generator reports throughput and p50/p99 latency. The runner also
+reports target cgroup CPU and memory when available; process RSS and external
+load-generator resource numbers still need separate capture.
 
 
 ## pingap

@@ -52,9 +52,13 @@ pull request with a changeset
 ```
 
 The workflow checks the npm registry directly rather than comparing git tags or
-commits. That makes the check safe to retry after a failed run:
+commits. This prevents publishing an existing version twice, but it does not
+repair a partial publish: npm publication can succeed before tag or GitHub
+release creation fails. If that happens, create the missing tag/release manually
+and verify provenance; do not bump the version again.
 
-- if the version is already on npm, nothing is published again;
+- if the version is already on npm, publication is skipped (a missing tag/release
+  is not recreated);
 - if a previous run failed before publishing, the next push to `main` tries
   again.
 
