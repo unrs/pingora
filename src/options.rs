@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use napi::bindgen_prelude::Either;
+use napi::bindgen_prelude::{Buffer, Either};
 use napi_derive::napi;
 
 #[napi(object)]
@@ -46,6 +46,9 @@ pub struct ServerOptions {
     /// Buffer the request body before calling the handler. The route cannot
     /// proxy after this option consumes the body; use it for direct responses.
     pub read_handler_body: Option<bool>,
+    /// Call the JS handler only when no native route matched. Defaults to false
+    /// so the proxy handler keeps seeing every request.
+    pub handler_only_on_unmatched: Option<bool>,
 }
 
 #[napi(object)]
@@ -64,8 +67,11 @@ pub struct RouteOptions {
     /// Headers that must all be present with the given values.
     pub match_headers: Option<HashMap<String, String>>,
     /// Upstreams; strings accept `IP:port`, `http://IP[:port]`, or
-    /// `https://IP[:port]`. Hostnames must be resolved by the caller.
-    pub upstreams: Vec<Either<String, UpstreamOptions>>,
+    /// `https://IP[:port]`. Hostnames must be resolved by the caller. Empty
+    /// when `respond` is set.
+    pub upstreams: Option<Vec<Either<String, UpstreamOptions>>>,
+    /// Static response; matching requests skip the JS handler and upstreams.
+    pub respond: Option<ResponseOptions>,
     /// `round_robin` (default), `weighted_round_robin`, `least_connections`,
     /// `random`, or `first`.
     pub strategy: Option<String>,
@@ -79,6 +85,16 @@ pub struct RouteOptions {
     pub remove_response_headers: Option<Vec<String>>,
     /// Connect, read, and write timeout for this route's upstreams, in ms.
     pub timeout_ms: Option<u32>,
+}
+
+#[napi(object)]
+pub struct ResponseOptions {
+    /// Response status; defaults to 200.
+    pub status: Option<u16>,
+    /// Response headers.
+    pub headers: Option<HashMap<String, String>>,
+    /// Response body; a string or Buffer.
+    pub body: Option<Either<String, Buffer>>,
 }
 
 #[napi(object)]

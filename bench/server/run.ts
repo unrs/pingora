@@ -27,8 +27,15 @@ if (!Number.isFinite(warmupMs) || warmupMs < 0) {
   )
 }
 
-type Target = { name: string; service: string; port: number }
-type Workload = { name: string; path: string }
+type WorkloadName = 'plaintext' | 'json' | 'path-param'
+type Mode = 'native' | 'js' | 'in-process'
+type Target = {
+  name: string
+  service: string
+  port: number
+  modes?: Partial<Record<WorkloadName, Exclude<Mode, 'in-process'>>>
+}
+type Workload = { name: WorkloadName; path: string }
 type LoadgenResult = {
   requests: number
   errors: number
@@ -47,7 +54,12 @@ const targets: Target[] = [
   { name: 'nestjs', service: 'nestjs', port: 18104 },
   { name: 'hono', service: 'hono', port: 18105 },
   { name: 'elysia', service: 'elysia', port: 18106 },
-  { name: '@pingora/http-server', service: 'http-server', port: 18107 },
+  {
+    name: '@pingora/http-server',
+    service: 'http-server',
+    port: 18107,
+    modes: { plaintext: 'native', json: 'native', 'path-param': 'js' },
+  },
 ]
 const workloads: Workload[] = [
   { name: 'plaintext', path: '/plaintext' },
@@ -227,7 +239,7 @@ function processRss(service: string): number | null {
   }
 }
 
-async function measure(service: string, workload: Workload, order: number) {
+async function measure(service: string, workload: Workload, order: number, mode: Mode) {
   const path = cgroupPath(service)
   const before = cgroupUsage(path)
   const result = runLoadgen(`http://${service}:8080${workload.path}`)
@@ -238,6 +250,7 @@ async function measure(service: string, workload: Workload, order: number) {
       : null
   return {
     workload: workload.name,
+    mode,
     order,
     requests: result.requests,
     errors: result.errors,
@@ -279,7 +292,8 @@ async function main() {
         (_, index) => targets[(index + workloadIndex) % targets.length],
       )
       for (const [position, target] of order.entries()) {
-        const measurement = await measure(target.service, workload, position)
+        const mode: Mode = target.modes?.[workload.name] ?? 'in-process'
+        const measurement = await measure(target.service, workload, position, mode)
         byService.get(target.service)?.measurements.push(measurement)
       }
     }

@@ -61,15 +61,39 @@ by Node.js 12.20+; it avoids top-level await for that floor.
 }
 ```
 
+Native routes can answer without entering JavaScript:
+
+```js
+const app = createServer({
+  routes: [
+    {
+      path: '/health',
+      respond: { status: 200, body: 'ok' },
+    },
+  ],
+  handler: async (request) => ({ body: request.path }),
+})
+```
+
+Static `respond` routes always write the native response before the handler and
+cannot be combined with `upstreams`.
+Upstream routes skip the handler only when `server.handlerOnlyOnUnmatched` is
+true; otherwise the handler runs and can override them. The facade sets that
+option to `true` when initial `routes` are configured and to `false` for a
+handler-only server. If routes are added at runtime to a handler-only server,
+set `server.handlerOnlyOnUnmatched: true` to opt them into the native fast path.
+The handler may be omitted when every route is native.
+
 Options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `handler` | required | Direct request handler. |
+| `handler` | none | JS fallback; static routes bypass it, and upstream routes bypass it only when `handlerOnlyOnUnmatched` is true. |
+| `routes` | `[]` | Native static or upstream routes. |
 | `listen` | `127.0.0.1:8080` | TCP `host:port` or `unix:/path`. |
-| `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. |
+| `maxRequestBodyBytes` | `1048576` | Buffered request-body limit. Native routes answer before reading the body; only declared `Content-Length` values are rejected up front. |
 | `unref` | `false` | Do not keep the Node.js process alive after `start()`. |
-| `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`). |
+| `server` | none | Remaining `pingora` `ServerOptions`, including `handlerTimeoutMs` (default `1000`) and `handlerOnlyOnUnmatched` (defaults to `true` when `routes` is non-empty). |
 
 The returned object exposes:
 

@@ -60,9 +60,9 @@ jobs:
             echo
             echo 'Host: `'$(jq -c '.host' server-benchmark.json)'`'
             echo
-            echo '| target | workload | req/s | p50 (ms) | p95 (ms) | p99 (ms) | cpu% | cgroup memory (MiB) | RSS (MiB) |'
-            echo '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |'
-            jq -r '.results[] | .target as $target | .measurements[] | "| \($target) | \(.workload) | \(.rps) | \(.p50Ms) | \(.p95Ms) | \(.p99Ms) | \(.cpuPercent // "n/a") | \(.memoryMiB // "n/a") | \(.rssMiB // "n/a") |"' server-benchmark.json
+            echo '| target | mode | workload | req/s | p50 (ms) | p95 (ms) | p99 (ms) | cpu% | cgroup memory (MiB) | RSS (MiB) |'
+            echo '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |'
+            jq -r '.results[] | .target as $target | .measurements[] | "| \($target) | \(.mode) | \(.workload) | \(.rps) | \(.p50Ms) | \(.p95Ms) | \(.p99Ms) | \(.cpuPercent // "n/a") | \(.memoryMiB // "n/a") | \(.rssMiB // "n/a") |"' server-benchmark.json
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Stop containers

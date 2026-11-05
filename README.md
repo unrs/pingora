@@ -69,6 +69,7 @@ minor before removal.
 | `logFormat`                  | `"text" \| "json"` | Log format. Defaults to `text`.                  |
 | `handlerTimeoutMs`           | `number`   | Request handler timeout. Defaults to `1000`.             |
 | `readHandlerBody`            | `boolean`  | Buffer the request body for the handler; requires `maxRequestBodyBytes` and the route must respond. Defaults to `false`. |
+| `handlerOnlyOnUnmatched`     | `boolean`  | Call the JS handler only when no native route matched. Defaults to `false`. |
 | `healthCheckIntervalMs`      | `number`   | Active plain-TCP, TLS, and Unix-socket (Unix only) probe interval; `0` disables. Defaults to `0`. |
 | `maxRequestHeaders`         | `number`   | Maximum request header count; excess requests get `431`. |
 | `maxRequestHeaderBytes`     | `number`   | Maximum total header name+value bytes; excess gets `431`. |
@@ -174,7 +175,12 @@ interface Route {
   pathPrefix?: string
   methods?: string[]
   matchHeaders?: Record<string, string>
-  upstreams: Array<string | Upstream>
+  upstreams?: Array<string | Upstream>
+  respond?: {
+    status?: number
+    headers?: Record<string, string>
+    body?: string | Buffer
+  }
   strategy?: 'round_robin' | 'weighted_round_robin' | 'least_connections' | 'random' | 'first'
   requestHeaders?: Record<string, string>
   removeRequestHeaders?: string[]
@@ -193,7 +199,8 @@ interface Upstream {
 }
 ```
 
-`weighted_round_robin` uses smooth weighted round-robin; weights must be
+A route with `respond` is served entirely in Rust and skips the JS handler; its
+`upstreams` may be omitted and must not be combined with `respond`. `weighted_round_robin` uses smooth weighted round-robin; weights must be
 positive. `least_connections` selects the upstream with the fewest active
 requests. Route selection is implemented by the binding in `src/router.rs`, not
 by Pingora's `pingora-load-balancing` crate. That crate still has UDS gaps, so
